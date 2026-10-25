@@ -1,0 +1,14 @@
+/* The ledger grows over a bottom-anchored chart, like a parchment shutter. */
+.trade-mode .facility-panel{padding-bottom:6px}
+.market-chart-drawer{--market-chart-height:160px;--market-chart-handle-height:18px;--market-chart-duration:2000ms;position:relative;flex:none;height:calc(var(--market-chart-height) + var(--market-chart-handle-height));margin-top:4px;overflow:hidden}
+.market-chart-drawer.is-ready{transition:height var(--market-chart-duration) cubic-bezier(.45,0,.55,1)}
+.market-chart-drawer.is-closed{height:var(--market-chart-handle-height)}
+.trade-mode .market-chart-handle{position:absolute;z-index:2;inset:0 0 auto;width:100%;height:var(--market-chart-handle-height);margin:0;padding:0!important;border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none;filter:none}
+.market-chart-handle::before,.market-chart-handle::after{content:'';position:absolute;left:0;right:0;top:7px;height:1px;background:#806036}
+.market-chart-handle::after{top:10px}
+.market-chart-handle:hover::before,.market-chart-handle:hover::after{background:#5d4126}
+.market-chart-handle:focus-visible{outline:1px solid #806036;outline-offset:-2px}
+.market-chart-reveal{position:absolute;inset:var(--market-chart-handle-height) 0 0;overflow:hidden}
+.market-chart-drawer .market-chart{position:absolute;inset:auto 0 0;width:100%;height:var(--market-chart-height);margin:0;padding:0;border:0}
+.market-chart-drawer .market-line-chart{width:100%;height:100%;overflow:visible}
+@media(prefers-reduced-motion:reduce){.market-chart-drawer.is-ready{transition:none}}
