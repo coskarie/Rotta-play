@@ -1,0 +1,10 @@
+.departure-zoom-blur{
+ position:absolute;inset:11px;z-index:6;pointer-events:none;
+ opacity:var(--departure-blur-opacity,0);
+ backdrop-filter:blur(var(--departure-blur,0px));
+ -webkit-backdrop-filter:blur(var(--departure-blur,0px));
+ mask-image:radial-gradient(ellipse at center,transparent 0 36%,#0004 62%,#000 95%);
+ -webkit-mask-image:radial-gradient(ellipse at center,transparent 0 36%,#0004 62%,#000 95%);
+}
+.departure-zoom-blur[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){.departure-zoom-blur{display:none!important}}

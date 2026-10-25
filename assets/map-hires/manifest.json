@@ -1,0 +1,135 @@
+{
+  "version": 6,
+  "textureVersion": "bosphorus-coast-v6-10227819",
+  "generator": {
+    "name": "tools/build_relief_hires_map_tiles.py",
+    "version": 3,
+    "deterministicSeed": 1543
+  },
+  "source": {
+    "path": "tools/assets/world-map-underlay-aligned-realesrgan-x4-v4.webp",
+    "width": 6144,
+    "height": 4096,
+    "sha256": "10227819f9cb076e523ca16c5a97ad9c567381e711687e90ac0cdfbdf6085898",
+    "role": "tile-build-input",
+    "lowResolutionProvenance": {
+      "path": "dist/assets/world-map-underlay-aligned.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "6b981e6a779f70d28c3ce8ddf5b12062931b940d8de9135daa7445fa13efcae5"
+    },
+    "superResolution": {
+      "model": "RealESRGAN_x4plus",
+      "modelId": "realesrgan-x4plus",
+      "scale": 4,
+      "projectUrl": "https://github.com/xinntao/Real-ESRGAN",
+      "projectVersion": "v0.2.5.0 (realesrgan-ncnn-vulkan 20220424)"
+    }
+  },
+  "localizedPatch": {
+    "name": "Bosphorus European-shore cleanup",
+    "script": "tools/apply_bosphorus_coast_cleanup.py",
+    "sourceBox": [3516, 1226, 3568, 1264],
+    "geometry": "localized raster, collision mask, and coastline-vector correction; port coordinates unchanged"
+  },
+  "textureSource": {
+    "path": "tools/assets/source-parchment-microtexture.png",
+    "sha256": "57f648f32d53356a29cd095ec169bda557331684e99e2c5b63cfb4d97ad0be59",
+    "blend": "luminance-high-pass-only"
+  },
+  "reliefSource": {
+    "dataset": "Natural Earth 1:10m Shaded Relief",
+    "version": "3.2.0",
+    "width": 21600,
+    "height": 10800,
+    "sha256": "18d7e9171f860abd1108a5ac064946d15ad9b5b68d0644e97194e47ee4e93f5a",
+    "download": "https://naturalearth.s3.amazonaws.com/10m_raster/SR_HR.zip",
+    "license": "public domain",
+    "role": "Mercator-reprojected luminance detail for d10; coastline unchanged"
+  },
+  "oceanSource": {
+    "dataset": "Natural Earth 1:10m Ocean Bottom",
+    "version": "3.2.0",
+    "width": 16200,
+    "height": 8100,
+    "sha256": "ae31216b0a79fa62bc80a8a66337b9a490a90ff35a4d4f3fdd8d6c8f8a52d47b",
+    "download": "https://naturalearth.s3.amazonaws.com/10m_raster/OB_LR.zip",
+    "license": "public domain",
+    "role": "Mercator-reprojected restrained high-pass detail for d10 water; navigation lines unchanged"
+  },
+  "worldWidth": 3072,
+  "worldHeight": 2048,
+  "tileSize": 1024,
+  "format": "webp",
+  "quality": 90,
+  "processing": {
+    "geometry": "unaltered; exact 3072x2048 world extent; linear pixel-to-world mapping",
+    "resample": "lanczos",
+    "sharpen": "luminance-only-unsharp-mask",
+    "texture": "zero-mean-high-pass-plus-deterministic-fine-grain",
+    "topLevelRelief": "Natural Earth 1:10m land and ocean relief reprojected to D3 Mercator and clipped by the authoritative manual coast mask"
+  },
+  "levels": [
+    {
+      "id": "d1",
+      "density": 1,
+      "width": 3072,
+      "height": 2048,
+      "tileSize": 1024,
+      "cols": 3,
+      "rows": 2,
+      "tileCount": 6,
+      "bytes": 1983130,
+      "minZoom": 1.0,
+      "maxZoom": 1.24,
+      "urlTemplate": "assets/map-hires/d1/{x}_{y}.webp"
+    },
+    {
+      "id": "d2",
+      "density": 2,
+      "width": 6144,
+      "height": 4096,
+      "tileSize": 1024,
+      "cols": 6,
+      "rows": 4,
+      "tileCount": 24,
+      "bytes": 5030460,
+      "minZoom": 1.2,
+      "maxZoom": 2.49,
+      "urlTemplate": "assets/map-hires/d2/{x}_{y}.webp"
+    },
+    {
+      "id": "d4",
+      "density": 4,
+      "width": 12288,
+      "height": 8192,
+      "tileSize": 1024,
+      "cols": 12,
+      "rows": 8,
+      "tileCount": 96,
+      "bytes": 10280374,
+      "minZoom": 2.4,
+      "maxZoom": 4.99,
+      "urlTemplate": "assets/map-hires/d4/{x}_{y}.webp"
+    },
+    {
+      "id": "d10",
+      "density": 10,
+      "width": 30720,
+      "height": 20480,
+      "tileSize": 1024,
+      "cols": 30,
+      "rows": 20,
+      "tileCount": 600,
+      "bytes": 49553832,
+      "quality": 91,
+      "minZoom": 4.8,
+      "maxZoom": 10.0,
+      "urlTemplate": "assets/map-hires/d10/{x}_{y}.webp"
+    }
+  ],
+  "totals": {
+    "tileCount": 726,
+    "bytes": 66847796
+  }
+}

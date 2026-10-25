@@ -1,0 +1,25 @@
+.port-transition[hidden]{display:none}
+.port-transition{position:fixed;inset:0;z-index:250;isolation:isolate;overflow:hidden;background:#160f09;color:#e8d8aa;opacity:1;outline:none;animation:portTransitionAppear .1s ease-out both}
+.port-transition:before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,#170e0933,transparent 34%,#1a100a22 60%,#130b08eb),radial-gradient(ellipse at center,transparent 25%,#170e096e);box-shadow:inset 0 0 0 5px #352416,inset 0 0 0 6px #96713b88}
+.port-transition:after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;opacity:.045;background:url('assets/map-grain.webp?v=38') repeat}
+.port-transition img{display:none;position:absolute;width:100%;height:100%;object-fit:cover;object-position:center 46%;animation:portTransitionImage 3s ease-out both}
+.port-transition[data-scene="depart"] [data-transition-scene="depart"],.port-transition[data-scene="arrive"] [data-transition-scene="arrive"]{display:block}
+.port-transition-caption{position:absolute;z-index:3;left:clamp(28px,6vw,100px);right:clamp(28px,6vw,100px);bottom:clamp(35px,7vh,80px)}
+.port-transition-caption>span{font-family:inherit;font-size:clamp(19px,2vw,28px);font-weight:400;letter-spacing:.18em;text-shadow:0 2px 7px #120905}
+.port-transition-track{height:2px;margin-top:18px;overflow:hidden;background:#bca57338}
+.port-transition-track i{display:block;width:100%;height:100%;background:linear-gradient(90deg,#725233,#c0a372);transform-origin:left;animation:portTransitionProgress 3s linear both}
+.port-transition-black{position:absolute;inset:0;z-index:4;background:#000;opacity:0;transition:opacity .25s ease-in;pointer-events:none}
+.port-transition[data-phase="fading"] .port-transition-black,.port-transition[data-phase="black"] .port-transition-black,.port-transition[data-phase="reveal"] .port-transition-black{opacity:1}
+.port-transition[data-phase="black"] .port-transition-black,.port-transition[data-phase="reveal"] .port-transition-black{transition:none}
+.port-transition-compass{position:absolute;z-index:5;right:clamp(24px,4vw,60px);bottom:clamp(24px,5vh,54px);width:52px;height:52px;color:#b59a62;visibility:hidden;opacity:0;pointer-events:none}
+.port-transition-compass svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:.8}
+.port-transition[data-phase="black"] .port-transition-compass{visibility:visible;opacity:1}
+.port-transition[data-phase="black"] .compass-rose{transform-origin:32px 32px;animation:portTransitionCompass 2s linear infinite}
+.port-transition.is-leaving{animation:portTransitionLeave .18s ease-in both}
+body.port-transitioning{cursor:wait}
+@keyframes portTransitionAppear{from{opacity:0}to{opacity:1}}
+@keyframes portTransitionLeave{from{opacity:1}to{opacity:0}}
+@keyframes portTransitionImage{from{transform:scale(1.015)}to{transform:scale(1)}}
+@keyframes portTransitionProgress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes portTransitionCompass{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.port-transition,.port-transition.is-leaving,.port-transition img,.port-transition[data-phase="black"] .compass-rose{animation:none}.port-transition-black{transition:none}}

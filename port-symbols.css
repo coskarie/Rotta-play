@@ -1,0 +1,12 @@
+.port-symbol{--sigil-weight:1;color:#dbc18a;fill:none;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:2}
+.port-symbol[data-symbol-kind="harbor"]{--sigil-weight:1.25}
+.port-symbol .port-sigil-mass{fill:#503b26;stroke:#ceb078;stroke-width:calc(1.45px * var(--sigil-weight))}
+.port-symbol .port-sigil-line{fill:none;stroke:#e0c58b;stroke-width:calc(1.65px * var(--sigil-weight))}
+.port-symbol[data-symbol-kind="harbor"]{shape-rendering:geometricPrecision}
+.port-symbol .port-symbol-ink .port-sigil-anchor{fill:#503b26;stroke:none}
+.port-symbol .port-symbol-outline .port-sigil-anchor{fill:#fff;stroke:#fff;stroke-width:1.8px;stroke-linejoin:miter;stroke-miterlimit:3}
+.port-symbol .port-sigil-roof{fill:none;stroke:#e0c58b;stroke-width:calc(1.2px * var(--sigil-weight))}
+.port-symbol .port-sigil-cut{fill:#241b13;stroke:#bc9b62;stroke-width:calc(1.1px * var(--sigil-weight))}
+.port-symbol .port-symbol-outline .port-sigil-mass{fill:#fff;stroke:#fff;stroke-width:calc(1.45px * var(--sigil-weight) + 2.2px)}
+.port-symbol .port-symbol-outline .port-sigil-line{fill:none;stroke:#fff;stroke-width:calc(1.65px * var(--sigil-weight) + 2.2px)}
+.sea-port.inland .port-symbol{color:#dac799}

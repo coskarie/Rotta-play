@@ -1,0 +1,30 @@
+{
+  "dataset": "Natural Earth 1:10m Shaded Relief",
+  "version": "3.2.0",
+  "sourcePixels": [
+    21600,
+    10800
+  ],
+  "sourceSha256": "18d7e9171f860abd1108a5ac064946d15ad9b5b68d0644e97194e47ee4e93f5a",
+  "download": "https://naturalearth.s3.amazonaws.com/10m_raster/SR_HR.zip",
+  "license": "public domain",
+  "projection": "inverse D3 Mercator into ROTTA world",
+  "coastAuthority": "dist/assets/image-coast-mask.bin",
+  "oceanDataset": "Natural Earth 1:10m Ocean Bottom",
+  "oceanVersion": "3.2.0",
+  "oceanSourcePixels": [
+    16200,
+    8100
+  ],
+  "oceanSourceSha256": "ae31216b0a79fa62bc80a8a66337b9a490a90ff35a4d4f3fdd8d6c8f8a52d47b",
+  "oceanDownload": "https://naturalearth.s3.amazonaws.com/10m_raster/OB_LR.zip",
+  "baseSource": "tools/assets/world-map-underlay-aligned-realesrgan-x4-v4.webp",
+  "baseProvenance": "dist/assets/world-map-underlay-aligned.png",
+  "localizedPatch": {
+    "name": "Bosphorus European-shore cleanup",
+    "script": "tools/apply_bosphorus_coast_cleanup.py",
+    "sourceBox": [3516, 1226, 3568, 1264]
+  },
+  "tilesBuilt": 600,
+  "bytes": 49553832
+}

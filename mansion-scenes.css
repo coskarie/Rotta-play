@@ -1,0 +1,27 @@
+.port-scene[data-mansion-style="portugal"]{--mansion-image:var(--mansion-portugal,url('assets/mansions/portugal.png'))}
+.port-scene[data-mansion-style="spain"]{--mansion-image:var(--mansion-spain,url('assets/mansions/spain.png'))}
+.port-scene[data-mansion-style="england"]{--mansion-image:var(--mansion-england,url('assets/mansions/england.png'))}
+.port-scene[data-mansion-style="france"]{--mansion-image:var(--mansion-france,url('assets/mansions/france.png'))}
+.port-scene[data-mansion-style="ottoman"]{--mansion-image:var(--mansion-ottoman,url('assets/mansions/ottoman.png'))}
+.port-scene[data-mansion-port="lisbon"]{--mansion-image:var(--mansion-port-lisbon,url('assets/mansions/europe-v1/lisbon.png'))}
+.port-scene[data-mansion-port="porto"]{--mansion-image:var(--mansion-port-porto,url('assets/mansions/europe-v1/porto.png'))}
+.port-scene[data-mansion-port="seville"]{--mansion-image:var(--mansion-port-seville,url('assets/mansions/europe-v1/seville.png'))}
+.port-scene[data-mansion-port="marseille"]{--mansion-image:var(--mansion-port-marseille,url('assets/mansions/europe-v1/marseille.png'))}
+.port-scene[data-mansion-port="bordeaux"]{--mansion-image:var(--mansion-port-bordeaux,url('assets/mansions/europe-v1/bordeaux.png'))}
+.port-scene[data-mansion-port="london"]{--mansion-image:var(--mansion-port-london,url('assets/mansions/europe-v1/london.png'))}
+.port-scene[data-mansion-port="barcelona"]{--mansion-image:var(--mansion-port-barcelona,url('assets/mansions/europe-v1/barcelona.png'))}
+.port-scene[data-mansion-port="genoa"]{--mansion-image:var(--mansion-port-genoa,url('assets/mansions/europe-v1/genoa.png'))}
+.port-scene[data-mansion-port="naples"]{--mansion-image:var(--mansion-port-naples,url('assets/mansions/europe-v1/naples.png'))}
+.port-scene[data-mansion-port="venice"]{--mansion-image:var(--mansion-port-venice,url('assets/mansions/europe-v1/venice.png'))}
+.port-scene[data-mansion-port="ragusa"]{--mansion-image:var(--mansion-port-ragusa,url('assets/mansions/europe-v1/ragusa.png'))}
+.port-scene[data-mansion-port="istanbul"]{--mansion-image:var(--mansion-port-istanbul,url('assets/mansions/europe-v1/istanbul.png'))}
+.port-scene[data-mansion-port="antwerp"]{--mansion-image:var(--mansion-port-antwerp,url('assets/mansions/europe-v1/antwerp.png'))}
+.port-scene[data-mansion-port="hamburg"]{--mansion-image:var(--mansion-port-hamburg,url('assets/mansions/europe-v1/hamburg.png'))}
+.port-scene[data-mansion-port="lubeck"]{--mansion-image:var(--mansion-port-lubeck,url('assets/mansions/europe-v1/lubeck.png'))}
+.port-scene[data-mansion-port="copenhagen"]{--mansion-image:var(--mansion-port-copenhagen,url('assets/mansions/europe-v1/copenhagen.png'))}
+.port-scene[data-mansion-port="stockholm"]{--mansion-image:var(--mansion-port-stockholm,url('assets/mansions/europe-v1/stockholm.png'))}
+.port-scene[data-mansion-port="danzig"]{--mansion-image:var(--mansion-port-danzig,url('assets/mansions/europe-v1/danzig.png'))}
+.port-scene.mansion-interior{background-image:var(--mansion-image)!important;background-size:cover!important;background-position:center!important}
+.port-scene.mansion-interior:before{background:linear-gradient(90deg,#1b100aa3,transparent 45%),linear-gradient(0deg,#1009064d,transparent 30%);mix-blend-mode:multiply}
+.port-scene.mansion-interior:after{box-shadow:inset 0 0 65px 16px #1d0e0670}
+.port-scene.mansion-interior~.cargo-panel{display:none}

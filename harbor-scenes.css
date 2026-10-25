@@ -1,0 +1,13 @@
+/* Full-frame regional harbor exteriors. Mansion interiors always take precedence. */
+.port-scene[data-harbor-style="portugal"]{--regional-harbor:var(--harbor-region-portugal,url('assets/harbors/europe-v1/portugal.png'))}
+.port-scene[data-harbor-style="spain"]{--regional-harbor:var(--harbor-region-spain,url('assets/harbors/europe-v1/spain.png'))}
+.port-scene[data-harbor-style="england"]{--regional-harbor:var(--harbor-region-england,url('assets/harbors/europe-v1/england.png'))}
+.port-scene[data-harbor-style="france"]{--regional-harbor:var(--harbor-region-france,url('assets/harbors/europe-v1/france.png'))}
+.port-scene[data-harbor-style="italy"]{--regional-harbor:var(--harbor-region-italy,url('assets/harbors/europe-v1/italy.png'))}
+.port-scene[data-harbor-style="adriatic"]{--regional-harbor:var(--harbor-region-adriatic,url('assets/harbors/europe-v1/adriatic.png'))}
+.port-scene[data-harbor-style="hanseatic"]{--regional-harbor:var(--harbor-region-hanseatic,url('assets/harbors/europe-v1/hanseatic.png'))}
+.port-scene[data-harbor-style="nordic"]{--regional-harbor:var(--harbor-region-nordic,url('assets/harbors/europe-v1/nordic.png'))}
+.port-scene[data-harbor-style="ottoman"]{--regional-harbor:var(--harbor-region-ottoman,url('assets/harbors/europe-v1/ottoman.png'))}
+.port-scene[data-harbor-style="north-africa"]{--regional-harbor:var(--harbor-region-north-africa,url('assets/harbors/europe-v1/north-africa.png'))}
+.port-scene[data-harbor-style]:not(.mansion-interior){background-image:var(--regional-harbor)!important;background-size:cover!important;background-position:center!important}
+

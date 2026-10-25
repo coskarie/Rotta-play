@@ -1,0 +1,39 @@
+window.ROTTA_HISTORIC_GOODS={
+ rockSalt:{name:'돌소금',icon:'▧',base:16},handCannon:{name:'핸드 캐논',icon:'†',base:78},almond:{name:'아몬드',icon:'◌',base:23},cannonball:{name:'포탄',icon:'●',base:38},print:{name:'인쇄물',icon:'▤',base:47},wheat:{name:'밀',icon:'⌇',base:15},ceramic:{name:'도자기',icon:'◉',base:42},douroWine:{name:'도우루 포도주',icon:'♜',base:31},fig:{name:'무화과',icon:'♠',base:25},mercury:{name:'수은',icon:'☿',base:69},matchlock:{name:'화승총',icon:'‡',base:82},sage:{name:'세이지',icon:'❧',base:26},gunpowder:{name:'화약',icon:'✹',base:58},cotton:{name:'면화',icon:'☁',base:33},oliveOil:{name:'올리브유',icon:'◒',base:28},saffron:{name:'사프란',icon:'✦',base:76},sherry:{name:'헤레스 포도주',icon:'♜',base:35},cattle:{name:'소',icon:'♉',base:44},vinegar:{name:'포도주식초',icon:'♢',base:21},bacon:{name:'염장 돼지고기',icon:'≋',base:29},rosemary:{name:'로즈메리',icon:'♧',base:24},raisin:{name:'건포도',icon:'∴',base:25},iron:{name:'철재',icon:'▰',base:39},salt:{name:'천일염',icon:'◇',base:17},coral:{name:'산호',icon:'Ψ',base:68},majolica:{name:'마요르카 도기',icon:'◉',base:51},woad:{name:'대청 염료',icon:'✺',base:43},honey:{name:'꿀',icon:'⬡',base:27},soap:{name:'비누',icon:'□',base:34},velvet:{name:'벨벳',icon:'⌁',base:71},marble:{name:'대리석',icon:'▱',base:54},silkThread:{name:'명주실',icon:'⌁',base:67},artwork:{name:'예술품',icon:'⚜',base:91},sulfur:{name:'유황',icon:'△',base:48},cheese:{name:'치즈',icon:'◐',base:28},tuna:{name:'참치',icon:'⋖',base:31},timber:{name:'목재',icon:'╫',base:25},muranoGlass:{name:'무라노 유리',icon:'◈',base:88},lace:{name:'레이스',icon:'⌘',base:72},westernBook:{name:'서양 서적',icon:'▤',base:61},marasca:{name:'마라스카 체리',icon:'●',base:29},lead:{name:'납',icon:'▪',base:42},marbleSculpture:{name:'대리석 조각',icon:'♙',base:79},parchment:{name:'양피지',icon:'▥',base:45},carpet:{name:'융단',icon:'▦',base:73},ironOre:{name:'철광석',icon:'◆',base:31},caviar:{name:'캐비어',icon:'∵',base:66},copperPlate:{name:'동판',icon:'▣',base:55},hazelnut:{name:'헤이즐넛',icon:'◌',base:24},leather:{name:'피혁',icon:'▱',base:38},flax:{name:'아마',icon:'⌇',base:27},lemon:{name:'레몬',icon:'◍',base:26},cedar:{name:'레바논 삼목',icon:'♠',base:52}
+};
+
+window.ROTTA_MEDITERRANEAN_MARKETS={
+ lisbon:{rockSalt:.72,handCannon:.88,almond:.76,cannonball:.9,print:.92,wheat:.86,ceramic:.91},
+ porto:{rockSalt:.78,almond:.82,wheat:.84,douroWine:.58},
+ faro:{rockSalt:.62,almond:.78,wheat:.91,fig:.57},
+ seville:{mercury:.65,matchlock:.82,sage:.72,gunpowder:.8,wine:.74,cotton:.86,oliveOil:.7},
+ malaga:{saffron:.72,sherry:.58,cattle:.83,vinegar:.66,almond:.64,bacon:.82},
+ valencia:{almond:.66,rosemary:.62,raisin:.58,oliveOil:.64},
+ barcelona:{iron:.76,matchlock:.84,salt:.72,coral:.64},
+ palma:{salt:.62,almond:.71,oliveOil:.69,majolica:.58},
+ montpellier:{salt:.77,oliveOil:.84,woad:.62,wine:.73},
+ marseille:{salt:.8,oliveOil:.72,honey:.74,soap:.55},
+ genoa:{silver:.88,velvet:.62,oliveOil:.8,marble:.71},
+ pisa:{silver:.94,velvet:.7,oliveOil:.84,silkThread:.59},
+ naples:{wheat:.61,oliveOil:.69,wine:.67,artwork:.78},
+ syracuse:{wheat:.57,oliveOil:.63,wine:.74,sulfur:.48},
+ cagliari:{wheat:.72,salt:.56,cheese:.68,tuna:.53},
+ sassari:{wheat:.76,salt:.64,cheese:.61,silver:.83},
+ ajaccio:{oliveOil:.77,wine:.72,cheese:.66,timber:.54},
+ venice:{muranoGlass:.47,lace:.56,pepper:.92,westernBook:.61,soap:.64},
+ trieste:{muranoGlass:.72,lace:.78,wine:.69,mercury:.58},
+ zadar:{timber:.57,wheat:.7,oliveOil:.73,marasca:.55},
+ ragusa:{timber:.62,wheat:.74,oliveOil:.77,lead:.56},
+ athens:{marbleSculpture:.56,parchment:.68,honey:.62,oliveOil:.59},
+ candia:{wheat:.68,honey:.64,oliveOil:.57,raisin:.51},
+ nicosia:{wheat:.74,oliveOil:.69,cotton:.58,copperPlate:.63},
+ thessaloniki:{honey:.74,cotton:.61,oliveOil:.71,wool:.57,wheat:.66},
+ istanbul:{carpet:.59,ironOre:.7,caviar:.68,copperPlate:.62,silk:.72},
+ trebizond:{carpet:.71,ironOre:.74,caviar:.76,hazelnut:.49},
+ caffa:{caviar:.57,ironOre:.76,salt:.58,leather:.55},
+ odesa:{caviar:.7,salt:.61,leather:.68,flax:.53,wheat:.58},
+ jaffa:{cotton:.62,oliveOil:.7,leather:.72,lemon:.48},
+ beirut:{cotton:.59,oliveOil:.75,leather:.68,cedar:.46,pepper:.89}
+};
+
+window.ROTTA_HISTORIC_PORT_NAMES={odesa:'하즈베이'};

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="500" viewBox="0 0 1600 500">
+ <defs>
+  <linearGradient id="feather" x1="0" x2="1"><stop stop-color="#f5f7f5" stop-opacity="0"/><stop offset=".2" stop-color="#f5f7f5" stop-opacity=".5"/><stop offset=".5" stop-color="#fffefa" stop-opacity=".7"/><stop offset=".78" stop-color="#f5f7f5" stop-opacity=".42"/><stop offset="1" stop-color="#f5f7f5" stop-opacity="0"/></linearGradient>
+  <radialGradient id="veil"><stop stop-color="#f8faf7" stop-opacity=".45"/><stop offset=".5" stop-color="#f8faf7" stop-opacity=".25"/><stop offset="1" stop-color="#f8faf7" stop-opacity="0"/></radialGradient>
+  <filter id="wind-torn" x="-12%" y="-35%" width="124%" height="170%" color-interpolation-filters="sRGB">
+   <feTurbulence type="fractalNoise" baseFrequency="0.006 0.045" numOctaves="3" seed="23" result="wind"/>
+   <feDisplacementMap in="SourceGraphic" in2="wind" scale="78" xChannelSelector="R" yChannelSelector="G"/>
+   <feGaussianBlur stdDeviation="2.6 1.2"/>
+  </filter>
+ </defs>
+ <g filter="url(#wind-torn)">
+  <g fill="url(#veil)"><ellipse cx="485" cy="272" rx="390" ry="92"/><ellipse cx="938" cy="223" rx="450" ry="112"/></g>
+  <g stroke="url(#feather)" fill="none" stroke-linecap="round">
+   <path d="M130 312C385 328 462 201 728 246S1120 316 1485 192" stroke-width="42"/>
+   <path d="M98 265C328 222 533 268 745 191S1138 154 1500 180" stroke-width="29"/>
+   <path d="M160 365C458 304 584 358 875 286S1241 232 1450 270" stroke-width="25"/>
+   <path d="M230 198C473 210 631 122 823 151S1186 210 1380 118" stroke-width="18"/>
+   <path d="M270 392C543 333 728 391 996 329S1253 290 1390 305" stroke-width="12"/>
+   <path d="M95 229C353 183 507 232 697 165M820 363C1050 339 1177 254 1500 242" stroke-width="9"/>
+  </g>
+ </g>
+</svg>

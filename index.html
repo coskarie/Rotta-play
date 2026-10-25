@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#17100b"><meta name="description" content="16세기 항구와 바다를 오가는 교역 항해 게임">
+  <title>ROTTA</title><link rel="preload" href="assets/world-map-underlay-aligned.png?v=60" as="image" fetchpriority="high"><link rel="stylesheet" href="styles.css?v=1"><link rel="stylesheet" href="overrides.css?v=85"><link rel="stylesheet" href="port-transitions.css?v=2"><link rel="stylesheet" href="port-symbols.css?v=6">
+<link rel="stylesheet" href="harbor-scenes.css?v=1">
+<link rel="stylesheet" href="world-harbor-scenes.css?v=1">
+<link rel="stylesheet" href="mansion-scenes.css?v=2">
+<link rel="stylesheet" href="departure-zoom.css?v=1">
+</head>
+<body>
+  <div id="mapLoader" class="map-loader" role="status" aria-live="polite">
+    <div class="map-loader-mark" aria-hidden="true">R</div>
+    <strong>ROTTA</strong>
+    <div class="map-loader-track" aria-hidden="true"><i id="mapLoaderBar"></i></div>
+    <b id="mapLoaderText">0%</b>
+    <button id="assetRetry" class="hidden" type="button">재시도</button>
+  </div>
+  <div id="portTransition" class="port-transition" hidden role="status" aria-live="polite" aria-atomic="true" tabindex="-1">
+    <img data-transition-scene="depart" alt="" decoding="async"><img data-transition-scene="arrive" alt="" decoding="async">
+    <div class="port-transition-caption"><span id="portTransitionLabel"></span><div class="port-transition-track" aria-hidden="true"><i></i></div></div>
+    <div class="port-transition-black" aria-hidden="true"></div>
+    <div class="port-transition-compass" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27"/><circle cx="32" cy="32" r="24" opacity=".45"/><path d="M32 2V9M32 55V62M2 32H9M55 32H62M11 11L16 16M48 48L53 53M11 53L16 48M48 16L53 11"/><g class="compass-rose"><path d="M32 8L37 27L56 32L37 37L32 56L27 37L8 32L27 27Z" fill="#6b512d"/><path d="M32 8V32L27 27ZM56 32H32L37 27ZM32 56V32L37 37ZM8 32H32L27 37Z" fill="#d8c18a"/><path d="M17 17L29 25L32 32L25 29ZM47 17L39 29L32 32L35 25ZM47 47L35 39L32 32L39 35ZM17 47L25 35L32 32L29 39Z" fill="#ad8f55"/><circle cx="32" cy="32" r="3" fill="#d8c18a"/></g></svg></div>
+  </div>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="brand"><i>R</i><h1>ROTTA</h1></div>
+    <div class="chapter"><small id="placeType">항해 준비</small><strong id="placeName">서기 1543년</strong></div>
+    <div class="top-actions"><span id="dateText">1543년 3월 1일</span></div>
+  </header>
+
+  <main id="game">
+    <section id="portView" class="view active">
+      <div id="portScene" class="port-scene">
+        <div class="sky-vignette"></div>
+        <div class="port-title"><span id="portRegion">왕립 항구</span><h2 id="portName">항구</h2><p id="portFlavor">부두에 갈매기 소리가 번진다.</p></div>
+        <div id="facilityLayer" class="facility-layer"></div>
+        <button id="departBtn" class="depart-button" aria-label="출항"><span aria-hidden="true">⚓</span></button>
+      </div>
+      <aside class="captain-strip">
+        <div class="portrait"><span id="nationFlag">⚜</span></div>
+        <div class="identity"><small id="nationName">국가 선택 전</small><strong id="nationTrait">선장</strong></div>
+        <dl><div><dt>골드</dt><dd id="goldStat">—</dd></div><div><dt>명성</dt><dd id="fameStat">—</dd></div><div><dt>화물</dt><dd id="cargoStat">—</dd></div><div><dt>선원</dt><dd id="crewStat">—</dd></div><div><dt>식량</dt><dd id="foodStat">—</dd></div><div><dt>선체</dt><dd id="hullStat">—</dd></div></dl>
+      </aside>
+      <aside id="facilityPanel" class="facility-panel hidden" aria-live="polite">
+        <button id="closeFacility" class="close-button" aria-label="닫기">×</button>
+        <span class="eyebrow" id="facilityKicker">항구 시설</span><h2 id="facilityTitle">교역소</h2>
+        <p id="facilityIntro"></p><div id="facilityContent"></div>
+      </aside>
+      <aside id="cargoPanel" class="cargo-panel hidden" aria-live="polite">
+        <div class="cargo-panel-head"><span class="eyebrow">CARGO MANIFEST · MDXLIII</span><h2>보유 교역품</h2><p id="cargoPanelSummary">화물칸 0 / 60</p></div>
+        <div id="cargoPanelList" class="cargo-panel-list"></div>
+        <div class="cargo-panel-foot"><span>수중 골드</span><strong id="cargoPanelGold">0 골드</strong></div>
+      </aside>
+    </section>
+
+    <section id="sailingView" class="view">
+      <div class="sea-hud">
+        <div><span class="eyebrow">항해 해역</span><strong id="seaRegion">리스본 근해</strong></div>
+        <div class="sea-conditions"><span><small>풍향</small><b id="windText">북동풍 3</b></span><span><small>파고</small><b id="waveText">0.8m</b></span><span><small>속력</small><b id="speedText">0.0 kn</b></span></div>
+        <button id="returnPortBtn" disabled>입항</button>
+      </div>
+      <div id="seaViewport" class="sea-viewport" tabindex="0" aria-label="항해 지도. 드래그하여 이동하고 스페이스바로 배 위치에 복귀합니다.">
+        <div id="oceanWorld" class="ocean-world"><img id="chartRaster" class="chart-raster" data-src="assets/world-map-underlay-aligned.png?v=60" alt="" aria-hidden="true" draggable="false" decoding="async" fetchpriority="high"><div id="chartTiles" class="chart-tiles" aria-hidden="true"></div><svg id="chartMap" class="chart-map" viewBox="0 0 3072 2048" aria-hidden="true"><defs>
+          <pattern id="paperFibers" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M0 9L48 5M0 27L48 32M7 0L3 48M36 0L43 48" stroke="#5f4425" stroke-width="1" opacity=".08"/><circle cx="12" cy="18" r="1.2" fill="#f0dfab" opacity=".18"/><circle cx="39" cy="40" r=".8" fill="#3f2917" opacity=".14"/></pattern>
+          <pattern id="landHatch" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(-8)"><path d="M-5 18L18-5M3 23L23 3" stroke="#51351d" stroke-width="1" opacity=".13"/></pattern>
+        </defs></svg><svg id="routeSvg" class="route-svg" viewBox="0 0 3072 2048"><polyline id="routePath"></polyline></svg><i id="seaClickTarget" class="sea-click-target" aria-hidden="true" hidden></i><div id="seaPorts" class="sea-ports"></div><div id="ship" class="ship"><i class="ship-wake"></i><img class="merchant-ship" src="assets/carrack-topdown-v1.png?v=1" alt="위에서 내려다본 1540년대 카락 무역선"><b id="shipName">Santa Rotta</b></div>
+        <div id="cloudSky" class="cloud-sky" aria-hidden="true"></div></div>
+        <div class="lens-shade"></div><div id="departureBlur" class="departure-zoom-blur" aria-hidden="true" hidden></div><div class="scale-mark">약 120해리</div>
+        <div id="seaPortActions" class="sea-port-actions" role="group" aria-label="항구" hidden></div>
+      </div>
+      <div id="arrivalPrompt" class="arrival-prompt" role="dialog" aria-modal="false" aria-labelledby="arrivalQuestion" tabindex="-1" hidden>
+        <div class="arrival-row"><span id="arrivalQuestion"></span><button id="arrivalYes" aria-keyshortcuts="Y">예(Y)</button><button id="arrivalNo" aria-keyshortcuts="N">아니오(N)</button></div>
+        <div class="arrival-countdown" aria-hidden="true"><i></i></div>
+      </div>
+      <aside id="seaMarketPanel" class="sea-market-panel" aria-labelledby="seaMarketName" hidden><button id="closeSeaMarket" class="close-button" aria-label="시세 닫기">×</button><h2 id="seaMarketName"></h2><div id="seaMarketContent"></div></aside>
+      <div class="zoom-control" aria-label="해도 배율"><span class="zoom-sign" aria-hidden="true">＋</span><input id="zoomRange" type="range" min="1" max="10" step=".5" value="6.5" aria-label="해도 배율"><b id="zoomText">6.5×</b><span class="zoom-sign" aria-hidden="true">−</span></div>
+      <!-- Internal compatibility targets only; navigation is controlled on the map. -->
+      <div id="navigationState" hidden inert aria-hidden="true">
+        <span id="routeTitle"></span><span id="routeInfo"></span>
+        <select id="destinationSelect" tabindex="-1"></select><button id="setCourseBtn" tabindex="-1"></button>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="nationModal">
+    <div class="nation-modal parchment-edge" role="dialog" aria-modal="true"><h2>국가 선택</h2><div class="nation-grid" id="nationGrid"></div></div>
+  </div>
+  <div class="modal-backdrop hidden" id="eventModal">
+    <div class="event-modal parchment-edge" role="dialog" aria-modal="true"><span class="event-icon" id="eventIcon">♒</span><span class="eyebrow" id="eventType">항해 사건</span><h2 id="eventTitle"></h2><p id="eventBody"></p><div id="eventEffects" class="event-effects"></div><button id="eventClose">확인</button></div>
+  </div>
+  <div class="modal-backdrop hidden" id="tradeModal">
+    <div class="trade-quantity-modal parchment-edge" role="dialog" aria-modal="true" aria-labelledby="tradeDialogTitle"><button id="tradeCancel" class="close-button" aria-label="닫기">×</button><span class="eyebrow" id="tradeDialogType">수량 지정</span><div class="trade-dialog-heading"><span id="tradeDialogArt" aria-hidden="true"></span><h2 id="tradeDialogTitle">교역품</h2></div><div class="trade-price-line"><span>단가 <b id="tradeUnitPrice">0</b> 골드</span><span>거래 가능 <b id="tradeMaximum">0</b></span></div><label for="tradeQuantity">수량</label><input id="tradeQuantity" type="number" min="1" step="1" value="1" inputmode="numeric"><div class="trade-quick"><button data-trade-quick="half">절반</button><button data-trade-quick="all">전부</button></div><div class="trade-total">예상 합계 <strong id="tradeTotal">0 골드</strong></div><button id="tradeConfirm" class="trade-confirm">거래 확정</button></div>
+  </div>
+  <div class="modal-backdrop hidden system-backdrop" id="systemModal">
+    <div class="system-modal parchment-edge" role="dialog" aria-modal="true" aria-labelledby="systemTitle"><h2 id="systemTitle">시스템</h2><button id="resumeGameBtn">계속</button><button id="waitDayBtn">하루 대기</button><button id="restartGameBtn">새 항해</button></div>
+  </div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div><script src="vendor/d3.min.js"></script><script src="vendor/topojson-client.min.js"></script><script src="ports.js?v=2"></script><script src="mediterranean-markets.js?v=6"></script><script src="world-markets.js?v=26"></script><script src="specialty-goods.js?v=1"></script><script src="specialty-history-data.js?v=1"></script><script src="specialty-expansion.js?v=1"></script><script src="goods-images.js?v=30"></script><script src="goods-cache.js?v=2"></script><script src="port-position-overrides.js?v=61"></script><script src="coast-renderer.js?v=1"></script><script src="cloud-sky.js?v=4"></script><script src="market-data.js?v=1"></script><script src="market-prices.js?v=3"></script><script src="market-chart.js?v=2"></script><script src="market-events.js?v=3"></script><script src="sea-distances.js?v=1"></script><script src="distance-trade.js?v=1"></script><script src="port-symbols.js?v=7"></script><script src="world-harbor-scenes.js?v=1"></script><script src="harbor-scenes.js?v=2"></script><script src="mansion-scenes.js?v=2"></script><script src="harbor-cache.js?v=4"></script><script src="port-transitions.js?v=2"></script><script src="game.js?v=99"></script>
+</body>
+</html>
