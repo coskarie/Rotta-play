@@ -1,0 +1,12 @@
+.trade-mode .facility-panel .market-head .market-sort{
+ position:relative;min-width:0;width:100%;margin:0;padding:5px 0;border:0!important;
+ background:transparent!important;box-shadow:none!important;text-shadow:none;
+ color:inherit;font:inherit;letter-spacing:inherit;text-align:center;cursor:pointer;
+}
+.trade-mode .market-head .market-sort:first-child{text-align:left}
+.trade-mode .market-head .market-sort:hover,.trade-mode .market-head .market-sort[aria-pressed="true"]{color:#4c3017}
+.trade-mode .market-head .market-sort:focus-visible{outline:1px solid #71512c;outline-offset:1px}
+.trade-mode .market-head .market-sort[data-direction]:not([data-direction=""]):after{
+ content:'↑';position:absolute;right:-3px;top:50%;transform:translateY(-50%);font-size:9px;letter-spacing:0;color:#71512c;
+}
+.trade-mode .market-head .market-sort[data-direction="desc"]:after{content:'↓'}
