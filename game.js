@@ -359,6 +359,7 @@ function closeSystem(){$('#systemModal').classList.add('hidden')}
 function toggleSystem(){if(!state.nation)return;$('#waitDayBtn').disabled=state.traveling||MANUAL_SAIL.velocity>.001;$('#systemModal').classList.toggle('hidden')}
 function handleGlobalKey(e){
  if(window.ROTTA_MANSION_NAVIGATION?.handleKey(e))return;
+ if(!window.ROTTA_MANSION_TRANSITION?.active&&['#systemModal','#tradeModal','#eventModal'].every(id=>$(id).classList.contains('hidden'))&&window.ROTTA_MANSION_DIALOGUE?.handleKey(e))return;
  if(window.ROTTA_MANSION_TRANSITION?.active){
   if(e.key==='Escape'){e.preventDefault();return closeFacility()}
   if(!/^[1-9]$/.test(e.key)&&!['Tab','Enter',' '].includes(e.key)){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();return}

@@ -25,6 +25,7 @@
  function handleKey(event){
   if(!current)return false;
   if(event.ctrlKey||event.metaKey||event.altKey)return true;
+  if(window.ROTTA_DIALOGUE_INPUT?.handleKey(event,{buttons:[current.yes,current.no]}))return true;
   const key=({KeyY:'y',KeyN:'n'})[event.code]||event.key.toLowerCase();
   if(key==='y'||key==='n'||key==='escape'){
    event.preventDefault();if(!event.repeat)answer(key==='y');return true;

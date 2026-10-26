@@ -94,11 +94,19 @@
    root.dataset.dialoguePhase='portrait';
    later(()=>{root.dataset.dialoguePhase='speech';later(()=>{root.dataset.dialoguePhase='ready';render()},SPEECH_DURATION)},PORTRAIT_DURATION);
   }
-  presentation={dispose,reveal,fold(){for(const id of timers)clearTimeout(id);timers.clear();writer=0;paused=true;root.dataset.dialoguePhase='leaving'},pause(){paused=true;stopWriter()},resume(){if(disposed)return;paused=false;if(typing)writer=later(tick,CHAR_DELAY)}};
+  function handleKey(event){
+   if(disposed)return false;
+   return window.ROTTA_DIALOGUE_INPUT?.handleKey(event,{
+    buttons:typing?[]:actions.children,onAdvance:advance,
+    ready:!paused&&root.dataset.dialoguePhase==='ready'
+   })||false;
+  }
+  presentation={dispose,reveal,handleKey,fold(){for(const id of timers)clearTimeout(id);timers.clear();writer=0;paused=true;root.dataset.dialoguePhase='leaving'},pause(){paused=true;stopWriter()},resume(){if(disposed)return;paused=false;if(typing)writer=later(tick,CHAR_DELAY)}};
   conversation=createConversation({onChange:render,onBook,onClose:()=>{const result=onClose();if(!result?.then)unmount()}});
   if(!deferReveal)reveal();
  }
  window.ROTTA_MANSION_DIALOGUE={mount,unmount,preload,createConversation,nodes,portraitPath,assets,PORTRAIT_DURATION,SPEECH_DURATION,CHAR_DELAY,
   reveal:()=>presentation?.reveal(),fold:()=>presentation?.fold(),pause:()=>presentation?.pause(),resume:()=>presentation?.resume(),
+  handleKey:event=>presentation?.handleKey(event)||false,
   get active(){return !!conversation},get progressed(){return !!conversation?.progressed}};
 })();
