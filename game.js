@@ -414,6 +414,15 @@ function basketItemsMarkup(entries,{side=null,readonly=false}={}){
  }).join('');
 }
 function bindBasketItems(container){container.querySelectorAll('[data-basket-item]').forEach(button=>button.onclick=()=>openTradeDialog(button.dataset.basketItem,button.dataset.basketSide==='buy'?'buy':'sell'))}
+function cargoLedgerMarkup(entries,{side='stock',readonly=false}={}){
+ if(!entries.length)return '<div class="cargo-empty"><span>◇</span><b>비어 있음</b></div>';
+ return entries.map(({key,quantity})=>{
+  const g=GOODS[key],signal=marketSignal(state.current,key),unit=side==='buy'?fmt(priceAt(state.current,key,'buy')):cargoUnitLabel(cargoSaleQuote(state.current,key));
+  const selected=!readonly&&side==='stock'&&marketBasket().quantity('sell',key)>0;
+  const body=`${goodArt(key,g.icon)}<span class="cargo-good"><b>${g.name}</b><small>${fmt(quantity)}개 · ${unit} 골드</small></span>`;
+  return readonly?`<div class="cargo-ledger-row ${signal.className}">${body}</div>`:`<button type="button" class="cargo-ledger-row cargo-ledger-item ${signal.className}" data-basket-item="${key}" data-basket-side="${side}" aria-label="${g.name} ${quantity}개"${side==='stock'?` aria-pressed="${selected}"`:''}>${body}</button>`;
+ }).join('');
+}
 function setMarketBasketMode(mode){
  marketBasket();const previous=MARKET_BASKET_UI.mode;MARKET_BASKET_UI.mode=mode;
  if(mode==='sell'||previous==='sell')renderFacility('trade');renderCargoPanel(true);
@@ -429,8 +438,8 @@ function renderCargoPanel(canSell){
  const action=$('#cargoPanelAction'),back=$('#cargoPanelBack');
  $('#cargoPanelSummary').textContent=`${cargoTotal()} / ${state.capacity}`;
  $('#cargoPanelTitle').textContent='보유 교역품';$('#cargoPanelTotalLabel').textContent='수중 골드';$('#cargoPanelGold').textContent=`${fmt(state.gold)} G`;
- action.hidden=!canSell;back.hidden=true;list.classList.toggle('basket-grid',canSell);
- if(!canSell){list.innerHTML=entries.length?entries.map(({key:k,quantity:qty})=>{const g=GOODS[k];return `<div class="cargo-ledger-row">${goodArt(k,g.icon)}<span class="cargo-good"><b>${g.name}</b><small>${qty}개</small></span></div>`}).join(''):basketItemsMarkup([]);return}
+ action.hidden=!canSell;back.hidden=true;list.classList.remove('basket-grid');
+ if(!canSell){list.innerHTML=cargoLedgerMarkup(entries,{readonly:true});return}
  const basket=marketBasket(),mode=MARKET_BASKET_UI.mode,buying=mode==='buy',side=buying?'buy':'sell',draft=basket.entries(side);
  back.hidden=mode==='owned';back.onclick=()=>setMarketBasketMode('owned');
  action.textContent=buying?'매입':'매각';action.disabled=mode==='owned'?!entries.length:!draft.length;
@@ -439,7 +448,7 @@ function renderCargoPanel(canSell){
   $('#cargoPanelTitle').textContent='구매 품목';$('#cargoPanelTotalLabel').textContent='합계';$('#cargoPanelGold').textContent=`${fmt(basket.total('buy'))} G`;
   $('#cargoPanelSummary').textContent=`${cargoTotal()+draft.reduce((sum,row)=>sum+row.quantity,0)} / ${state.capacity}`;
  }
- list.innerHTML=basketItemsMarkup(buying?draft:entries,{side:buying?'buy':'stock'});bindBasketItems(list);
+ list.innerHTML=cargoLedgerMarkup(buying?draft:entries,{side:buying?'buy':'stock'});bindBasketItems(list);
 }
 function requestBasketCheckout(side){
  const plan=marketBasket().plan(side);if(!plan.ok)return toast(plan.error);

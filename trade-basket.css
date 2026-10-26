@@ -6,7 +6,11 @@
 .basket-back svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}
 .basket-back[hidden],.basket-action[hidden]{display:none}
 .basket-action:focus-visible,.basket-back:focus-visible{outline:1px solid #edcf92;outline-offset:2px}
-.cargo-panel-list.basket-grid,.basket-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-content:start;gap:7px 4px;padding:14px 2px}
+.basket-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-content:start;gap:7px 4px;padding:14px 2px}
+.cargo-panel-list .cargo-ledger-row{grid-template-columns:44px minmax(0,1fr)}
+.cargo-panel-list .cargo-ledger-item{width:100%;text-align:left;font-family:inherit;color:inherit;border:0;border-bottom:1px dotted #8d713f;cursor:pointer;box-shadow:none;border-radius:0}
+.cargo-panel-list .cargo-ledger-item:hover,.cargo-panel-list .cargo-ledger-item:focus-visible{outline:1px solid #a5844c;outline-offset:-1px;background:#b28d4519}
+.cargo-panel-list .cargo-ledger-item[aria-pressed="true"]{background:#b28d4529;box-shadow:inset 2px 0 #c6a15d}
 .basket-grid .cargo-empty{grid-column:1/-1;min-height:150px}
 .basket-item{position:relative;display:block;min-width:0;width:100%;aspect-ratio:1;padding:2px 8px 2px 2px;border:1px solid #8c6c3d77;background:linear-gradient(125deg,#b4985530,#0c080545);color:#f0dcab;cursor:pointer;box-shadow:inset 0 0 9px #0003}
 .basket-item .good-art,.basket-item .good-art-fallback{display:block;width:100%;height:100%;min-width:0;min-height:0;max-width:none;max-height:none;object-fit:contain;border:0;background:none;box-shadow:none;border-radius:0}
@@ -32,4 +36,4 @@
 .basket-confirm-actions button{min-width:84px;padding:9px 16px;border:1px solid #a78245;color:#eddbaf;background:linear-gradient(#76512e,#372315);font:15px Georgia,serif;cursor:pointer}
 .basket-confirm-actions button:hover,.basket-confirm-actions button:focus-visible{outline:1px solid #edcf92;outline-offset:2px;background:#765532}
 @media(max-width:1050px){.cargo-panel-heading{gap:5px}.cargo-panel-heading h2{font-size:19px}.basket-action{padding:7px 10px;font-size:13px}}
-@media(max-width:820px){.cargo-panel-list.basket-grid{grid-auto-rows:min-content;gap:8px}.cargo-panel-list .basket-item{max-width:76px;max-height:76px}.cargo-panel-head{padding-bottom:7px}.cargo-panel-heading h2{font-size:20px}.sale-stall .basket-item{max-height:65px}.sale-stall .basket-grid{gap:7px}.basket-total{padding-top:10px}}
+@media(max-width:820px){.cargo-panel-list .cargo-ledger-row{grid-template-columns:38px minmax(0,1fr)}.cargo-panel-head{padding-bottom:7px}.cargo-panel-heading h2{font-size:20px}.sale-stall .basket-item{max-height:65px}.sale-stall .basket-grid{gap:7px}.basket-total{padding-top:10px}}
