@@ -1,6 +1,7 @@
 (() => {
  'use strict';
  const portraitPath='assets/characters/01-portugal-nobleman.png';
+ const assets=[portraitPath,'assets/dialogue/noble-v1/portrait-frame.png','assets/dialogue/noble-v1/nameplate.png','assets/dialogue/noble-v1/speech-panel.png','assets/dialogue/noble-v1/choice-button.png'];
  // revisit is the conversation hub: every completed topic returns here.
  const nodes={
   greeting:{text:'어서오시오',next:'inquiry'},
@@ -28,11 +29,14 @@
    dispose(){closed=true}
   };
  }
- let image=null,pending=null,root=null,conversation=null;
+ const decoded=new Map();let pending=null,root=null,conversation=null;
  function preload(){
   if(pending)return pending;
-  image=new Image();image.decoding='async';image.src=portraitPath;
-  pending=image.decode().then(()=>{if(!image.naturalWidth)throw Error('Noble portrait unavailable')}).catch(error=>{pending=null;image=null;throw error});
+  pending=Promise.allSettled(assets.map(async path=>{
+   if(decoded.has(path))return;
+   const image=new Image();image.decoding='async';image.src=path;await image.decode();
+   if(!image.naturalWidth)throw Error('Dialogue image unavailable');decoded.set(path,image);
+  })).then(results=>{const failure=results.find(result=>result.status==='rejected');if(failure)throw failure.reason}).catch(error=>{pending=null;throw error});
   return pending;
  }
  function unmount(){
@@ -50,7 +54,7 @@
    line.onclick=node.next?()=>conversation.advance():null;
    actions.replaceChildren();
    for(const [index,choice]of (node.choices||[]).entries()){
-    const button=document.createElement('button');button.type='button';button.className='mansion-choice';button.innerHTML='<svg class="mansion-choice-frame" viewBox="0 0 300 44" preserveAspectRatio="none" aria-hidden="true"><path class="field" d="M12 2H288L298 12V32L288 42H12L2 32V12Z"/><path class="rule" d="M15 6H285L293 14V30L285 38H15L7 30V14Z"/></svg>';const label=document.createElement('span');label.textContent=choice[0];button.appendChild(label);button.dataset.dialogueChoice=String(index);button.onclick=()=>conversation.choose(index);actions.appendChild(button);
+    const button=document.createElement('button');button.type='button';button.className='mansion-choice';const label=document.createElement('span');label.textContent=choice[0];button.appendChild(label);button.dataset.dialogueChoice=String(index);button.onclick=()=>conversation.choose(index);actions.appendChild(button);
    }
    if(node.next){
     const button=document.createElement('button');button.type='button';button.className='mansion-continue';button.setAttribute('aria-label','계속');button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 7 7 7-7"/></svg>';button.onclick=()=>conversation.advance();actions.appendChild(button);
@@ -59,5 +63,5 @@
   }
   conversation=createConversation({onChange:render,onBook,onClose:()=>{unmount();onClose()}});render();
  }
- window.ROTTA_MANSION_DIALOGUE={mount,unmount,preload,createConversation,nodes,portraitPath,get active(){return !!conversation}};
+ window.ROTTA_MANSION_DIALOGUE={mount,unmount,preload,createConversation,nodes,portraitPath,assets,get active(){return !!conversation}};
 })();
