@@ -1,7 +1,7 @@
 .mansion-dialogue[hidden]{display:none}
 .mansion-dialogue{
- --dialogue-brass:#b49a62;--dialogue-ivory:#eddfbd;--profile-size:clamp(186px,18vw,234px);
- position:absolute;z-index:12;left:112px;right:28px;bottom:66px;height:180px;
+ --dialogue-brass:#b49a62;--dialogue-ivory:#eddfbd;--profile-size:clamp(186px,18vw,234px);--speech-baseline-offset:4px;
+ position:absolute;z-index:12;left:112px;right:28px;bottom:54px;height:180px;
  color:var(--dialogue-ivory);font-family:Georgia,'Times New Roman',serif;
 }
 .mansion-profile{position:absolute;left:0;bottom:0;width:var(--profile-size)}
@@ -9,9 +9,10 @@
 .mansion-portrait-well{position:absolute;inset:11% 10.2% 10.8% 10.2%;overflow:hidden;background:#261b12}
 .mansion-portrait .mansion-person{display:block;width:100%;height:100%;object-fit:cover;transform:scale(1.06);transform-origin:50% 20%}
 .mansion-portrait .mansion-portrait-frame{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
-.mansion-speaker{position:relative;display:grid;place-items:center;height:54px;padding:0 38px;color:#ead4a1;font-size:18px;letter-spacing:.14em;text-shadow:0 1px 2px #000;isolation:isolate}
+.mansion-speaker{position:relative;display:grid;place-items:center;height:54px;margin-top:-6px;padding:0 38px;color:#ead4a1;font-size:18px;letter-spacing:.14em;text-shadow:0 1px 2px #000;isolation:isolate}
 .mansion-speaker:before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border:12px solid transparent;border-image-source:url('assets/dialogue/noble-v1/nameplate.png');border-image-slice:24% 20% fill;border-image-width:12px 32px;border-image-repeat:stretch}
-.mansion-speech{position:absolute;left:calc(var(--profile-size) + 18px);right:0;bottom:0;height:180px;display:flex;flex-direction:column;isolation:isolate;min-width:0}
+/* Match visible brass edges, not the PNG boxes: the speech art has 4px more clear space below. */
+.mansion-speech{position:absolute;left:calc(var(--profile-size) + 18px);right:0;bottom:calc(0px - var(--speech-baseline-offset));height:180px;display:flex;flex-direction:column;isolation:isolate;min-width:0}
 .mansion-speech:before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border:28px solid transparent;border-image-source:url('assets/dialogue/noble-v1/speech-panel.png');border-image-slice:30% 8% fill;border-image-width:28px 32px;border-image-repeat:stretch}
 .mansion-script{flex:1;min-height:0;padding:30px 44px 6px;overflow:auto;scrollbar-width:thin;scrollbar-color:#8b704c transparent}
 .mansion-script p{margin:0;font-size:clamp(16px,1.55vw,20px);font-weight:400;line-height:1.7;word-break:keep-all;overflow-wrap:break-word}
@@ -28,7 +29,7 @@
 .mansion-continue:hover{background:#80613822}
 .mansion-dialogue-mode .depart-button{visibility:hidden}
 @media(max-width:820px){.mansion-dialogue{left:88px;right:18px;--profile-size:186px}.mansion-speech{left:calc(var(--profile-size) + 12px)}.mansion-script{padding:28px 30px 6px}.mansion-dialogue-actions{gap:7px;padding:0 24px 25px}.mansion-choice{padding:13px 19px;font-size:12px}}
-@media(max-width:620px){.mansion-dialogue{left:20px;right:20px;bottom:64px;--profile-size:146px}.mansion-profile{bottom:184px;z-index:1}.mansion-speaker{height:44px;font-size:14px;padding:0 28px}.mansion-speaker:before{border-image-width:10px 25px}.mansion-speech{left:0;height:180px}.mansion-script{padding:28px 26px 6px}.mansion-script p{font-size:14px;line-height:1.6}.mansion-dialogue-actions{min-height:58px;padding:0 20px 25px}.mansion-choice{min-width:55px;padding:13px 16px;font-size:11px}.mansion-dialogue-mode .facility-layer{visibility:hidden}}
-@media(max-height:520px) and (max-width:620px){.mansion-dialogue{--profile-size:110px;left:16px;right:16px;bottom:54px}.mansion-profile{bottom:0}.mansion-speech{left:calc(var(--profile-size) + 10px)}.mansion-script{padding:28px 24px 4px}.mansion-script p{font-size:12px}.mansion-dialogue-actions{gap:5px;padding:0 20px 25px}.mansion-choice{font-size:10px;padding:13px}}
-@media(max-height:520px) and (min-width:621px){.mansion-dialogue{--profile-size:154px;bottom:54px}.mansion-speaker{height:44px;font-size:15px}}
+@media(max-width:620px){.mansion-dialogue{left:20px;right:20px;bottom:52px;--profile-size:146px}.mansion-profile{bottom:184px;z-index:1}.mansion-speaker{height:44px;font-size:14px;padding:0 28px}.mansion-speaker:before{border-image-width:10px 25px}.mansion-speech{left:0;height:180px}.mansion-script{padding:28px 26px 6px}.mansion-script p{font-size:14px;line-height:1.6}.mansion-dialogue-actions{min-height:58px;padding:0 20px 25px}.mansion-choice{min-width:55px;padding:13px 16px;font-size:11px}.mansion-dialogue-mode .facility-layer{visibility:hidden}}
+@media(max-height:520px) and (max-width:620px){.mansion-dialogue{--profile-size:110px;left:16px;right:16px;bottom:44px}.mansion-profile{bottom:0}.mansion-speech{left:calc(var(--profile-size) + 10px)}.mansion-script{padding:28px 24px 4px}.mansion-script p{font-size:12px}.mansion-dialogue-actions{gap:5px;padding:0 20px 25px}.mansion-choice{font-size:10px;padding:13px}}
+@media(max-height:520px) and (min-width:621px){.mansion-dialogue{--profile-size:154px;bottom:44px}.mansion-speaker{height:44px;font-size:15px}}
 @media(prefers-reduced-motion:reduce){.mansion-dialogue button,.mansion-choice:before{transition:none}}
