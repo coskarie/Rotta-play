@@ -331,9 +331,19 @@ function marketSignal(pid,key){const local=PORTS[pid].market[key];if(local==null
 function init(){NAV_RENDER.viewport=$('#seaViewport');NAV_RENDER.world=$('#oceanWorld');NAV_RENDER.ship=$('#ship');renderNations();renderSeaPorts();loadStartupAssets();$('#closeFacility').onclick=closeFacility;$('#departBtn').onclick=openSailing;$('#setCourseBtn').onclick=startCourse;$('#returnPortBtn').onclick=enterPort;$('#eventClose').onclick=()=>$('#eventModal').classList.add('hidden');$('#tradeCancel').onclick=closeTradeDialog;$('#tradeConfirm').onclick=confirmTrade;$('#tradeQuantity').oninput=updateTradePreview;$$('[data-trade-quick]').forEach(b=>b.onclick=()=>setTradeQuick(b.dataset.tradeQuick));$('#zoomRange').oninput=e=>setZoom(Number(e.target.value));$('#resumeGameBtn').onclick=closeSystem;$('#waitDayBtn').onclick=waitOneDay;$('#closeSeaMarket').onclick=closeSeaMarket;$('#restartGameBtn').onclick=()=>location.reload();$('#systemModal').onclick=e=>{if(e.target.id==='systemModal')closeSystem()};document.addEventListener('keydown',handleGlobalKey);document.addEventListener('keyup',releaseManualKey);window.addEventListener('blur',clearManualKeys);const viewport=NAV_RENDER.viewport;viewport.onkeydown=panCamera;viewport.addEventListener('wheel',zoomWheel,{passive:false});viewport.addEventListener('pointerdown',startMapDrag);viewport.addEventListener('pointermove',dragMap);viewport.addEventListener('pointerup',stopMapDrag);viewport.addEventListener('pointercancel',stopMapDrag);viewport.onclick=seaClick;window.onresize=()=>{syncViewportMetrics();updateCamera()};setZoom(state.zoom)}
 function renderNations(){$('#nationGrid').innerHTML=Object.entries(NATIONS).map(([id,n])=>`<button class="nation-card" data-nation="${id}"><span class="emblem">${n.flag}</span><h3>${n.name}</h3><ul>${n.bonuses.map(x=>`<li>${x}</li>`).join('')}</ul></button>`).join('');$$('[data-nation]').forEach(b=>b.onclick=()=>startGame(b.dataset.nation))}
 function startGame(id){if(!STARTUP.ready)return;const n=NATIONS[id],p=PORTS[n.port];state.nation=id;initMarketSystem();state.gold=n.gold;state.bargain=n.bargain;state.current=n.port;state.shipX=p.navX??p.x;state.shipY=p.navY??p.y;prefetchMapTileAt(state.shipX,state.shipY);$('#nationModal').classList.add('hidden');toast(`${n.name}의 특허장을 받았습니다.`);renderPort();updateStats()}
-function renderPort(){const p=PORTS[state.current],home=NATIONS[state.nation].port===state.current,southClass=(state.current==='bahia'||p.region==='브라질'||p.region==='남미 동해안')?'south-atlantic':p.region==='남미 서해안/태평양'?'south-pacific':'';switchView('port');$('#portScene').className=`port-scene ${home?state.nation:'other'} ${southClass}`;window.ROTTA_HARBORS?.show($('#portScene'),state.current);$('#portName').textContent=p.name;$('#portRegion').textContent=`${p.region} · ${p.climate}`;$('#portFlavor').textContent=p.flavor;$('#placeType').textContent='';$('#placeName').textContent=p.name;closeFacility();const ids=['trade','shop','shipyard'];if(p.royal)ids.push('royal');if(p.mansion)ids.push('mansion');if(p.bank)ids.push('bank');$('#facilityLayer').innerHTML=`<div class="facility-ledger-head" aria-hidden="true"></div>`+ids.map(id=>{const f=FACILITIES[id];return `<button class="facility material-${FACILITY_MATERIAL[id]}" data-facility="${id}" aria-label="${f.name}" aria-pressed="false">${facilitySymbolMarkup(id)}<span class="facility-copy"><b>${f.name}</b></span><em>›</em></button>`}).join('');$$('[data-facility]').forEach(b=>b.onclick=()=>openFacility(b.dataset.facility))}
+function renderPort(){const p=PORTS[state.current],home=NATIONS[state.nation].port===state.current,southClass=(state.current==='bahia'||p.region==='브라질'||p.region==='남미 동해안')?'south-atlantic':p.region==='남미 서해안/태평양'?'south-pacific':'';switchView('port');$('#portScene').className=`port-scene ${home?state.nation:'other'} ${southClass}`;window.ROTTA_HARBORS?.show($('#portScene'),state.current);$('#portName').textContent=p.name;$('#portRegion').textContent=`${p.region} · ${p.climate}`;$('#portFlavor').textContent=p.flavor;$('#placeType').textContent='';$('#placeName').textContent=p.name;window.ROTTA_MANSION_TRANSITION?.cancel();closeFacilityNow();const ids=['trade','shop','shipyard'];if(p.royal)ids.push('royal');if(p.mansion)ids.push('mansion');if(p.bank)ids.push('bank');$('#facilityLayer').innerHTML=`<div class="facility-ledger-head" aria-hidden="true"></div>`+ids.map(id=>{const f=FACILITIES[id];return `<button class="facility material-${FACILITY_MATERIAL[id]}" data-facility="${id}" aria-label="${f.name}" aria-pressed="false">${facilitySymbolMarkup(id)}<span class="facility-copy"><b>${f.name}</b></span><em>›</em></button>`}).join('');$$('[data-facility]').forEach(b=>b.onclick=()=>openFacility(b.dataset.facility))}
 function closeFacility(){
- window.ROTTA_MANSION_TRANSITION?.cancel();
+ return leaveMansion(closeFacilityNow);
+}
+function leaveMansion(commit){
+ const dialogue=window.ROTTA_MANSION_DIALOGUE,transition=window.ROTTA_MANSION_TRANSITION;
+ if((dialogue?.active||$('#portScene').classList.contains('mansion-interior'))&&transition&&!transition.active){
+  dialogue?.fold?.();return transition.play(commit,{direction:'exit'});
+ }
+ transition?.cancel();return commit();
+}
+function closeFacilityNow(){
+ window.ROTTA_MANSION_NAVIGATION?.cancel();
  const dialogueActive=window.ROTTA_MANSION_DIALOGUE?.active||$('#portView').classList.contains('mansion-dialogue-mode');
  window.ROTTA_MANSION_DIALOGUE?.unmount();window.ROTTA_MARKET_DRAWER?.unmount();window.ROTTA_MANSIONS?.clear($('#portScene'));window.ROTTA_FACILITY_SCENES?.clear($('#portScene'));
  $('#facilityPanel').classList.add('hidden');$('#cargoPanel').classList.add('hidden');$('#portView').classList.remove('facility-mode','trade-mode','mansion-dialogue-mode');
@@ -349,6 +359,7 @@ function selectMarketGood(key){if(!GOODS[key]||!(key in PORTS[state.current].mar
 function closeSystem(){$('#systemModal').classList.add('hidden')}
 function toggleSystem(){if(!state.nation)return;$('#waitDayBtn').disabled=state.traveling||MANUAL_SAIL.velocity>.001;$('#systemModal').classList.toggle('hidden')}
 function handleGlobalKey(e){
+ if(window.ROTTA_MANSION_NAVIGATION?.handleKey(e))return;
  if(window.ROTTA_MANSION_TRANSITION?.active){
   if(e.key==='Escape'){e.preventDefault();return closeFacility()}
   if(!/^[1-9]$/.test(e.key)&&!['Tab','Enter',' '].includes(e.key)){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();return}
@@ -356,13 +367,17 @@ function handleGlobalKey(e){
  if(window.ROTTA_PORT_TRANSITIONS?.active){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();return}if(handleArrivalPromptKey(e))return;if((/^[1-9]$/.test(e.key))&&(e.repeat||e.ctrlKey||e.metaKey||e.altKey))return;if(e.key==='Escape'){e.preventDefault();if(SEA_PORT_UI.actionsId||SEA_PORT_UI.quoteId)return closeSeaPortUI();if(!$('#tradeModal').classList.contains('hidden'))return closeTradeDialog();if(!$('#eventModal').classList.contains('hidden'))return $('#eventModal').classList.add('hidden');if(window.ROTTA_MANSION_DIALOGUE?.active&&$('#systemModal').classList.contains('hidden'))return closeFacility();return toggleSystem()}const sailKey={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d'}[e.code];if(sailKey&&$('#sailingView').classList.contains('active')){e.preventDefault();if(COAST.ready){if(state.traveling)cancelAutoSail();MANUAL_SAIL.keys.add(sailKey);startManualSailing()}return}const tag=e.target?.tagName;if(['INPUT','SELECT','TEXTAREA'].includes(tag)||e.target?.isContentEditable)return;if(e.key==='1'&&state.nation&&$('#sailingView').classList.contains('active')&&['#systemModal','#tradeModal','#eventModal'].every(id=>$(id).classList.contains('hidden'))){e.preventDefault();return enterPort()}if(e.code==='Space'&&$('#sailingView').classList.contains('active')){e.preventDefault();return centerOnShip()}if(!/^[1-9]$/.test(e.key)||!state.nation||!$('#portView').classList.contains('active')||!$('#systemModal').classList.contains('hidden')||!$('#tradeModal').classList.contains('hidden')||!$('#eventModal').classList.contains('hidden'))return;const button=$$('[data-facility]')[Number(e.key)-1];if(!button)return;e.preventDefault();if(button.classList.contains('active')&&(!$('#facilityPanel').classList.contains('hidden')||window.ROTTA_MANSION_DIALOGUE?.active))closeFacility();else openFacility(button.dataset.facility)}
 function releaseManualKey(e){const key={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d'}[e.code];if(key)MANUAL_SAIL.keys.delete(key)}
 function clearManualKeys(){if(MANUAL_SAIL.frame)cancelAnimationFrame(MANUAL_SAIL.frame);MANUAL_SAIL.frame=0;MANUAL_SAIL.keys.clear();MANUAL_SAIL.last=0;MANUAL_SAIL.velocity=0;clearStraitGuide();if(!state.traveling&&NAV_RENDER.moving&&document.body){document.body.classList.remove('sailing-moving');NAV_RENDER.moving=false}}
-function openFacility(id){
- const transition=window.ROTTA_MANSION_TRANSITION;
+function openFacility(id,confirmed=false){
+ const dialogue=window.ROTTA_MANSION_DIALOGUE,transition=window.ROTTA_MANSION_TRANSITION;
+ if(id!=='mansion'&&dialogue?.active&&dialogue.progressed&&!confirmed&&!transition?.active&&window.ROTTA_MANSION_NAVIGATION){
+  return window.ROTTA_MANSION_NAVIGATION.request(()=>openFacility(id,true));
+ }
  if(id==='mansion'&&transition){
   if($('#portScene').classList.contains('mansion-interior'))return;
   window.ROTTA_MARKET_DRAWER?.unmount();
-  return transition.play(()=>openFacilityNow(id));
+  return transition.play(()=>openFacilityNow(id),{afterReveal:()=>window.ROTTA_MANSION_DIALOGUE?.reveal()});
  }
+ if(dialogue?.active&&!transition?.active)return leaveMansion(()=>openFacilityNow(id));
  transition?.cancel();return openFacilityNow(id);
 }
 function openFacilityNow(id){
@@ -373,7 +388,7 @@ function openFacilityNow(id){
  $$('[data-facility]').forEach(b=>{const active=b.dataset.facility===id;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});
  if(id==='mansion'&&state.current==='lisbon'&&window.ROTTA_MANSION_DIALOGUE){
   window.ROTTA_MARKET_DRAWER?.unmount();$('#facilityContent').replaceChildren();$('#facilityPanel').classList.add('hidden');$('#cargoPanel').classList.add('hidden');$('#portView').classList.add('mansion-dialogue-mode');
-  window.ROTTA_MANSION_DIALOGUE.mount($('#mansionDialogue'),{onClose:closeFacility,onBook:key=>{state.books??={};state.books[key]??={name:'협상의 기본',source:'lisbon'}}});return;
+  window.ROTTA_MANSION_DIALOGUE.mount($('#mansionDialogue'),{deferReveal:!!window.ROTTA_MANSION_TRANSITION?.active,onClose:closeFacility,onBook:key=>{state.books??={};state.books[key]??={name:'협상의 기본',source:'lisbon'}}});return;
  }
  renderFacility(id);renderCargoPanel(id==='trade');$('#facilityPanel').classList.remove('hidden');$('#cargoPanel').classList.remove('hidden');
 }

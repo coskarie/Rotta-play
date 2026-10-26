@@ -12,29 +12,31 @@
   for(const timer of task.timers)clearTimeout(timer);
   task.overlay.hidden=true;delete task.overlay.dataset.phase;
   document.body.classList.remove('mansion-transitioning');
-  delete document.body.dataset.mansionTransitionPhase;
+  delete document.body.dataset.mansionTransitionPhase;delete document.body.dataset.mansionTransitionDirection;
   task.view.removeAttribute('aria-busy');
   for(const {node,inert}of task.locked)node.inert=inert;
-  current=null;task.resolve(ok);
-  if(ok){
-   const focus=document.querySelector('#mansionDialogue:not([hidden]) button')||document.querySelector('[data-facility="mansion"]');
+  current=null;
+  if(ok&&task.afterReveal){try{task.afterReveal()}catch(error){console.error('[Rotta mansion reveal]',error);ok=false}}
+  task.resolve(ok);
+  if(ok&&!task.afterReveal){
+   const focus=document.querySelector(task.direction==='exit'?'[data-facility].active':'#mansionDialogue:not([hidden]) button')||document.querySelector('[data-facility="mansion"]');
    focus?.focus({preventScroll:true});
   }
  }
  function cancel(){if(current)finish(current,false)}
- function play(commit){
+ function play(commit,{direction='enter',afterReveal=null}={}){
   if(current)return current.promise; // Repeated mansion clicks never restart the fade or conversation.
   const overlay=document.querySelector('#mansionTransition'),view=document.querySelector('#portView');
-  if(!overlay||!view){commit();return Promise.resolve(true)}
+  if(!overlay||!view){commit();afterReveal?.();return Promise.resolve(true)}
   // Respect reduced motion without adding a delayed, invisible navigation step.
-  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){commit();return Promise.resolve(true)}
-  const task={overlay,view,timers:[],locked:[],resolve:null,promise:null};
+  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){commit();afterReveal?.();return Promise.resolve(true)}
+  const task={overlay,view,timers:[],locked:[],resolve:null,promise:null,afterReveal,direction};
   task.promise=new Promise(resolve=>{task.resolve=resolve});current=task;
   for(const selector of ['#facilityPanel','#cargoPanel','#mansionDialogue','#departBtn','.captain-strip','.topbar']){
    const node=document.querySelector(selector);if(!node)continue;
    task.locked.push({node,inert:node.inert});node.inert=true;
   }
-  view.setAttribute('aria-busy','true');phase(task,'fold');overlay.hidden=false;
+  view.setAttribute('aria-busy','true');phase(task,'fold');overlay.hidden=false;document.body.dataset.mansionTransitionDirection=direction;
   document.body.classList.add('mansion-transitioning');
   document.querySelector('[data-facility="mansion"]')?.focus({preventScroll:true});
   const later=(delay,fn)=>task.timers.push(setTimeout(()=>{if(current===task)fn()},delay));

@@ -1,0 +1,8 @@
+.mansion-leave-prompt[hidden]{display:none}
+.mansion-leave-prompt{position:fixed;inset:0;z-index:160;display:grid;place-items:center;background:#0d08052b}
+.mansion-leave-card{display:flex;align-items:center;gap:24px;max-width:calc(100vw - 32px);padding:14px 22px;color:#ecdbb1;background:rgba(43,28,16,.92);border:1px solid #b09259;box-shadow:0 8px 26px #0008,inset 0 0 0 2px #48321d;font-size:16px}
+.mansion-leave-card p{margin:0;line-height:1.5}
+.mansion-leave-actions{display:flex;gap:8px}
+.mansion-leave-actions button{min-width:74px;padding:8px 13px;border:1px solid #987745;color:#eddbb2;background:linear-gradient(#674a2b,#372315);font:inherit;cursor:pointer}
+.mansion-leave-actions button:hover,.mansion-leave-actions button:focus-visible{outline:1px solid #e0c28c;outline-offset:2px;background:#765532}
+@media(max-width:620px){.mansion-leave-card{flex-direction:column;gap:14px;padding:18px 24px;font-size:14px}}
