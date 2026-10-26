@@ -1,0 +1,16 @@
+.mansion-transition[hidden]{display:none}
+.mansion-transition{position:fixed;inset:0;z-index:90;background:#000;opacity:0;pointer-events:auto}
+.mansion-transition[data-phase="fade-out"]{opacity:1;transition:opacity 380ms ease-in}
+.mansion-transition[data-phase="black"]{opacity:1;transition:none}
+.mansion-transition[data-phase="reveal"]{opacity:0;transition:opacity 650ms cubic-bezier(.2,.65,.3,1)}
+/* Only the facility rail stays above the black curtain. Its position is unchanged. */
+body.mansion-transitioning #facilityLayer{z-index:92!important;visibility:visible!important}
+body.mansion-transitioning #toast{visibility:hidden}
+body.mansion-transitioning #facilityPanel,body.mansion-transitioning #cargoPanel{transition:transform 420ms cubic-bezier(.4,0,.2,1),opacity 340ms ease!important;pointer-events:none}
+body.mansion-transitioning:is([data-mansion-transition-phase="fold"],[data-mansion-transition-phase="fade-out"]) #facilityPanel{transform:translateX(calc(-100% - 140px))!important;opacity:0!important}
+body.mansion-transitioning:is([data-mansion-transition-phase="fold"],[data-mansion-transition-phase="fade-out"]) #cargoPanel{transform:translateX(calc(100vw + 40px))!important;opacity:0!important}
+/* Reset incoming panels underneath black, not as a second slide across the new room. */
+body.mansion-transitioning:is([data-mansion-transition-phase="black"],[data-mansion-transition-phase="reveal"]) #facilityPanel,body.mansion-transitioning:is([data-mansion-transition-phase="black"],[data-mansion-transition-phase="reveal"]) #cargoPanel{transition:none!important}
+body.mansion-transitioning .topbar,body.mansion-transitioning .captain-strip,body.mansion-transitioning .depart-button,body.mansion-transitioning .port-title{transition:opacity 300ms ease!important}
+body.mansion-transitioning:not([data-mansion-transition-phase="reveal"]) .topbar,body.mansion-transitioning:not([data-mansion-transition-phase="reveal"]) .captain-strip,body.mansion-transitioning:not([data-mansion-transition-phase="reveal"]) .depart-button,body.mansion-transitioning:not([data-mansion-transition-phase="reveal"]) .port-title{opacity:0!important;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.mansion-transition,body.mansion-transitioning #facilityPanel,body.mansion-transitioning #cargoPanel{transition:none!important}}
