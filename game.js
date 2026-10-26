@@ -78,6 +78,8 @@ const EVENTS=[
 ];
 let state={nation:null,gold:0,bank:0,fame:0,crew:42,hull:100,food:100,morale:78,bargain:1,cargo:{},cargoLots:{},marketBought:{},capacity:60,current:null,year:1543,month:3,seed:1,shipX:1360,shipY:650,atPort:true,traveling:false,camX:0,camY:0,zoom:6.5};
 let pendingTrade=null,SEA_ROUTE_RUN=0;
+let MARKET_BASKET=null;
+const MARKET_BASKET_UI={port:null,mode:'owned'};
 let MARKET_SIM=null;
 let DISTANCE_TRADE=null;
 function distanceTradeEngine(){
@@ -343,6 +345,7 @@ function leaveMansion(commit){
  transition?.cancel();return commit();
 }
 function closeFacilityNow(){
+ window.ROTTA_TRADE_BASKET?.cancel();MARKET_BASKET_UI.mode='owned';closeTradeDialog();
  window.ROTTA_MANSION_NAVIGATION?.cancel();
  window.ROTTA_MANSION_DIALOGUE?.unmount();window.ROTTA_MARKET_DRAWER?.unmount();window.ROTTA_MANSIONS?.clear($('#portScene'));window.ROTTA_FACILITY_SCENES?.clear($('#portScene'));
  $('#facilityPanel').classList.add('hidden');$('#cargoPanel').classList.add('hidden');$('#portView').classList.remove('facility-mode','trade-mode','mansion-dialogue-mode');
@@ -358,6 +361,8 @@ function selectMarketGood(key){if(!GOODS[key]||!(key in PORTS[state.current].mar
 function closeSystem(){$('#systemModal').classList.add('hidden')}
 function toggleSystem(){if(!state.nation)return;$('#waitDayBtn').disabled=state.traveling||MANUAL_SAIL.velocity>.001;$('#systemModal').classList.toggle('hidden')}
 function handleGlobalKey(e){
+ if(window.ROTTA_TRADE_BASKET?.handleKey(e))return;
+ if(pendingTrade&&e.key==='Enter'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.isComposing){e.preventDefault();if(!e.repeat)confirmTrade();return}
  if(window.ROTTA_MANSION_NAVIGATION?.handleKey(e))return;
  if(!window.ROTTA_MANSION_TRANSITION?.active&&['#systemModal','#tradeModal','#eventModal'].every(id=>$(id).classList.contains('hidden'))&&window.ROTTA_MANSION_DIALOGUE?.handleKey(e))return;
  if(window.ROTTA_MANSION_TRANSITION?.active){
@@ -392,8 +397,82 @@ function openFacilityNow(id){
  }
  renderFacility(id);renderCargoPanel(id==='trade');$('#facilityPanel').classList.remove('hidden');$('#cargoPanel').classList.remove('hidden');
 }
-function renderCargoPanel(canSell){const list=$('#cargoPanelList'),entries=Object.entries(state.cargo).filter(([,qty])=>qty>0);$('#cargoPanelSummary').textContent=`${cargoTotal()} / ${state.capacity}`;$('#cargoPanelGold').textContent=`${fmt(state.gold)} 골드`;list.innerHTML=entries.length?entries.map(([k,qty])=>{const g=GOODS[k],price=cargoUnitLabel(cargoSaleQuote(state.current,k)),signal=marketSignal(state.current,k);return `<div class="cargo-ledger-row ${signal.className}">${goodArt(k,g.icon)}<span class="cargo-good"><b>${g.name}</b><small>${qty}개 · ${price} 골드</small></span>${canSell?`<button data-cargo-sell="${k}">매각</button>`:''}</div>`}).join(''):`<div class="cargo-empty"><span>◇</span><b>비어 있음</b></div>`;$$('[data-cargo-sell]').forEach(b=>b.onclick=()=>openTradeDialog(b.dataset.cargoSell,'sell'))}
+function marketBasket(){
+ if(!MARKET_BASKET)MARKET_BASKET=window.ROTTA_TRADE_BASKET.create({
+  context:()=>({port:state.current,gold:state.gold,capacity:state.capacity,cargo:cargoTotal()}),
+  buyPrice:key=>priceAt(state.current,key,'buy'),sellQuote:(key,qty)=>cargoSaleQuote(state.current,key,qty),
+  stock:key=>marketStock(state.current,key),owned:key=>state.cargo[key]||0,
+  hasGood:(key,side)=>!!GOODS[key]&&(side==='sell'||Object.hasOwn(PORTS[state.current]?.market||{},key))
+ });
+ if(MARKET_BASKET_UI.port!==state.current){MARKET_BASKET_UI.port=state.current;MARKET_BASKET_UI.mode='owned';MARKET_BASKET.clear()}
+ return MARKET_BASKET;
+}
+function basketItemsMarkup(entries,{side=null,readonly=false}={}){
+ if(!entries.length)return '<div class="cargo-empty"><span>◇</span><b>비어 있음</b></div>';
+ return entries.map(({key,quantity})=>{const g=GOODS[key],selected=side==='stock'&&marketBasket().quantity('sell',key)>0;
+  return `<button type="button" class="basket-item"${readonly?' disabled':` data-basket-item="${key}" data-basket-side="${side}"`} title="${g.name}" aria-label="${g.name} ${quantity}개"${side==='stock'?` aria-pressed="${selected}"`:''}>${goodArt(key,g.icon)}<b>${fmt(quantity)}</b></button>`;
+ }).join('');
+}
+function bindBasketItems(container){container.querySelectorAll('[data-basket-item]').forEach(button=>button.onclick=()=>openTradeDialog(button.dataset.basketItem,button.dataset.basketSide==='buy'?'buy':'sell'))}
+function setMarketBasketMode(mode){
+ marketBasket();const previous=MARKET_BASKET_UI.mode;MARKET_BASKET_UI.mode=mode;
+ if(mode==='sell'||previous==='sell')renderFacility('trade');renderCargoPanel(true);
+}
+function renderSaleStall(container){
+ const basket=marketBasket(),entries=basket.entries('sell');
+ $('#facilityTitle').textContent='판매 품목';
+ container.innerHTML=`<div class="sale-stall"><div class="basket-grid">${basketItemsMarkup(entries,{side:'sell'})}</div><div class="basket-total"><span>합계</span><strong>${fmt(basket.total('sell'))} G</strong></div></div>`;
+ bindBasketItems(container);
+}
+function renderCargoPanel(canSell){
+ const list=$('#cargoPanelList'),entries=Object.entries(state.cargo).filter(([key,qty])=>qty>0&&GOODS[key]).map(([key,quantity])=>({key,quantity}));
+ const action=$('#cargoPanelAction'),back=$('#cargoPanelBack');
+ $('#cargoPanelSummary').textContent=`${cargoTotal()} / ${state.capacity}`;
+ $('#cargoPanelTitle').textContent='보유 교역품';$('#cargoPanelTotalLabel').textContent='수중 골드';$('#cargoPanelGold').textContent=`${fmt(state.gold)} G`;
+ action.hidden=!canSell;back.hidden=true;list.classList.toggle('basket-grid',canSell);
+ if(!canSell){list.innerHTML=entries.length?entries.map(({key:k,quantity:qty})=>{const g=GOODS[k];return `<div class="cargo-ledger-row">${goodArt(k,g.icon)}<span class="cargo-good"><b>${g.name}</b><small>${qty}개</small></span></div>`}).join(''):basketItemsMarkup([]);return}
+ const basket=marketBasket(),mode=MARKET_BASKET_UI.mode,buying=mode==='buy',side=buying?'buy':'sell',draft=basket.entries(side);
+ back.hidden=mode==='owned';back.onclick=()=>setMarketBasketMode('owned');
+ action.textContent=buying?'매입':'매각';action.disabled=mode==='owned'?!entries.length:!draft.length;
+ action.onclick=()=>mode==='owned'?setMarketBasketMode('sell'):requestBasketCheckout(side);
+ if(buying){
+  $('#cargoPanelTitle').textContent='구매 품목';$('#cargoPanelTotalLabel').textContent='합계';$('#cargoPanelGold').textContent=`${fmt(basket.total('buy'))} G`;
+  $('#cargoPanelSummary').textContent=`${cargoTotal()+draft.reduce((sum,row)=>sum+row.quantity,0)} / ${state.capacity}`;
+ }
+ list.innerHTML=basketItemsMarkup(buying?draft:entries,{side:buying?'buy':'stock'});bindBasketItems(list);
+}
+function requestBasketCheckout(side){
+ const plan=marketBasket().plan(side);if(!plan.ok)return toast(plan.error);
+ window.ROTTA_TRADE_BASKET.confirm({side,html:basketItemsMarkup(plan.rows,{readonly:true}),total:`${fmt(plan.total)} G`,commit:()=>commitMarketBasket(plan)});
+}
+function commitMarketBasket(expected){
+ const basket=marketBasket(),plan=basket.plan(expected.side);
+ // Revalidate the whole order before touching gold, stock, cargo or origin lots.
+ if(!plan.ok||plan.signature!==expected.signature){toast(plan.ok?'시세가 변경되었습니다.':plan.error);renderFacility('trade');renderCargoPanel(true);return false}
+ let total=0,saved=0,bargain=state.bargain;
+ const rows=plan.rows.map(row=>{
+  if(plan.side==='sell')return row;
+  let unit=row.unit;
+  if(Math.random()<.3&&Math.random()<.3+bargain*.09+(state.nation==='france'?.15:0)){
+   unit=Math.max(marketPriceAt(state.current,row.key,'sell')+1,Math.round(unit*(.88-bargain*.015)));
+   unit=Math.min(row.unit,unit);bargain=Math.min(5,bargain+.08);
+  }
+  saved+=(row.unit-unit)*row.quantity;return {...row,unit,total:unit*row.quantity};
+ });
+ for(const row of rows){
+  if(plan.side==='buy'){
+   addCargoLot(row.key,row.quantity,plan.port,row.unit);const token=marketStockToken(plan.port,row.key);state.marketBought[token]=(state.marketBought[token]||0)+row.quantity;
+  }else{
+   removeCargoLots(row.key,row.quantity);if(row.unit>GOODS[row.key].base*1.2)state.fame+=Math.max(1,Math.floor(row.quantity/5));
+  }
+  total+=row.total;
+ }
+ state.gold+=plan.side==='buy'?-total:total;state.bargain=bargain;basket.clear(plan.side);MARKET_BASKET_UI.mode='owned';
+ updateStats();renderFacility('trade');renderCargoPanel(true);
+ toast(`${plan.side==='buy'?'매입':'매각'} ${fmt(total)} G${saved?` · 협상 −${fmt(saved)} G`:''}`);return true;
+}
 function renderFacility(id){window.ROTTA_MARKET_DRAWER?.unmount();const c=$('#facilityContent');if(id==='trade'){
+ marketBasket();$('#facilityTitle').textContent='교역소';if(MARKET_BASKET_UI.mode==='sell'){renderSaleStall(c);return}
  const keys=Object.keys(PORTS[state.current].market).filter(k=>GOODS[k]);
  if(MARKET_UI.port!==state.current||!keys.includes(MARKET_UI.key)){MARKET_UI.port=state.current;MARKET_UI.key=keys[0];MARKET_UI.month=null}
  const sortValues=Object.fromEntries(keys.map(k=>[k,{category:GOODS[k].category,stock:marketStock(state.current,k),buy:priceAt(state.current,k,'buy'),sell:priceAt(state.current,k,'sell')}]));
@@ -413,12 +492,27 @@ function renderFacility(id){window.ROTTA_MARKET_DRAWER?.unmount();const c=$('#fa
 function facilityAction(action,facility){const spend=(cost,fn)=>{if(state.gold<cost)return toast('골드가 부족합니다.');state.gold-=cost;fn()};if(action==='food')spend(45,()=>{state.food=Math.min(100,state.food+20);toast('식량과 담수를 실었습니다.')});if(action==='morale')spend(35,()=>{state.morale=Math.min(100,state.morale+12);toast('선원들의 사기가 올랐습니다.')});if(action==='repair')spend(90,()=>{state.hull=Math.min(100,state.hull+30);toast('손상된 선체를 수리했습니다.')});if(action==='upgrade')spend(180,()=>{state.capacity+=10;toast('화물칸을 10칸 증설했습니다.')});if(action==='deposit')spend(100,()=>{state.bank+=100;toast('100 골드를 예치했습니다.')});if(action==='withdraw'){if(state.bank<100)return toast('예치금이 부족합니다.');state.bank-=100;state.gold+=100;toast('100 골드를 인출했습니다.')}if(action==='train')spend(120,()=>{state.bargain=Math.min(5,state.bargain+1);toast('협상술이 향상됐습니다.')});if(action==='rumor')spend(state.nation==='england'?10:20,()=>{const tips=MARKET_SIM?.news(state.current)||[];toast(tips.length?tips[Math.floor(Math.random()*tips.length)]:'새 소식 없음')});if(action==='charter'){state.fame+=1;toast('왕실의 축복으로 명성 +1')}if(action==='mission')toast('후추 또는 정향 5단위를 모아 왕실에 납품하십시오.');updateStats();renderFacility(facility);renderCargoPanel(facility==='trade')}
 function marketStockToken(portId,key){return `${portId}:${state.year}:${state.month}:${Math.floor(((state.day||1)-1)/7)}:${key}`}
 function marketStock(portId,key){const token=marketStockToken(portId,key),initial=12+(hash(`${token}:stock`)%69);return Math.max(0,Math.floor(initial*(GOODS[key]?.stockScale??1)*marketEffects(portId,key).stock)-(state.marketBought[token]||0))}
-function maxTradeQuantity(key,type){const pr=priceAt(state.current,key);return type==='buy'?Math.max(0,Math.min(state.capacity-cargoTotal(),Math.floor(state.gold/pr),marketStock(state.current,key))):Math.max(0,state.cargo[key]||0)}
-function openTradeDialog(key,type){const max=maxTradeQuantity(key,type),g=GOODS[key];if(max<1){if(type==='sell')return toast(`${g.name} 없음`);if(marketStock(state.current,key)<1)return toast('재고 없음');return toast(state.gold<priceAt(state.current,key)?'골드 부족':'화물칸 부족')}pendingTrade={key,type};$('#tradeDialogType').textContent=type==='buy'?'매입':'매각';$('#tradeDialogTitle').textContent=g.name;$('#tradeDialogArt').innerHTML=goodArt(key,g.icon);$('#tradeUnitPrice').textContent=fmt(priceAt(state.current,key,type));$('#tradeMaximum').textContent=fmt(max);$('#tradeQuantity').max=max;$('#tradeQuantity').value=1;$('#tradeConfirm').textContent=type==='buy'?'매입':'매각';updateTradePreview();$('#tradeModal').classList.remove('hidden');$('#tradeQuantity').focus();$('#tradeQuantity').select()}
-function closeTradeDialog(){pendingTrade=null;$('#tradeModal').classList.add('hidden')}
+function maxTradeQuantity(key,type){return marketBasket().maximum(type,key)}
+function openTradeDialog(key,type){
+ const basket=marketBasket(),max=maxTradeQuantity(key,type),g=GOODS[key],existing=basket.quantity(type,key);
+ if(max<1&&!existing)return toast(type==='sell'?'보유품 없음':marketStock(state.current,key)<1?'재고 없음':'골드 또는 화물칸 부족');
+ const mode=type==='buy'?'buy':'sell';if(MARKET_BASKET_UI.mode!==mode)setMarketBasketMode(mode);
+ pendingTrade={key,type};$('#tradeDialogType').textContent=type==='buy'?'매입':'매각';$('#tradeDialogTitle').textContent=g.name;$('#tradeDialogArt').innerHTML=goodArt(key,g.icon);
+ $('#tradeMaximum').textContent=fmt(max);$('#tradeQuantity').min=existing?0:1;$('#tradeQuantity').max=max;$('#tradeQuantity').value=existing?Math.min(existing,max):1;
+ $('#tradeConfirm').textContent='담기';updateTradePreview();$('#tradeModal').classList.remove('hidden');$('#tradeQuantity').focus();$('#tradeQuantity').select();
+}
+function closeTradeDialog(){const previous=pendingTrade;pendingTrade=null;$('#tradeModal').classList.add('hidden');if(previous){const selector=previous.type==='buy'?`[data-buy="${previous.key}"]`:`#cargoPanel [data-basket-item="${previous.key}"]`;($(selector)||$('#cargoPanelAction'))?.focus({preventScroll:true})}}
 function setTradeQuick(mode){if(!pendingTrade)return;const max=maxTradeQuantity(pendingTrade.key,pendingTrade.type);$('#tradeQuantity').value=mode==='all'?max:Math.max(1,Math.ceil(max/2));updateTradePreview()}
-function updateTradePreview(){if(!pendingTrade)return;const {key,type}=pendingTrade,max=maxTradeQuantity(key,type),qty=Math.max(1,Math.min(max,Math.floor(Number($('#tradeQuantity').value)||1))),sale=type==='sell'?cargoSaleQuote(state.current,key,qty):null;$('#tradeMaximum').textContent=fmt(max);$('#tradeUnitPrice').textContent=sale?cargoUnitLabel(sale):fmt(priceAt(state.current,key,'buy'));$('#tradeTotal').textContent=`${fmt(sale?sale.total:priceAt(state.current,key,'buy')*qty)} 골드`;$('#tradeConfirm').disabled=max<1}
-function confirmTrade(){if(!pendingTrade)return;const {key,type}=pendingTrade,g=GOODS[key],pr=priceAt(state.current,key,type),max=maxTradeQuantity(key,type),qty=Math.max(1,Math.min(max,Math.floor(Number($('#tradeQuantity').value)||1)));if(max<1)return closeTradeDialog();let unit=pr,total=pr*qty;if(type==='buy'){if(Math.random()<.3){const chance=.3+state.bargain*.09+(state.nation==='france'?.15:0);if(Math.random()<chance){unit=Math.max(priceAt(state.current,key,'sell')+1,Math.round(pr*(.88-state.bargain*.015)));state.bargain=Math.min(5,state.bargain+.08);toast(`협상 성공 — ${g.name} ${qty}개에서 ${fmt((pr-unit)*qty)} 골드를 아꼈습니다.`)}else toast('협상이 결렬돼 정가로 거래했습니다.')}total=unit*qty;state.gold-=total;addCargoLot(key,qty,state.current,unit);const token=marketStockToken(state.current,key);state.marketBought[token]=(state.marketBought[token]||0)+qty}else{const sale=cargoSaleQuote(state.current,key,qty);unit=sale.unit;total=sale.total;state.gold+=total;removeCargoLots(key,qty);if(unit>g.base*1.2)state.fame+=Math.max(1,Math.floor(qty/5))}closeTradeDialog();updateStats();renderFacility('trade');renderCargoPanel(true);if(type==='sell')toast(`${g.name} ${qty}개를 ${fmt(total)} 골드에 매각했습니다.`)}
+function tradeDraftQuantity(){const {key,type}=pendingTrade,max=maxTradeQuantity(key,type),min=marketBasket().quantity(type,key)?0:1;return Math.max(0,Math.min(max,Math.max(min,Math.floor(Number($('#tradeQuantity').value)||0))))}
+function updateTradePreview(){
+ if(!pendingTrade)return;const {key,type}=pendingTrade,max=maxTradeQuantity(key,type),qty=tradeDraftQuantity(),sale=type==='sell'?cargoSaleQuote(state.current,key,qty):null;
+ $('#tradeMaximum').textContent=fmt(max);$('#tradeUnitPrice').textContent=sale?cargoUnitLabel(sale):fmt(priceAt(state.current,key,'buy'));
+ $('#tradeTotal').textContent=`${fmt(sale?sale.total:priceAt(state.current,key,'buy')*qty)} G`;$('#tradeConfirm').textContent=qty?'담기':'제외';$('#tradeConfirm').disabled=max<1&&!marketBasket().quantity(type,key);
+}
+function confirmTrade(){
+ if(!pendingTrade)return;const {key,type}=pendingTrade,basket=marketBasket();basket.set(type,key,tradeDraftQuantity());closeTradeDialog();
+ if(type==='sell')renderFacility('trade');renderCargoPanel(true);$('#cargoPanelAction').focus({preventScroll:true});
+}
 function playPortTransition(kind,commit){return window.ROTTA_PORT_TRANSITIONS?.play?window.ROTTA_PORT_TRANSITIONS.play(kind,commit):commit()}
 function openSailing(){
  if(window.ROTTA_PORT_TRANSITIONS?.active||!state.nation)return;
