@@ -97,7 +97,7 @@
   function handleKey(event){
    if(disposed)return false;
    return window.ROTTA_DIALOGUE_INPUT?.handleKey(event,{
-    buttons:typing?[]:actions.children,onAdvance:advance,
+    buttons:!typing&&conversation.node.choices?actions.children:[],onAdvance:advance,
     ready:!paused&&root.dataset.dialoguePhase==='ready'
    })||false;
   }
