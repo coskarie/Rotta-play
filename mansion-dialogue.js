@@ -1,7 +1,7 @@
 (() => {
  'use strict';
  const portraitPath='assets/characters/01-portugal-nobleman.png';
- const assets=[portraitPath,'assets/dialogue/noble-v1/portrait-frame.png','assets/dialogue/noble-v1/nameplate.png','assets/dialogue/noble-v1/speech-panel.png','assets/dialogue/noble-v1/choice-button.png'];
+ const assets=[portraitPath,'assets/dialogue/noble-v1/portrait-frame-slim.png','assets/dialogue/noble-v1/nameplate.png','assets/dialogue/noble-v1/speech-panel.png','assets/dialogue/noble-v1/choice-button.png'];
  // revisit is the conversation hub: every completed topic returns here.
  const nodes={
   greeting:{text:'어서오시오',next:'inquiry'},
