@@ -6,7 +6,7 @@
 .trade-mode .market-head .market-sort:first-child{text-align:left}
 .trade-mode .market-head .market-sort:hover,.trade-mode .market-head .market-sort[aria-pressed="true"]{color:#4c3017}
 .trade-mode .market-head .market-sort:focus-visible{outline:1px solid #71512c;outline-offset:1px}
-.trade-mode .market-head .market-sort[data-direction]:not([data-direction=""]):after{
+.trade-mode .market-head .market-sort[data-direction="asc"]:after,.trade-mode .market-head .market-sort[data-direction="desc"]:after{
  content:'↑';position:absolute;right:-3px;top:50%;transform:translateY(-50%);font-size:9px;letter-spacing:0;color:#71512c;
 }
 .trade-mode .market-head .market-sort[data-direction="desc"]:after{content:'↓'}

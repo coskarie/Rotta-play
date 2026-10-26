@@ -9,7 +9,9 @@
 <link rel="stylesheet" href="mansion-scenes.css?v=2">
 <link rel="stylesheet" href="departure-zoom.css?v=1">
 <link rel="stylesheet" href="market-drawer.css?v=1">
-<link rel="stylesheet" href="market-sort.css?v=1">
+<link rel="stylesheet" href="market-sort.css?v=2">
+<link rel="stylesheet" href="mansion-dialogue.css?v=1">
+<link rel="preload" href="assets/characters/01-portugal-nobleman.png" as="image">
 </head>
 <body>
   <div id="mapLoader" class="map-loader" role="status" aria-live="polite">
@@ -55,6 +57,12 @@
         <div id="cargoPanelList" class="cargo-panel-list"></div>
         <div class="cargo-panel-foot"><span>수중 골드</span><strong id="cargoPanelGold">0 골드</strong></div>
       </aside>
+      <section id="mansionDialogue" class="mansion-dialogue" role="dialog" aria-labelledby="mansionSpeaker" aria-describedby="mansionLine" hidden>
+        <figure class="mansion-portrait"><img src="assets/characters/01-portugal-nobleman.png" width="1280" height="1280" alt="포르투갈 귀족" decoding="async"></figure>
+        <div id="mansionSpeaker" class="mansion-speaker">귀족</div>
+        <div class="mansion-script" aria-live="polite" aria-atomic="true"><p id="mansionLine" data-dialogue-line></p></div>
+        <div class="mansion-dialogue-actions" data-dialogue-actions></div>
+      </section>
     </section>
 
     <section id="sailingView" class="view">
@@ -98,6 +106,6 @@
   <div class="modal-backdrop hidden system-backdrop" id="systemModal">
     <div class="system-modal parchment-edge" role="dialog" aria-modal="true" aria-labelledby="systemTitle"><h2 id="systemTitle">시스템</h2><button id="resumeGameBtn">계속</button><button id="waitDayBtn">하루 대기</button><button id="restartGameBtn">새 항해</button></div>
   </div>
-<div id="toast" class="toast" role="status" aria-live="polite"></div><script src="vendor/d3.min.js"></script><script src="vendor/topojson-client.min.js"></script><script src="ports.js?v=2"></script><script src="mediterranean-markets.js?v=6"></script><script src="world-markets.js?v=26"></script><script src="specialty-goods.js?v=1"></script><script src="specialty-history-data.js?v=1"></script><script src="specialty-expansion.js?v=1"></script><script src="goods-images.js?v=30"></script><script src="goods-cache.js?v=2"></script><script src="port-position-overrides.js?v=61"></script><script src="coast-renderer.js?v=1"></script><script src="cloud-sky.js?v=4"></script><script src="market-data.js?v=1"></script><script src="market-prices.js?v=3"></script><script src="market-chart.js?v=3"></script><script src="market-drawer.js?v=1"></script><script src="market-sort.js?v=1"></script><script src="market-events.js?v=3"></script><script src="sea-distances.js?v=1"></script><script src="distance-trade.js?v=1"></script><script src="port-symbols.js?v=7"></script><script src="world-harbor-scenes.js?v=1"></script><script src="harbor-scenes.js?v=2"></script><script src="mansion-scenes.js?v=2"></script><script src="harbor-cache.js?v=4"></script><script src="port-transitions.js?v=2"></script><script src="game.js?v=101"></script>
+<div id="toast" class="toast" role="status" aria-live="polite"></div><script src="vendor/d3.min.js"></script><script src="vendor/topojson-client.min.js"></script><script src="ports.js?v=2"></script><script src="mediterranean-markets.js?v=6"></script><script src="world-markets.js?v=26"></script><script src="specialty-goods.js?v=1"></script><script src="specialty-history-data.js?v=1"></script><script src="specialty-expansion.js?v=1"></script><script src="goods-images.js?v=30"></script><script src="goods-cache.js?v=2"></script><script src="port-position-overrides.js?v=61"></script><script src="coast-renderer.js?v=1"></script><script src="cloud-sky.js?v=4"></script><script src="market-data.js?v=1"></script><script src="market-prices.js?v=3"></script><script src="market-chart.js?v=3"></script><script src="market-drawer.js?v=1"></script><script src="market-sort.js?v=1"></script><script src="market-events.js?v=3"></script><script src="sea-distances.js?v=1"></script><script src="distance-trade.js?v=1"></script><script src="port-symbols.js?v=7"></script><script src="world-harbor-scenes.js?v=1"></script><script src="harbor-scenes.js?v=2"></script><script src="mansion-scenes.js?v=2"></script><script src="mansion-dialogue.js?v=1"></script><script src="harbor-cache.js?v=4"></script><script src="port-transitions.js?v=2"></script><script src="game.js?v=102"></script>
 </body>
 </html>
