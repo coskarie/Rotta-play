@@ -105,12 +105,14 @@ function removeCargoLots(key,quantity){
  for(const lot of lots){const count=Math.min(remaining,lot.quantity);lot.quantity-=count;remaining-=count;if(!remaining)break}
  state.cargo[key]=Math.max(0,(state.cargo[key]||0)-quantity);state.cargoLots[key]=lots.filter(l=>l.quantity>0);
 }
-function cargoSaleQuote(portId,key,quantity=state.cargo[key]||0){
- const base=marketPriceAt(portId,key,'sell'),count=Math.max(0,Math.min(Math.floor(quantity)||0,state.cargo[key]||0));
+function cargoSaleQuote(portId,key,quantity=state.cargo[key]||0,offset=0){
+ const base=marketPriceAt(portId,key,'sell');let skip=Math.max(0,Math.min(Math.floor(offset)||0,state.cargo[key]||0));
+ const count=Math.max(0,Math.min(Math.floor(quantity)||0,(state.cargo[key]||0)-skip));
  if(!count)return{quantity:0,total:0,unit:base,minUnit:base,maxUnit:base};
  const engine=distanceTradeEngine();let remaining=count,total=0,minUnit=Infinity,maxUnit=0;
  for(const lot of cargoLotsFor(key)){
-  const take=Math.min(remaining,lot.quantity);if(!take)continue;
+  const skipped=Math.min(skip,lot.quantity);skip-=skipped;
+  const take=Math.min(remaining,lot.quantity-skipped);if(!take)continue;
   const multiplier=engine?.factor(lot.origin,portId,key)??1,unit=Math.max(1,Math.floor(base*multiplier+1e-8));
   total+=take*unit;minUnit=Math.min(minUnit,unit);maxUnit=Math.max(maxUnit,unit);remaining-=take;if(!remaining)break;
  }
@@ -409,18 +411,30 @@ function marketBasket(){
 }
 function basketItemsMarkup(entries,{side=null,readonly=false}={}){
  if(!entries.length)return '<div class="cargo-empty"><span>◇</span><b>비어 있음</b></div>';
- return entries.map(({key,quantity})=>{const g=GOODS[key],selected=side==='stock'&&marketBasket().quantity('sell',key)>0;
-  return `<button type="button" class="basket-item"${readonly?' disabled':` data-basket-item="${key}" data-basket-side="${side}"`} title="${g.name}" aria-label="${g.name} ${quantity}개"${side==='stock'?` aria-pressed="${selected}"`:''}>${goodArt(key,g.icon)}<b>${fmt(quantity)}</b></button>`;
+ return entries.map(({key,quantity})=>{const g=GOODS[key],sale=side==='sell'&&!readonly,tip=sale?`<span class="sale-price-tip" role="tooltip" id="sale-price-${key}">${fmt(cargoSaleQuote(state.current,key,quantity).total)}g</span>`:'';
+  return `<button type="button" class="basket-item"${readonly?' disabled':` data-basket-item="${key}" data-basket-side="${side}"`}${sale?` aria-describedby="sale-price-${key}"`:` title="${g.name}"`} aria-label="${g.name} ${quantity}개${sale?' 판매 취소':''}">${goodArt(key,g.icon)}<b>${fmt(quantity)}</b>${tip}</button>`;
  }).join('');
 }
-function bindBasketItems(container){container.querySelectorAll('[data-basket-item]').forEach(button=>button.onclick=()=>openTradeDialog(button.dataset.basketItem,button.dataset.basketSide==='buy'?'buy':'sell'))}
+function bindBasketItems(container){container.querySelectorAll('[data-basket-item]').forEach(button=>button.onclick=()=>{
+ const {basketItem:key,basketSide:side}=button.dataset;
+ if(side==='sell')return cancelSaleBasketItem(key);
+ openTradeDialog(key,side==='buy'?'buy':'sell',{append:side==='stock'});
+})}
+function availableCargoEntries(){
+ const basket=marketBasket();return Object.entries(state.cargo).filter(([key])=>GOODS[key]).map(([key,quantity])=>({key,quantity:Math.max(0,quantity-basket.quantity('sell',key))})).filter(row=>row.quantity>0);
+}
+function cancelSaleBasketItem(key){
+ const basket=marketBasket();if(!basket.quantity('sell',key))return;
+ basket.set('sell',key,0);renderFacility('trade');renderCargoPanel(true);
+ ($(`#cargoPanel [data-basket-item="${key}"]`)||$('#cargoPanelAction')).focus({preventScroll:true});
+}
 function cargoLedgerMarkup(entries,{side='stock',readonly=false}={}){
  if(!entries.length)return '<div class="cargo-empty"><span>◇</span><b>비어 있음</b></div>';
  return entries.map(({key,quantity})=>{
-  const g=GOODS[key],signal=marketSignal(state.current,key),unit=side==='buy'?fmt(priceAt(state.current,key,'buy')):cargoUnitLabel(cargoSaleQuote(state.current,key));
-  const selected=!readonly&&side==='stock'&&marketBasket().quantity('sell',key)>0;
+  const g=GOODS[key],signal=marketSignal(state.current,key),offset=!readonly&&side==='stock'?marketBasket().quantity('sell',key):0;
+  const unit=side==='buy'?fmt(priceAt(state.current,key,'buy')):cargoUnitLabel(cargoSaleQuote(state.current,key,quantity,offset));
   const body=`${goodArt(key,g.icon)}<span class="cargo-good"><b>${g.name}</b><small>${fmt(quantity)}개 · ${unit} 골드</small></span>`;
-  return readonly?`<div class="cargo-ledger-row ${signal.className}">${body}</div>`:`<button type="button" class="cargo-ledger-row cargo-ledger-item ${signal.className}" data-basket-item="${key}" data-basket-side="${side}" aria-label="${g.name} ${quantity}개"${side==='stock'?` aria-pressed="${selected}"`:''}>${body}</button>`;
+  return readonly?`<div class="cargo-ledger-row ${signal.className}">${body}</div>`:`<button type="button" class="cargo-ledger-row cargo-ledger-item ${signal.className}" data-basket-item="${key}" data-basket-side="${side}" aria-label="${g.name} ${quantity}개">${body}</button>`;
  }).join('');
 }
 function setMarketBasketMode(mode){
@@ -448,7 +462,7 @@ function renderCargoPanel(canSell){
   $('#cargoPanelTitle').textContent='구매 품목';$('#cargoPanelTotalLabel').textContent='합계';$('#cargoPanelGold').textContent=`${fmt(basket.total('buy'))} G`;
   $('#cargoPanelSummary').textContent=`${cargoTotal()+draft.reduce((sum,row)=>sum+row.quantity,0)} / ${state.capacity}`;
  }
- list.innerHTML=cargoLedgerMarkup(buying?draft:entries,{side:buying?'buy':'stock'});bindBasketItems(list);
+ list.innerHTML=cargoLedgerMarkup(buying?draft:availableCargoEntries(),{side:buying?'buy':'stock'});bindBasketItems(list);
 }
 function requestBasketCheckout(side){
  const plan=marketBasket().plan(side);if(!plan.ok)return toast(plan.error);
@@ -501,25 +515,25 @@ function renderFacility(id){window.ROTTA_MARKET_DRAWER?.unmount();const c=$('#fa
 function facilityAction(action,facility){const spend=(cost,fn)=>{if(state.gold<cost)return toast('골드가 부족합니다.');state.gold-=cost;fn()};if(action==='food')spend(45,()=>{state.food=Math.min(100,state.food+20);toast('식량과 담수를 실었습니다.')});if(action==='morale')spend(35,()=>{state.morale=Math.min(100,state.morale+12);toast('선원들의 사기가 올랐습니다.')});if(action==='repair')spend(90,()=>{state.hull=Math.min(100,state.hull+30);toast('손상된 선체를 수리했습니다.')});if(action==='upgrade')spend(180,()=>{state.capacity+=10;toast('화물칸을 10칸 증설했습니다.')});if(action==='deposit')spend(100,()=>{state.bank+=100;toast('100 골드를 예치했습니다.')});if(action==='withdraw'){if(state.bank<100)return toast('예치금이 부족합니다.');state.bank-=100;state.gold+=100;toast('100 골드를 인출했습니다.')}if(action==='train')spend(120,()=>{state.bargain=Math.min(5,state.bargain+1);toast('협상술이 향상됐습니다.')});if(action==='rumor')spend(state.nation==='england'?10:20,()=>{const tips=MARKET_SIM?.news(state.current)||[];toast(tips.length?tips[Math.floor(Math.random()*tips.length)]:'새 소식 없음')});if(action==='charter'){state.fame+=1;toast('왕실의 축복으로 명성 +1')}if(action==='mission')toast('후추 또는 정향 5단위를 모아 왕실에 납품하십시오.');updateStats();renderFacility(facility);renderCargoPanel(facility==='trade')}
 function marketStockToken(portId,key){return `${portId}:${state.year}:${state.month}:${Math.floor(((state.day||1)-1)/7)}:${key}`}
 function marketStock(portId,key){const token=marketStockToken(portId,key),initial=12+(hash(`${token}:stock`)%69);return Math.max(0,Math.floor(initial*(GOODS[key]?.stockScale??1)*marketEffects(portId,key).stock)-(state.marketBought[token]||0))}
-function maxTradeQuantity(key,type){return marketBasket().maximum(type,key)}
-function openTradeDialog(key,type){
- const basket=marketBasket(),max=maxTradeQuantity(key,type),g=GOODS[key],existing=basket.quantity(type,key);
+function maxTradeQuantity(key,type,append=false){const basket=marketBasket();return Math.max(0,basket.maximum(type,key)-(type==='sell'&&append?basket.quantity('sell',key):0))}
+function openTradeDialog(key,type,{append=false}={}){
+ const basket=marketBasket(),max=maxTradeQuantity(key,type,append),g=GOODS[key],existing=append?0:basket.quantity(type,key);
  if(max<1&&!existing)return toast(type==='sell'?'보유품 없음':marketStock(state.current,key)<1?'재고 없음':'골드 또는 화물칸 부족');
  const mode=type==='buy'?'buy':'sell';if(MARKET_BASKET_UI.mode!==mode)setMarketBasketMode(mode);
- pendingTrade={key,type};$('#tradeDialogType').textContent=type==='buy'?'매입':'매각';$('#tradeDialogTitle').textContent=g.name;$('#tradeDialogArt').innerHTML=goodArt(key,g.icon);
+ pendingTrade={key,type,append};$('#tradeDialogType').textContent=type==='buy'?'매입':'매각';$('#tradeDialogTitle').textContent=g.name;$('#tradeDialogArt').innerHTML=goodArt(key,g.icon);
  $('#tradeMaximum').textContent=fmt(max);$('#tradeQuantity').min=existing?0:1;$('#tradeQuantity').max=max;$('#tradeQuantity').value=existing?Math.min(existing,max):1;
  $('#tradeConfirm').textContent='담기';updateTradePreview();$('#tradeModal').classList.remove('hidden');$('#tradeQuantity').focus();$('#tradeQuantity').select();
 }
 function closeTradeDialog(){const previous=pendingTrade;pendingTrade=null;$('#tradeModal').classList.add('hidden');if(previous){const selector=previous.type==='buy'?`[data-buy="${previous.key}"]`:`#cargoPanel [data-basket-item="${previous.key}"]`;($(selector)||$('#cargoPanelAction'))?.focus({preventScroll:true})}}
-function setTradeQuick(mode){if(!pendingTrade)return;const max=maxTradeQuantity(pendingTrade.key,pendingTrade.type);$('#tradeQuantity').value=mode==='all'?max:Math.max(1,Math.ceil(max/2));updateTradePreview()}
-function tradeDraftQuantity(){const {key,type}=pendingTrade,max=maxTradeQuantity(key,type),min=marketBasket().quantity(type,key)?0:1;return Math.max(0,Math.min(max,Math.max(min,Math.floor(Number($('#tradeQuantity').value)||0))))}
+function setTradeQuick(mode){if(!pendingTrade)return;const max=maxTradeQuantity(pendingTrade.key,pendingTrade.type,pendingTrade.append);$('#tradeQuantity').value=mode==='all'?max:Math.max(1,Math.ceil(max/2));updateTradePreview()}
+function tradeDraftQuantity(){const {key,type,append}=pendingTrade,max=maxTradeQuantity(key,type,append),min=!append&&marketBasket().quantity(type,key)?0:1;return Math.max(0,Math.min(max,Math.max(min,Math.floor(Number($('#tradeQuantity').value)||0))))}
 function updateTradePreview(){
- if(!pendingTrade)return;const {key,type}=pendingTrade,max=maxTradeQuantity(key,type),qty=tradeDraftQuantity(),sale=type==='sell'?cargoSaleQuote(state.current,key,qty):null;
+ if(!pendingTrade)return;const {key,type,append}=pendingTrade,max=maxTradeQuantity(key,type,append),qty=tradeDraftQuantity(),sale=type==='sell'?cargoSaleQuote(state.current,key,qty,append?marketBasket().quantity('sell',key):0):null;
  $('#tradeMaximum').textContent=fmt(max);$('#tradeUnitPrice').textContent=sale?cargoUnitLabel(sale):fmt(priceAt(state.current,key,'buy'));
- $('#tradeTotal').textContent=`${fmt(sale?sale.total:priceAt(state.current,key,'buy')*qty)} G`;$('#tradeConfirm').textContent=qty?'담기':'제외';$('#tradeConfirm').disabled=max<1&&!marketBasket().quantity(type,key);
+ $('#tradeTotal').textContent=`${fmt(sale?sale.total:priceAt(state.current,key,'buy')*qty)} G`;$('#tradeConfirm').textContent=qty?'담기':'제외';$('#tradeConfirm').disabled=max<1&&(append||!marketBasket().quantity(type,key));
 }
 function confirmTrade(){
- if(!pendingTrade)return;const {key,type}=pendingTrade,basket=marketBasket();basket.set(type,key,tradeDraftQuantity());closeTradeDialog();
+ if(!pendingTrade)return;const {key,type,append}=pendingTrade,basket=marketBasket(),quantity=tradeDraftQuantity();basket.set(type,key,(append?basket.quantity(type,key):0)+quantity);closeTradeDialog();
  if(type==='sell')renderFacility('trade');renderCargoPanel(true);$('#cargoPanelAction').focus({preventScroll:true});
 }
 function playPortTransition(kind,commit){return window.ROTTA_PORT_TRANSITIONS?.play?window.ROTTA_PORT_TRANSITIONS.play(kind,commit):commit()}
