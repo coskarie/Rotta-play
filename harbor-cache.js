@@ -6,6 +6,7 @@
   {key:'south-pacific',variable:'--harbor-south-pacific',path:'assets/harbor-south-pacific.png'},
   ...['portugal','spain','england','france','ottoman'].map(style=>({key:`mansion-${style}`,variable:`--mansion-${style}`,path:`assets/mansions/${style}.png`})),
   ...window.ROTTA_MANSIONS.assets,
+  ...(window.ROTTA_FACILITY_SCENES?.assets||[]),
   ...window.ROTTA_HARBORS.assets
  ];
  const decoded=new Map(),stats={total:assets.length,loaded:0,cached:0,downloaded:0,ready:false};

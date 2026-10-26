@@ -1,0 +1,3 @@
+#portScene.facility-interior{background-image:var(--facility-image)!important;background-size:cover!important;background-position:center!important}
+.port-scene.facility-interior:before{background:linear-gradient(90deg,#1b100a99,transparent 28%,transparent 66%,#160d0633),linear-gradient(0deg,#10090655,transparent 35%);mix-blend-mode:multiply}
+.port-scene.facility-interior:after{box-shadow:inset 0 0 55px 12px #1d0e0659}

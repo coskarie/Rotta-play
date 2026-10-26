@@ -334,7 +334,7 @@ function startGame(id){if(!STARTUP.ready)return;const n=NATIONS[id],p=PORTS[n.po
 function renderPort(){const p=PORTS[state.current],home=NATIONS[state.nation].port===state.current,southClass=(state.current==='bahia'||p.region==='브라질'||p.region==='남미 동해안')?'south-atlantic':p.region==='남미 서해안/태평양'?'south-pacific':'';switchView('port');$('#portScene').className=`port-scene ${home?state.nation:'other'} ${southClass}`;window.ROTTA_HARBORS?.show($('#portScene'),state.current);$('#portName').textContent=p.name;$('#portRegion').textContent=`${p.region} · ${p.climate}`;$('#portFlavor').textContent=p.flavor;$('#placeType').textContent='';$('#placeName').textContent=p.name;closeFacility();const ids=['trade','shop','shipyard'];if(p.royal)ids.push('royal');if(p.mansion)ids.push('mansion');if(p.bank)ids.push('bank');$('#facilityLayer').innerHTML=`<div class="facility-ledger-head" aria-hidden="true"></div>`+ids.map(id=>{const f=FACILITIES[id];return `<button class="facility material-${FACILITY_MATERIAL[id]}" data-facility="${id}" aria-label="${f.name}" aria-pressed="false">${facilitySymbolMarkup(id)}<span class="facility-copy"><b>${f.name}</b></span><em>›</em></button>`}).join('');$$('[data-facility]').forEach(b=>b.onclick=()=>openFacility(b.dataset.facility))}
 function closeFacility(){
  const dialogueActive=window.ROTTA_MANSION_DIALOGUE?.active||$('#portView').classList.contains('mansion-dialogue-mode');
- window.ROTTA_MANSION_DIALOGUE?.unmount();window.ROTTA_MARKET_DRAWER?.unmount();window.ROTTA_MANSIONS?.clear($('#portScene'));
+ window.ROTTA_MANSION_DIALOGUE?.unmount();window.ROTTA_MARKET_DRAWER?.unmount();window.ROTTA_MANSIONS?.clear($('#portScene'));window.ROTTA_FACILITY_SCENES?.clear($('#portScene'));
  $('#facilityPanel').classList.add('hidden');$('#cargoPanel').classList.add('hidden');$('#portView').classList.remove('facility-mode','trade-mode','mansion-dialogue-mode');
  $$('[data-facility]').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});if(dialogueActive)$('[data-facility="mansion"]')?.focus();
 }
@@ -353,6 +353,7 @@ function clearManualKeys(){if(MANUAL_SAIL.frame)cancelAnimationFrame(MANUAL_SAIL
 function openFacility(id){
  window.ROTTA_MANSION_DIALOGUE?.unmount();$('#portView').classList.remove('mansion-dialogue-mode');
  window.ROTTA_MANSIONS?.show($('#portScene'),id,state.current,PORTS[state.current],state.nation);
+ window.ROTTA_FACILITY_SCENES?.show($('#portScene'),id,state.current,PORTS[state.current]);
  const f=FACILITIES[id];$('#facilityKicker').textContent=`${PORTS[state.current].name} 항구 시설`;$('#facilityTitle').textContent=f.name;$('#facilityIntro').textContent=f.intro;$('#portView').classList.add('facility-mode');$('#portView').classList.toggle('trade-mode',id==='trade');
  $$('[data-facility]').forEach(b=>{const active=b.dataset.facility===id;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});
  if(id==='mansion'&&state.current==='lisbon'&&window.ROTTA_MANSION_DIALOGUE){
