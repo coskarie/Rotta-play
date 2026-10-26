@@ -418,8 +418,14 @@ function basketItemsMarkup(entries,{side=null,readonly=false}={}){
 function bindBasketItems(container){container.querySelectorAll('[data-basket-item]').forEach(button=>button.onclick=()=>{
  const {basketItem:key,basketSide:side}=button.dataset;
  if(side==='sell')return cancelSaleBasketItem(key);
- openTradeDialog(key,side==='buy'?'buy':'sell',{append:side==='stock'});
+ if(side==='buy')return cancelPurchaseBasketItem(key);
+ if(side==='stock')openTradeDialog(key,'sell',{append:true});
 })}
+function cancelPurchaseBasketItem(key){
+ const basket=marketBasket();if(!basket.quantity('buy',key))return;
+ basket.set('buy',key,0);renderCargoPanel(true);
+ ($(`[data-buy="${key}"]`)||$('#cargoPanelBack')).focus({preventScroll:true});
+}
 function availableCargoEntries(){
  const basket=marketBasket();return Object.entries(state.cargo).filter(([key])=>GOODS[key]).map(([key,quantity])=>({key,quantity:Math.max(0,quantity-basket.quantity('sell',key))})).filter(row=>row.quantity>0);
 }
@@ -434,7 +440,7 @@ function cargoLedgerMarkup(entries,{side='stock',readonly=false}={}){
   const g=GOODS[key],signal=marketSignal(state.current,key),offset=!readonly&&side==='stock'?marketBasket().quantity('sell',key):0;
   const unit=side==='buy'?fmt(priceAt(state.current,key,'buy')):cargoUnitLabel(cargoSaleQuote(state.current,key,quantity,offset));
   const body=`${goodArt(key,g.icon)}<span class="cargo-good"><b>${g.name}</b><small>${fmt(quantity)}개 · ${unit} 골드</small></span>`;
-  return readonly?`<div class="cargo-ledger-row ${signal.className}">${body}</div>`:`<button type="button" class="cargo-ledger-row cargo-ledger-item ${signal.className}" data-basket-item="${key}" data-basket-side="${side}" aria-label="${g.name} ${quantity}개">${body}</button>`;
+  return readonly?`<div class="cargo-ledger-row ${signal.className}">${body}</div>`:`<button type="button" class="cargo-ledger-row cargo-ledger-item ${signal.className}" data-basket-item="${key}" data-basket-side="${side}" aria-label="${g.name} ${quantity}개${side==='buy'?' 구매 취소':''}">${body}</button>`;
  }).join('');
 }
 function setMarketBasketMode(mode){
