@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="departure-zoom.css?v=1">
 <link rel="stylesheet" href="market-drawer.css?v=1">
 <link rel="stylesheet" href="market-sort.css?v=2">
-<link rel="stylesheet" href="mansion-dialogue.css?v=1">
+<link rel="stylesheet" href="mansion-dialogue.css?v=2">
 <link rel="preload" href="assets/characters/01-portugal-nobleman.png" as="image">
 </head>
 <body>
@@ -58,10 +58,19 @@
         <div class="cargo-panel-foot"><span>수중 골드</span><strong id="cargoPanelGold">0 골드</strong></div>
       </aside>
       <section id="mansionDialogue" class="mansion-dialogue" role="dialog" aria-labelledby="mansionSpeaker" aria-describedby="mansionLine" hidden>
-        <figure class="mansion-portrait"><img src="assets/characters/01-portugal-nobleman.png" width="1280" height="1280" alt="포르투갈 귀족" decoding="async"></figure>
-        <div id="mansionSpeaker" class="mansion-speaker">귀족</div>
-        <div class="mansion-script" aria-live="polite" aria-atomic="true"><p id="mansionLine" data-dialogue-line></p></div>
-        <div class="mansion-dialogue-actions" data-dialogue-actions></div>
+        <div class="mansion-profile">
+          <figure class="mansion-portrait">
+            <img src="assets/characters/01-portugal-nobleman.png" width="1280" height="1280" alt="포르투갈 귀족" decoding="async">
+            <svg class="mansion-portrait-frame" viewBox="0 0 240 240" aria-hidden="true"><path class="outer" d="M20 4H229L236 11V220L220 236H11L4 229V20Z"/><path class="brass" d="M20 4H229L236 11V220L220 236H11L4 229V20Z"/><path class="inner" d="M23 10H226V217L217 230H14V23Z"/><path class="inner" d="M31 15H221M15 31V219M25 225H207M225 25V207"/></svg>
+          </figure>
+          <svg class="mansion-corner" viewBox="0 0 100 100" aria-hidden="true"><path class="shadow" d="M10 83C13 58 23 32 62 18C73 15 83 8 87 3M20 61C2 57 4 37 16 39M28 46C8 36 17 15 34 21M42 31C35 13 49 4 62 8"/><path class="leaf" d="M10 83C13 58 23 32 62 18C73 15 83 8 87 3C87 16 76 25 65 27C43 32 31 48 28 65L22 79Z"/><path class="leaf" d="M28 46C8 36 17 15 34 21C41 23 37 34 31 31C27 29 28 25 31 24M20 61C1 57 4 37 16 39C26 40 25 51 18 50M42 31C35 13 49 4 62 8C55 13 55 22 60 21"/><path d="M17 72C27 47 42 31 68 22M26 58L32 64M35 44L43 49"/><path fill="#352315" d="M36 39H57L55 53Q47 64 39 53Z"/><path d="M47 42L52 48L47 55L42 48Z"/></svg>
+          <div id="mansionSpeaker" class="mansion-speaker"><svg class="mansion-nameplate" viewBox="0 0 240 50" preserveAspectRatio="none" aria-hidden="true"><path class="plate" d="M18 3H222L237 25L222 47H18L3 25Z"/><path class="inlay" d="M21 8H219L231 25L219 42H21L9 25Z"/><path class="knot" d="M14 19L24 25L14 31L20 25ZM226 19L216 25L226 31L220 25ZM42 25H60M180 25H198"/></svg><span>귀족</span></div>
+        </div>
+        <div class="mansion-speech">
+          <svg class="mansion-speech-frame" viewBox="0 0 900 180" preserveAspectRatio="none" aria-hidden="true"><path class="field" d="M16 3H881L897 18V161L881 177H16L3 164V17Z"/><path class="rule" d="M20 9H877L890 22V157L877 171H20L10 160V21Z"/><path class="flourish" d="M16 3H57C49 10 40 12 30 10L21 17M897 161L882 177H845C856 168 867 171 876 171L885 162M386 3L398 8H433L445 3M455 177L467 172H502L514 177"/></svg>
+          <div class="mansion-script" aria-live="polite" aria-atomic="true"><p id="mansionLine" data-dialogue-line></p></div>
+          <div class="mansion-dialogue-actions" data-dialogue-actions></div>
+        </div>
       </section>
     </section>
 
@@ -106,6 +115,6 @@
   <div class="modal-backdrop hidden system-backdrop" id="systemModal">
     <div class="system-modal parchment-edge" role="dialog" aria-modal="true" aria-labelledby="systemTitle"><h2 id="systemTitle">시스템</h2><button id="resumeGameBtn">계속</button><button id="waitDayBtn">하루 대기</button><button id="restartGameBtn">새 항해</button></div>
   </div>
-<div id="toast" class="toast" role="status" aria-live="polite"></div><script src="vendor/d3.min.js"></script><script src="vendor/topojson-client.min.js"></script><script src="ports.js?v=2"></script><script src="mediterranean-markets.js?v=6"></script><script src="world-markets.js?v=26"></script><script src="specialty-goods.js?v=1"></script><script src="specialty-history-data.js?v=1"></script><script src="specialty-expansion.js?v=1"></script><script src="goods-images.js?v=30"></script><script src="goods-cache.js?v=2"></script><script src="port-position-overrides.js?v=61"></script><script src="coast-renderer.js?v=1"></script><script src="cloud-sky.js?v=4"></script><script src="market-data.js?v=1"></script><script src="market-prices.js?v=3"></script><script src="market-chart.js?v=3"></script><script src="market-drawer.js?v=1"></script><script src="market-sort.js?v=1"></script><script src="market-events.js?v=3"></script><script src="sea-distances.js?v=1"></script><script src="distance-trade.js?v=1"></script><script src="port-symbols.js?v=7"></script><script src="world-harbor-scenes.js?v=1"></script><script src="harbor-scenes.js?v=2"></script><script src="mansion-scenes.js?v=2"></script><script src="mansion-dialogue.js?v=1"></script><script src="harbor-cache.js?v=4"></script><script src="port-transitions.js?v=2"></script><script src="game.js?v=102"></script>
+<div id="toast" class="toast" role="status" aria-live="polite"></div><script src="vendor/d3.min.js"></script><script src="vendor/topojson-client.min.js"></script><script src="ports.js?v=2"></script><script src="mediterranean-markets.js?v=6"></script><script src="world-markets.js?v=26"></script><script src="specialty-goods.js?v=1"></script><script src="specialty-history-data.js?v=1"></script><script src="specialty-expansion.js?v=1"></script><script src="goods-images.js?v=30"></script><script src="goods-cache.js?v=2"></script><script src="port-position-overrides.js?v=61"></script><script src="coast-renderer.js?v=1"></script><script src="cloud-sky.js?v=4"></script><script src="market-data.js?v=1"></script><script src="market-prices.js?v=3"></script><script src="market-chart.js?v=3"></script><script src="market-drawer.js?v=1"></script><script src="market-sort.js?v=1"></script><script src="market-events.js?v=3"></script><script src="sea-distances.js?v=1"></script><script src="distance-trade.js?v=1"></script><script src="port-symbols.js?v=7"></script><script src="world-harbor-scenes.js?v=1"></script><script src="harbor-scenes.js?v=2"></script><script src="mansion-scenes.js?v=2"></script><script src="mansion-dialogue.js?v=2"></script><script src="harbor-cache.js?v=4"></script><script src="port-transitions.js?v=2"></script><script src="game.js?v=102"></script>
 </body>
 </html>

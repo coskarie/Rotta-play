@@ -50,7 +50,7 @@
    line.onclick=node.next?()=>conversation.advance():null;
    actions.replaceChildren();
    for(const [index,choice]of (node.choices||[]).entries()){
-    const button=document.createElement('button');button.type='button';button.className='mansion-choice';button.textContent=choice[0];button.dataset.dialogueChoice=String(index);button.onclick=()=>conversation.choose(index);actions.appendChild(button);
+    const button=document.createElement('button');button.type='button';button.className='mansion-choice';button.innerHTML='<svg class="mansion-choice-frame" viewBox="0 0 300 44" preserveAspectRatio="none" aria-hidden="true"><path class="field" d="M12 2H288L298 12V32L288 42H12L2 32V12Z"/><path class="rule" d="M15 6H285L293 14V30L285 38H15L7 30V14Z"/></svg>';const label=document.createElement('span');label.textContent=choice[0];button.appendChild(label);button.dataset.dialogueChoice=String(index);button.onclick=()=>conversation.choose(index);actions.appendChild(button);
    }
    if(node.next){
     const button=document.createElement('button');button.type='button';button.className='mansion-continue';button.setAttribute('aria-label','계속');button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 7 7 7-7"/></svg>';button.onclick=()=>conversation.advance();actions.appendChild(button);
