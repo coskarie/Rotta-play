@@ -19,7 +19,7 @@
   if(ok&&task.afterReveal){try{task.afterReveal()}catch(error){console.error('[Rotta mansion reveal]',error);ok=false}}
   task.resolve(ok);
   if(ok&&!task.afterReveal){
-   const focus=document.querySelector(task.direction==='exit'?'[data-facility].active':'#mansionDialogue:not([hidden]) button')||document.querySelector('[data-facility="mansion"]');
+   const focus=document.querySelector(task.direction==='exit'?'[data-facility].active':'#mansionDialogue:not([hidden]) button')||document.querySelector(task.direction==='exit'?'#portView':'[data-facility="mansion"]');
    focus?.focus({preventScroll:true});
   }
  }

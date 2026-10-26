@@ -1,4 +1,5 @@
 .mansion-transition[hidden]{display:none}
+#portView:focus{outline:none}
 .mansion-transition{position:fixed;inset:0;z-index:90;background:#000;opacity:0;pointer-events:auto}
 .mansion-transition[data-phase="fade-out"]{opacity:1;transition:opacity 380ms ease-in}
 .mansion-transition[data-phase="black"]{opacity:1;transition:none}

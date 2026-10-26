@@ -344,10 +344,9 @@ function leaveMansion(commit){
 }
 function closeFacilityNow(){
  window.ROTTA_MANSION_NAVIGATION?.cancel();
- const dialogueActive=window.ROTTA_MANSION_DIALOGUE?.active||$('#portView').classList.contains('mansion-dialogue-mode');
  window.ROTTA_MANSION_DIALOGUE?.unmount();window.ROTTA_MARKET_DRAWER?.unmount();window.ROTTA_MANSIONS?.clear($('#portScene'));window.ROTTA_FACILITY_SCENES?.clear($('#portScene'));
  $('#facilityPanel').classList.add('hidden');$('#cargoPanel').classList.add('hidden');$('#portView').classList.remove('facility-mode','trade-mode','mansion-dialogue-mode');
- $$('[data-facility]').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});if(dialogueActive)$('[data-facility="mansion"]')?.focus();
+ $$('[data-facility]').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});$('#portView').focus({preventScroll:true});
 }
 function marketBars(pid,key){return(MARKET_SIM?.prices?.series(pid,key)||[]).map(bar=>({...bar,...Object.fromEntries(['open','high','low','close'].map(k=>[k,nationalBuyPrice(key,bar[k])]))}))}
 function renderMarketChart(){
