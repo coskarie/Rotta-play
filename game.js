@@ -120,7 +120,7 @@ function cargoSaleQuote(portId,key,quantity=state.cargo[key]||0,offset=0){
 }
 function cargoUnitLabel(quote){return quote.minUnit===quote.maxUnit?fmt(quote.minUnit):`${fmt(quote.minUnit)}–${fmt(quote.maxUnit)}`}
 function priceAt(portId,key,side='buy'){return side==='sell'&&(state.cargo[key]||0)>0?cargoSaleQuote(portId,key).unit:marketPriceAt(portId,key,side)}
-const MARKET_UI={port:null,key:null,month:null};
+const MARKET_UI={port:null,key:null,month:null,stockValues:null};
 const SEA_PORT_UI={actionsId:null,quoteId:null};
 const ARRIVAL_UI={routePortId:null,portId:null,timer:0,deadline:0,token:0};
 function dismissArrivalPrompt(){
@@ -427,6 +427,17 @@ function cancelPurchaseBasketItem(key){
  basket.set('buy',key,0);renderCargoPanel(true);
  ($(`[data-buy="${key}"]`)||$('#cargoPanelBack')).focus({preventScroll:true});
 }
+function marketAvailableStock(key){return Math.max(0,marketStock(state.current,key)-marketBasket().quantity('buy',key))}
+function refreshMarketStock(){
+ if(MARKET_BASKET_UI.mode==='sell')return;
+ $$('#facilityContent [data-market-good]').forEach(row=>{
+  const key=row.dataset.marketGood,stock=marketAvailableStock(key);
+  const count=row.querySelector('.stock'),label=fmt(stock);if(count.textContent!==label)count.textContent=label;
+  row.classList.toggle('market-sold-out',stock===0);
+  row.querySelector('[data-buy]').disabled=stock===0;
+  if(MARKET_UI.port===state.current&&MARKET_UI.stockValues?.[key])MARKET_UI.stockValues[key].stock=stock;
+ });
+}
 function availableCargoEntries(){
  const basket=marketBasket();return Object.entries(state.cargo).filter(([key])=>GOODS[key]).map(([key,quantity])=>({key,quantity:Math.max(0,quantity-basket.quantity('sell',key))})).filter(row=>row.quantity>0);
 }
@@ -480,7 +491,7 @@ function renderCargoPanel(canSell){
   $('#cargoPanelTitle').textContent='구매 품목';$('#cargoPanelTotalLabel').textContent='합계';$('#cargoPanelGold').textContent=`${fmt(basket.total('buy'))} G`;
   $('#cargoPanelSummary').textContent=`${cargoTotal()+draft.reduce((sum,row)=>sum+row.quantity,0)} / ${state.capacity}`;
  }
- list.innerHTML=cargoLedgerMarkup(buying?draft:availableCargoEntries(),{side:buying?'buy':'stock'});bindBasketItems(list);
+ list.innerHTML=cargoLedgerMarkup(buying?draft:availableCargoEntries(),{side:buying?'buy':'stock'});bindBasketItems(list);refreshMarketStock();
 }
 function requestBasketCheckout(side){
  const plan=marketBasket().plan(side);if(!plan.ok)return toast(plan.error);
@@ -516,10 +527,10 @@ function renderFacility(id){window.ROTTA_MARKET_DRAWER?.unmount();const c=$('#fa
  marketBasket();$('#facilityTitle').textContent='교역소';if(MARKET_BASKET_UI.mode==='sell'){renderSaleStall(c);return}
  const keys=Object.keys(PORTS[state.current].market).filter(k=>GOODS[k]);
  if(MARKET_UI.port!==state.current||!keys.includes(MARKET_UI.key)){MARKET_UI.port=state.current;MARKET_UI.key=keys[0];MARKET_UI.month=null}
- const sortValues=Object.fromEntries(keys.map(k=>[k,{category:GOODS[k].category,stock:marketStock(state.current,k),buy:priceAt(state.current,k,'buy'),sell:priceAt(state.current,k,'sell')}]));
+ const sortValues=Object.fromEntries(keys.map(k=>[k,{category:GOODS[k].category,stock:marketAvailableStock(k),buy:priceAt(state.current,k,'buy'),sell:priceAt(state.current,k,'sell')}]));MARKET_UI.stockValues=sortValues;
  c.innerHTML=marketStatusMarkup()+`<div class="market-head"><button class="market-sort" type="button" data-market-sort="default">상품</button><button class="market-sort" type="button" data-market-sort="category">종류</button><button class="market-sort" type="button" data-market-sort="stock">수량</button><button class="market-sort" type="button" data-market-sort="buy">구매가</button><button class="market-sort" type="button" data-market-sort="sell">판매가</button><span></span></div><div class="market-rows">`+keys.map(k=>{
  const g=GOODS[k],{sell:pr,buy:ask,stock}=sortValues[k],condition=MARKET_SIM?.status(state.current,k)||'',signal=marketSignal(state.current,k),selected=MARKET_UI.key===k;
- return `<div class="market-row ${signal.className}${selected?' selected':''}" data-market-good="${k}"><div class="good-cell"><button class="market-item" data-select-good="${k}" aria-pressed="${selected}" aria-label="${g.name} 시세">${goodArt(k,g.icon)}<span class="good-copy"><b>${g.name}</b>${condition?`<small class="market-good-status">${condition}</small>`:''}</span></button></div><div class="good-type">${g.category}</div><div class="stock">${fmt(stock)}</div><div class="base-price">${fmt(ask)}</div><div class="sale-price">${fmt(pr)}</div><div class="actions"><button data-buy="${k}"${stock<1?' disabled':''}>선택</button></div></div>`;
+ return `<div class="market-row ${signal.className}${stock===0?' market-sold-out':''}${selected?' selected':''}" data-market-good="${k}"><div class="good-cell"><button class="market-item" data-select-good="${k}" aria-pressed="${selected}" aria-label="${g.name} 시세">${goodArt(k,g.icon)}<span class="good-copy"><b>${g.name}</b>${condition?`<small class="market-good-status">${condition}</small>`:''}</span></button></div><div class="good-type">${g.category}</div><div class="stock">${fmt(stock)}</div><div class="base-price">${fmt(ask)}</div><div class="sale-price">${fmt(pr)}</div><div class="actions"><button data-buy="${k}"${stock<1?' disabled':''}>선택</button></div></div>`;
  }).join('')+`</div><div class="market-chart-drawer" data-chart-drawer><button class="market-chart-handle" data-chart-handle type="button" aria-label="시세 그래프 접기" aria-expanded="true" aria-controls="marketChart"></button><div class="market-chart-reveal"><section id="marketChart" class="market-chart" aria-label="교역품 시세"></section></div></div>`;
  $$('[data-market-good]').forEach(row=>row.onclick=e=>{if(!e.target.closest('[data-buy]'))selectMarketGood(row.dataset.marketGood)});
  $$('[data-select-good]').forEach(b=>b.onclick=e=>{e.stopPropagation();selectMarketGood(b.dataset.selectGood)});

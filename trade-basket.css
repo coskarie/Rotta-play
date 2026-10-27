@@ -13,6 +13,7 @@
 .basket-quick input::after{content:"";width:8px;height:4px;border-left:2px solid #f0d9a0;border-bottom:2px solid #f0d9a0;transform:translateY(-1px) rotate(-45deg);opacity:0}
 .basket-quick input:checked::after{opacity:1}
 .basket-quick input:focus-visible{outline:1px solid #edcf92;outline-offset:3px}
+.market-row.market-sold-out{opacity:.38}
 .basket-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-content:start;gap:7px 4px;padding:14px 2px}
 .cargo-panel-list .cargo-ledger-row{grid-template-columns:44px minmax(0,1fr)}
 .cargo-panel-list .cargo-ledger-item{width:100%;text-align:left;font-family:inherit;color:inherit;border:0;border-bottom:1px dotted #8d713f;cursor:pointer;box-shadow:none;border-radius:0}
