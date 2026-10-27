@@ -407,6 +407,7 @@ function marketBasket(){
   hasGood:(key,side)=>!!GOODS[key]&&(side==='sell'||Object.hasOwn(PORTS[state.current]?.market||{},key))
  });
  if(MARKET_BASKET_UI.port!==state.current){MARKET_BASKET_UI.port=state.current;MARKET_BASKET_UI.mode='owned';MARKET_BASKET.clear()}
+ if(MARKET_BASKET_UI.mode==='owned'&&MARKET_BASKET.entries('sell').length)MARKET_BASKET_UI.mode='sell';
  return MARKET_BASKET;
 }
 function basketItemsMarkup(entries,{side=null,readonly=false}={}){
@@ -444,7 +445,8 @@ function cargoLedgerMarkup(entries,{side='stock',readonly=false}={}){
  }).join('');
 }
 function setMarketBasketMode(mode){
- marketBasket();const previous=MARKET_BASKET_UI.mode;MARKET_BASKET_UI.mode=mode;
+ const basket=marketBasket(),previous=MARKET_BASKET_UI.mode;
+ if(mode==='owned'&&basket.entries('sell').length)mode='sell';MARKET_BASKET_UI.mode=mode;
  if(mode==='sell'||previous==='sell')renderFacility('trade');renderCargoPanel(true);
 }
 function toggleCargoContents(){
