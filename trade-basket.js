@@ -42,7 +42,7 @@
   task.yes.onclick=task.no.onclick=task.modal.onclick=null;
   if(accepted)task.commit();
   if(task.focus?.isConnected&&!task.focus.disabled)task.focus.focus({preventScroll:true});
-  else document.querySelector('#cargoPanelAction')?.focus({preventScroll:true});
+  else (document.querySelector('#saleStallAction:not(:disabled)')||document.querySelector('#cargoPanelAction:not([hidden]):not(:disabled)')||document.querySelector('#cargoPanelBack:not([hidden])'))?.focus({preventScroll:true});
  }
  function confirm({side,html,total,commit}){
   if(confirmation)return;

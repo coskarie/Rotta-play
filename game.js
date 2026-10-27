@@ -447,11 +447,14 @@ function setMarketBasketMode(mode){
  marketBasket();const previous=MARKET_BASKET_UI.mode;MARKET_BASKET_UI.mode=mode;
  if(mode==='sell'||previous==='sell')renderFacility('trade');renderCargoPanel(true);
 }
+function toggleCargoContents(){
+ marketBasket();setMarketBasketMode(MARKET_BASKET_UI.mode==='buy'?'owned':'buy');
+}
 function renderSaleStall(container){
  const basket=marketBasket(),entries=basket.entries('sell');
  $('#facilityTitle').textContent='판매 품목';
- container.innerHTML=`<div class="sale-stall"><div class="basket-grid">${basketItemsMarkup(entries,{side:'sell'})}</div><div class="basket-total"><span>합계</span><strong>${fmt(basket.total('sell'))} G</strong></div></div>`;
- bindBasketItems(container);
+ container.innerHTML=`<div class="sale-stall"><div class="basket-grid">${basketItemsMarkup(entries,{side:'sell'})}</div><div class="basket-total"><span>합계</span><strong>${fmt(basket.total('sell'))} G</strong></div><button id="saleStallAction" class="basket-action" type="button" ${entries.length?'':'disabled'}>매각하기</button></div>`;
+ bindBasketItems(container);$('#saleStallAction').onclick=()=>requestBasketCheckout('sell');
 }
 function renderCargoPanel(canSell){
  const list=$('#cargoPanelList'),entries=Object.entries(state.cargo).filter(([key,qty])=>qty>0&&GOODS[key]).map(([key,quantity])=>({key,quantity}));
@@ -461,8 +464,10 @@ function renderCargoPanel(canSell){
  action.hidden=!canSell;back.hidden=true;list.classList.remove('basket-grid');
  if(!canSell){list.innerHTML=cargoLedgerMarkup(entries,{readonly:true});return}
  const basket=marketBasket(),mode=MARKET_BASKET_UI.mode,buying=mode==='buy',side=buying?'buy':'sell',draft=basket.entries(side);
- back.hidden=mode==='owned';back.onclick=()=>setMarketBasketMode('owned');
- action.textContent=buying?'매입':'매각';action.disabled=mode==='owned'?!entries.length:!draft.length;
+ action.hidden=mode==='sell';
+ back.hidden=false;back.onclick=toggleCargoContents;
+ back.setAttribute('aria-label',buying?'보유 교역품 보기':'구매 품목 보기');back.setAttribute('aria-pressed',String(buying));
+ action.textContent=buying?'매입하기':'매각하기';action.disabled=mode==='owned'?!entries.length:!draft.length;
  action.onclick=()=>mode==='owned'?setMarketBasketMode('sell'):requestBasketCheckout(side);
  if(buying){
   $('#cargoPanelTitle').textContent='구매 품목';$('#cargoPanelTotalLabel').textContent='합계';$('#cargoPanelGold').textContent=`${fmt(basket.total('buy'))} G`;
