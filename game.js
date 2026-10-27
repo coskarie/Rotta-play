@@ -432,7 +432,9 @@ function availableCargoEntries(){
 }
 function cancelSaleBasketItem(key){
  const basket=marketBasket();if(!basket.quantity('sell',key))return;
- basket.set('sell',key,0);renderFacility('trade');renderCargoPanel(true);
+ basket.set('sell',key,0);
+ if(MARKET_BASKET_UI.mode==='sell'&&!basket.entries('sell').length)MARKET_BASKET_UI.mode='owned';
+ renderFacility('trade');renderCargoPanel(true);
  ($(`#cargoPanel [data-basket-item="${key}"]`)||$('#cargoPanelBack')).focus({preventScroll:true});
 }
 function cargoLedgerMarkup(entries,{side='stock',readonly=false}={}){
