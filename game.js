@@ -79,7 +79,7 @@ const EVENTS=[
 let state={nation:null,gold:0,bank:0,fame:0,crew:42,hull:100,food:100,morale:78,bargain:1,cargo:{},cargoLots:{},marketBought:{},capacity:60,current:null,year:1543,month:3,seed:1,shipX:1360,shipY:650,atPort:true,traveling:false,camX:0,camY:0,zoom:6.5};
 let pendingTrade=null,SEA_ROUTE_RUN=0;
 let MARKET_BASKET=null;
-const MARKET_BASKET_UI={port:null,mode:'owned'};
+const MARKET_BASKET_UI={port:null,mode:'owned',quick:false};
 let MARKET_SIM=null;
 let DISTANCE_TRADE=null;
 function distanceTradeEngine(){
@@ -463,6 +463,8 @@ function renderSaleStall(container){
 function renderCargoPanel(canSell){
  const list=$('#cargoPanelList'),entries=Object.entries(state.cargo).filter(([key,qty])=>qty>0&&GOODS[key]).map(([key,quantity])=>({key,quantity}));
  const action=$('#cargoPanelAction'),back=$('#cargoPanelBack');
+ const quick=$('#tradeQuickToggle');$('#tradeQuickRow').hidden=!canSell;quick.checked=MARKET_BASKET_UI.quick;
+ quick.onchange=()=>{MARKET_BASKET_UI.quick=quick.checked};
  $('#cargoPanelSummary').textContent=`${cargoTotal()} / ${state.capacity}`;
  const appraisal=entries.reduce((sum,{key,quantity})=>sum+cargoSaleQuote(state.current,key,quantity).total,0);
  $('#cargoPanelTitle').textContent='보유 교역품';$('#cargoPanelTotalLabel').textContent='환산 가치';$('#cargoPanelGold').textContent=`${fmt(appraisal)} G`;
@@ -535,6 +537,10 @@ function maxTradeQuantity(key,type,append=false){const basket=marketBasket();ret
 function openTradeDialog(key,type,{append=false}={}){
  const basket=marketBasket(),max=maxTradeQuantity(key,type,append),g=GOODS[key],existing=append?0:basket.quantity(type,key);
  if(max<1&&!existing)return toast(type==='sell'?'보유품 없음':marketStock(state.current,key)<1?'재고 없음':'골드 또는 화물칸 부족');
+ if(MARKET_BASKET_UI.quick){
+  const quantity=basket.maximum(type,key);if(quantity<1)return toast(type==='sell'?'보유품 없음':'골드 또는 화물칸 부족');
+  basket.set(type,key,quantity);setMarketBasketMode(type==='buy'?'buy':'sell');return;
+ }
  const mode=type==='buy'?'buy':'sell';if(MARKET_BASKET_UI.mode!==mode)setMarketBasketMode(mode);
  pendingTrade={key,type,append};$('#tradeDialogType').textContent=type==='buy'?'매입':'매각';$('#tradeDialogTitle').textContent=g.name;$('#tradeDialogArt').innerHTML=goodArt(key,g.icon);
  $('#tradeMaximum').textContent=fmt(max);$('#tradeQuantity').min=existing?0:1;$('#tradeQuantity').max=max;$('#tradeQuantity').value=existing?Math.min(existing,max):1;
