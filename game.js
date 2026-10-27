@@ -433,7 +433,7 @@ function availableCargoEntries(){
 function cancelSaleBasketItem(key){
  const basket=marketBasket();if(!basket.quantity('sell',key))return;
  basket.set('sell',key,0);renderFacility('trade');renderCargoPanel(true);
- ($(`#cargoPanel [data-basket-item="${key}"]`)||$('#cargoPanelAction')).focus({preventScroll:true});
+ ($(`#cargoPanel [data-basket-item="${key}"]`)||$('#cargoPanelBack')).focus({preventScroll:true});
 }
 function cargoLedgerMarkup(entries,{side='stock',readonly=false}={}){
  if(!entries.length)return '<div class="cargo-empty"><span>◇</span><b>비어 있음</b></div>';
@@ -462,15 +462,16 @@ function renderCargoPanel(canSell){
  const list=$('#cargoPanelList'),entries=Object.entries(state.cargo).filter(([key,qty])=>qty>0&&GOODS[key]).map(([key,quantity])=>({key,quantity}));
  const action=$('#cargoPanelAction'),back=$('#cargoPanelBack');
  $('#cargoPanelSummary').textContent=`${cargoTotal()} / ${state.capacity}`;
- $('#cargoPanelTitle').textContent='보유 교역품';$('#cargoPanelTotalLabel').textContent='수중 골드';$('#cargoPanelGold').textContent=`${fmt(state.gold)} G`;
- action.hidden=!canSell;back.hidden=true;list.classList.remove('basket-grid');
+ const appraisal=entries.reduce((sum,{key,quantity})=>sum+cargoSaleQuote(state.current,key,quantity).total,0);
+ $('#cargoPanelTitle').textContent='보유 교역품';$('#cargoPanelTotalLabel').textContent='환산 가치';$('#cargoPanelGold').textContent=`${fmt(appraisal)} G`;
+ action.hidden=true;action.onclick=null;back.hidden=true;list.classList.remove('basket-grid');
  if(!canSell){list.innerHTML=cargoLedgerMarkup(entries,{readonly:true});return}
  const basket=marketBasket(),mode=MARKET_BASKET_UI.mode,buying=mode==='buy',side=buying?'buy':'sell',draft=basket.entries(side);
- action.hidden=mode==='sell';
+ action.hidden=!buying;
  back.hidden=false;back.onclick=toggleCargoContents;
  back.setAttribute('aria-label',buying?'보유 교역품 보기':'구매 품목 보기');back.setAttribute('aria-pressed',String(buying));
- action.textContent=buying?'매입하기':'매각하기';action.disabled=mode==='owned'?!entries.length:!draft.length;
- action.onclick=()=>mode==='owned'?setMarketBasketMode('sell'):requestBasketCheckout(side);
+ action.textContent='매입하기';action.disabled=!draft.length;
+ action.onclick=buying?()=>requestBasketCheckout('buy'):null;
  if(buying){
   $('#cargoPanelTitle').textContent='구매 품목';$('#cargoPanelTotalLabel').textContent='합계';$('#cargoPanelGold').textContent=`${fmt(basket.total('buy'))} G`;
   $('#cargoPanelSummary').textContent=`${cargoTotal()+draft.reduce((sum,row)=>sum+row.quantity,0)} / ${state.capacity}`;
@@ -514,7 +515,7 @@ function renderFacility(id){window.ROTTA_MARKET_DRAWER?.unmount();const c=$('#fa
  const sortValues=Object.fromEntries(keys.map(k=>[k,{category:GOODS[k].category,stock:marketStock(state.current,k),buy:priceAt(state.current,k,'buy'),sell:priceAt(state.current,k,'sell')}]));
  c.innerHTML=marketStatusMarkup()+`<div class="market-head"><button class="market-sort" type="button" data-market-sort="default">상품</button><button class="market-sort" type="button" data-market-sort="category">종류</button><button class="market-sort" type="button" data-market-sort="stock">수량</button><button class="market-sort" type="button" data-market-sort="buy">구매가</button><button class="market-sort" type="button" data-market-sort="sell">판매가</button><span></span></div><div class="market-rows">`+keys.map(k=>{
  const g=GOODS[k],{sell:pr,buy:ask,stock}=sortValues[k],condition=MARKET_SIM?.status(state.current,k)||'',signal=marketSignal(state.current,k),selected=MARKET_UI.key===k;
- return `<div class="market-row ${signal.className}${selected?' selected':''}" data-market-good="${k}"><div class="good-cell"><button class="market-item" data-select-good="${k}" aria-pressed="${selected}" aria-label="${g.name} 시세">${goodArt(k,g.icon)}<span class="good-copy"><b>${g.name}</b>${condition?`<small class="market-good-status">${condition}</small>`:''}</span></button></div><div class="good-type">${g.category}</div><div class="stock">${fmt(stock)}</div><div class="base-price">${fmt(ask)}</div><div class="sale-price">${fmt(pr)}</div><div class="actions"><button data-buy="${k}"${stock<1?' disabled':''}>매입</button></div></div>`;
+ return `<div class="market-row ${signal.className}${selected?' selected':''}" data-market-good="${k}"><div class="good-cell"><button class="market-item" data-select-good="${k}" aria-pressed="${selected}" aria-label="${g.name} 시세">${goodArt(k,g.icon)}<span class="good-copy"><b>${g.name}</b>${condition?`<small class="market-good-status">${condition}</small>`:''}</span></button></div><div class="good-type">${g.category}</div><div class="stock">${fmt(stock)}</div><div class="base-price">${fmt(ask)}</div><div class="sale-price">${fmt(pr)}</div><div class="actions"><button data-buy="${k}"${stock<1?' disabled':''}>선택</button></div></div>`;
  }).join('')+`</div><div class="market-chart-drawer" data-chart-drawer><button class="market-chart-handle" data-chart-handle type="button" aria-label="시세 그래프 접기" aria-expanded="true" aria-controls="marketChart"></button><div class="market-chart-reveal"><section id="marketChart" class="market-chart" aria-label="교역품 시세"></section></div></div>`;
  $$('[data-market-good]').forEach(row=>row.onclick=e=>{if(!e.target.closest('[data-buy]'))selectMarketGood(row.dataset.marketGood)});
  $$('[data-select-good]').forEach(b=>b.onclick=e=>{e.stopPropagation();selectMarketGood(b.dataset.selectGood)});
@@ -537,7 +538,7 @@ function openTradeDialog(key,type,{append=false}={}){
  $('#tradeMaximum').textContent=fmt(max);$('#tradeQuantity').min=existing?0:1;$('#tradeQuantity').max=max;$('#tradeQuantity').value=existing?Math.min(existing,max):1;
  $('#tradeConfirm').textContent='담기';updateTradePreview();$('#tradeModal').classList.remove('hidden');$('#tradeQuantity').focus();$('#tradeQuantity').select();
 }
-function closeTradeDialog(){const previous=pendingTrade;pendingTrade=null;$('#tradeModal').classList.add('hidden');if(previous){const selector=previous.type==='buy'?`[data-buy="${previous.key}"]`:`#cargoPanel [data-basket-item="${previous.key}"]`;($(selector)||$('#cargoPanelAction'))?.focus({preventScroll:true})}}
+function closeTradeDialog(){const previous=pendingTrade;pendingTrade=null;$('#tradeModal').classList.add('hidden');if(previous){const selector=previous.type==='buy'?`[data-buy="${previous.key}"]`:`#cargoPanel [data-basket-item="${previous.key}"]`;($(selector)||$('#cargoPanelBack'))?.focus({preventScroll:true})}}
 function setTradeQuick(mode){if(!pendingTrade)return;const max=maxTradeQuantity(pendingTrade.key,pendingTrade.type,pendingTrade.append);$('#tradeQuantity').value=mode==='all'?max:Math.max(1,Math.ceil(max/2));updateTradePreview()}
 function tradeDraftQuantity(){const {key,type,append}=pendingTrade,max=maxTradeQuantity(key,type,append),min=!append&&marketBasket().quantity(type,key)?0:1;return Math.max(0,Math.min(max,Math.max(min,Math.floor(Number($('#tradeQuantity').value)||0))))}
 function updateTradePreview(){
@@ -547,7 +548,7 @@ function updateTradePreview(){
 }
 function confirmTrade(){
  if(!pendingTrade)return;const {key,type,append}=pendingTrade,basket=marketBasket(),quantity=tradeDraftQuantity();basket.set(type,key,(append?basket.quantity(type,key):0)+quantity);closeTradeDialog();
- if(type==='sell')renderFacility('trade');renderCargoPanel(true);$('#cargoPanelAction').focus({preventScroll:true});
+ if(type==='sell')renderFacility('trade');renderCargoPanel(true);(type==='buy'?$('#cargoPanelAction'):$('#saleStallAction:not(:disabled)')||$('#cargoPanelBack')).focus({preventScroll:true});
 }
 function playPortTransition(kind,commit){return window.ROTTA_PORT_TRANSITIONS?.play?window.ROTTA_PORT_TRANSITIONS.play(kind,commit):commit()}
 function openSailing(){
