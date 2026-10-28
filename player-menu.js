@@ -10,7 +10,7 @@
   const rows=config.items(tab);
   nodes.tabs.forEach(button=>{const selected=button.dataset.warehouseTab===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;if(selected)nodes.contents.setAttribute('aria-labelledby',button.id)});
   // Only render on actual inventory changes. Simulation ticks must not replace focused content.
-  const html=rows.length?`<ul class="warehouse-grid">${rows.map(row=>`<li class="warehouse-item"><div class="warehouse-art">${row.art||icon}<b>${escape(row.quantity.toLocaleString('ko-KR'))}</b></div><span>${escape(row.name)}</span></li>`).join('')}</ul>`:'<p class="warehouse-empty">없음</p>';
+  const html=rows.length?`<ul class="warehouse-grid">${rows.map(row=>`<li class="warehouse-item"><div class="warehouse-art">${row.art||icon}<b>${escape(row.quantity.toLocaleString('ko-KR'))}</b></div><span>${escape(row.name)}</span>${row.effect?`<small class="warehouse-effect">${escape(row.effect)}</small>`:''}${row.use?`<button class="warehouse-use" type="button" data-tool-use="${escape(row.key)}" aria-label="${escape(row.name)} 사용" ${row.canUse?'':'disabled'}>사용</button>`:''}</li>`).join('')}</ul>`:'<p class="warehouse-empty">없음</p>';
   if(nodes.contents.innerHTML!==html)nodes.contents.innerHTML=html;
  }
  function open(){
@@ -36,6 +36,7 @@
   nodes.toggle.onclick=()=>{if(!config.canOpen())return;const show=nodes.menu.hidden;nodes.menu.hidden=!show;nodes.toggle.setAttribute('aria-expanded',String(show))};
   nodes.menu.querySelector('[data-player-page="warehouse"]').onclick=open;
   nodes.close.onclick=()=>close();nodes.overlay.onclick=event=>{if(event.target===nodes.overlay)close()};
+  nodes.contents.onclick=event=>{const button=event.target.closest('[data-tool-use]');if(!button||button.disabled||!nodes.contents.contains(button))return;const key=button.dataset.toolUse;config.use?.(key);render();(nodes.contents.querySelector?.(`[data-tool-use="${key}"]:not(:disabled)`)||nodes.contents).focus({preventScroll:true})};
   nodes.tabs.forEach(button=>button.onclick=()=>selectTab(button.dataset.warehouseTab));
   document.addEventListener('pointerdown',event=>{if(!nodes.menu.hidden&&!nodes.menu.contains(event.target)&&!nodes.toggle.contains(event.target))dismissMenu()});
   refresh();
@@ -46,13 +47,14 @@
   if(opened){
    if(key==='escape'||page==='warehouse'){event.preventDefault();if(!event.repeat)close();return true}
    if(key==='tab'){
-    const focusable=[nodes.close,...nodes.tabs.filter(button=>button.tabIndex===0),nodes.contents],index=focusable.indexOf(document.activeElement);
+    const focusable=[nodes.close,...nodes.tabs.filter(button=>button.tabIndex===0),nodes.contents,...(nodes.contents.querySelectorAll?.('[data-tool-use]:not(:disabled)')||[])],index=focusable.indexOf(document.activeElement);
     event.preventDefault();focusable[(index+(event.shiftKey?-1:1)+focusable.length)%focusable.length].focus({preventScroll:true});return true;
    }
    if(['arrowleft','arrowright','home','end'].includes(key)&&nodes.tabs.includes(document.activeElement)){
     event.preventDefault();const index=nodes.tabs.indexOf(document.activeElement),next=key==='home'?0:key==='end'?nodes.tabs.length-1:(index+(key==='arrowright'?1:-1)+nodes.tabs.length)%nodes.tabs.length;
     selectTab(nodes.tabs[next].dataset.warehouseTab);nodes.tabs[next].focus({preventScroll:true});return true;
    }
+   if(['enter',' '].includes(key)&&event.repeat){event.preventDefault();return true}
    // Native Enter/Space still activate focused buttons; no game hotkeys reach the map.
    if(!['enter',' ','arrowup','arrowdown','pageup','pagedown'].includes(key))event.preventDefault();
    return true;
