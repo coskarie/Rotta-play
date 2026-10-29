@@ -2,12 +2,12 @@
  'use strict';
  const hulls=Object.freeze([
   {name:'소형 카라벨',capacity:60,slots:1,price:0,speed:1,turn:1,materials:{}},
-  {name:'상업용 카라벨',capacity:100,slots:2,price:2600,speed:1.02,turn:.96,planPrice:300,materials:{timber:22,linen:8,hemp:6,iron:4,navalStores:4}},
-  {name:'나우',capacity:170,slots:3,price:9000,speed:1.04,turn:.9,planPrice:1000,materials:{timber:42,linen:16,hemp:12,iron:10,navalStores:8}},
-  {name:'대형 카락',capacity:280,slots:4,price:26000,speed:1.06,turn:.84,planPrice:3000,materials:{timber:76,linen:28,hemp:22,iron:18,navalStores:16}},
-  {name:'그레이트 카락',capacity:440,slots:6,price:80000,speed:1.08,turn:.78,planPrice:9000,materials:{timber:124,linen:44,hemp:36,iron:28,navalStores:24}}
+  {name:'상업용 카라벨',capacity:100,slots:2,price:2600,speed:1.02,turn:.96,materials:{timber:22,linen:8,hemp:6,iron:4,navalStores:4}},
+  {name:'나우',capacity:170,slots:3,price:9000,speed:1.04,turn:.9,materials:{timber:42,linen:16,hemp:12,iron:10,navalStores:8}},
+  {name:'카락',capacity:280,slots:4,price:26000,speed:1.06,turn:.84,materials:{timber:76,linen:28,hemp:22,iron:18,navalStores:16}},
+  {name:'대형 카락',capacity:440,slots:6,price:80000,speed:1.08,turn:.78,materials:{timber:124,linen:44,hemp:36,iron:28,navalStores:24}}
  ]);
- const blueprints=Object.freeze(Object.fromEntries(hulls.slice(1).map((h,i)=>['shipPlan'+(i+2),Object.freeze({name:h.name+' 설계도',tier:i+2,price:h.planPrice})])));
+ const blueprints=Object.freeze(Object.fromEntries(hulls.slice(1).map((h,i)=>['shipPlan'+(i+2),Object.freeze({name:h.name+' 설계도',tier:i+2,source:'quest'})])));
  for(const hull of hulls){Object.freeze(hull.materials);Object.freeze(hull)}
  const parts=Object.freeze({
   sails:{name:'돛',cost:140,materials:{linen:2},effect:'속력 +4%'},
@@ -30,8 +30,15 @@
  const fitted=(state,id)=>!!state.ship?.cabins?.[id]?.unlocked&&!!state.ship.cabins[id].fitted;
  const count=state=>Object.keys(cabins).filter(id=>fitted(state,id)).length;
  const fmt=value=>Number(value).toLocaleString('ko-KR');
- const planOwned=(state,target)=>num(state.tools?.['shipPlan'+target]?.quantity);
- const blueprintArt='<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M13 7h24v31H13M13 7a5 5 0 0 0-5 5v3h5M13 38a4 4 0 1 0 0 8h23v-8M20 13v15M20 15l10 11H17M18 31h14" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+ const planOwned=(state,target)=>num(state.questItems?.['shipPlan'+target]?.quantity);
+ const blueprintArt=name=>art('material-blueprint',name||'선박 설계도');
+ // Reward adapter for future quest completion. Not a purchasable shipyard action.
+ function grantBlueprint(state,target){
+  if(!/^[2-5]$/.test(String(target)))return{ok:false,message:'설계도 없음'};
+  target=Number(target);if(target<=tier(state)||planOwned(state,target))return{ok:false,message:'설계도 보유 또는 건조 완료'};
+  const key='shipPlan'+target;state.questItems??={};state.questItems[key]={name:blueprints[key].name,quantity:1};
+  return{ok:true,key};
+ }
  function ensure(state){
   state.ship??={tier:1,parts:{},cabins:{}};state.ship.parts??={};state.ship.cabins??={};return state.ship;
  }
@@ -50,12 +57,6 @@
    if(next>5)return{ok:false,message:'최종 선박'};
    if(target!==next)return{ok:false,message:'이전 단계 선박 필요'};
    const hull=hulls[target-1];return{ok:true,target,planKey:'shipPlan'+target,cost:hull.price,materials:{...hull.materials},label:'선박 건조'};
-  }
-  if(action==='blueprint'){
-   if(!/^[2-5]$/.test(String(id)))return{ok:false,message:'설계도 없음'};
-   const target=Number(id);if(target<=tier(state))return{ok:false,message:'건조 완료'};
-   if(planOwned(state,target))return{ok:false,message:'설계도 보유'};
-   return{ok:true,target,cost:hulls[target-1].planPrice,materials:{},label:'설계도 구입'};
   }
   if(action==='part'&&own(parts,id)){
    const next=level(state,id)+1,item=parts[id];
@@ -90,10 +91,9 @@
   // Validate everything before charging or changing the hull. Trade lots use the game's FIFO remover.
   const ship=ensure(state);for(const[key,n]of Object.entries(q.materials))consume(key,n);state.gold-=q.cost;
   if(action==='build'){
-   state.tools[q.planKey].quantity--;if(!state.tools[q.planKey].quantity)delete state.tools[q.planKey];
+   state.questItems[q.planKey].quantity--;if(!state.questItems[q.planKey].quantity)delete state.questItems[q.planKey];
    ship.tier=q.target;state.hull=100;
   }
-  if(action==='blueprint'){state.tools??={};const plan=blueprints['shipPlan'+q.target];state.tools['shipPlan'+q.target]={name:plan.name,quantity:1}}
   if(action==='part')ship.parts[id]=level(state,id)+1;
   if(action==='cabin'){const was=ship.cabins[id];ship.cabins[id]={unlocked:true,fitted:!was?.fitted}}
   if(action==='repair')state.hull=100;
@@ -116,8 +116,9 @@
  let yardTab='parts',shipTab='parts',config=null,overlay=null,previousFocus=null,inertStates=[];
  const tabs=(selected,attribute)=>`<div class="vessel-tabs">${[['hulls',attribute==='data-yard-tab'?'건조':'선박'],['parts','파츠'],['cabins','선실']].map(([id,label])=>`<button type="button" ${attribute}="${id}" aria-pressed="${selected===id}">${label}</button>`).join('')}</div>`;
  function construction(state,target,editable){
-  const hull=hulls[target-1],plan=planOwned(state,target),ready=check(state,'build',String(target)),planReady=check(state,'blueprint',String(target));
-  return`<div class="build-requirements"><span class="${plan?'':'lacking'}">설계도 ${plan}/1</span>${Object.entries(hull.materials).map(([key,n])=>`<span class="${num(state.cargo?.[key])<n?'lacking':''}">${names[key]} ${num(state.cargo?.[key])}/${n}</span>`).join('')}</div>${editable?`<div class="build-actions">${!plan?`<button type="button" class="yard-work blueprint-buy" data-yard-action="blueprint" data-yard-id="${target}" ${planReady.ok?'':'disabled'} title="${planReady.message||'설계도 구입'}">설계도 · ${fmt(hull.planPrice)} G</button>`:''}${target===tier(state)+1?`<button type="button" class="yard-work" data-yard-action="build" data-yard-id="${target}" ${ready.ok?'':'disabled'} title="${ready.message||'선박 건조'}">선박 건조</button>`:''}</div>`:''}`;
+  const hull=hulls[target-1],plan=planOwned(state,target),ready=check(state,'build',String(target));
+  const material=(key,name,have,need)=>`<div class="build-material ${have<need?'lacking':''}" title="${name}">${art('material-'+key,name)}<span><span class="build-material-name">${name}</span><b>${fmt(have)}/${fmt(need)}</b></span></div>`;
+  return`<div class="build-requirements">${material('blueprint',blueprints['shipPlan'+target].name,plan,1)}${Object.entries(hull.materials).map(([key,n])=>material(key,names[key],num(state.cargo?.[key]),n)).join('')}</div>${editable&&target===tier(state)+1?`<div class="build-actions"><button type="button" class="yard-work" data-yard-action="build" data-yard-id="${target}" ${ready.ok?'':'disabled'} title="${ready.message||'선박 건조'}">선박 건조</button></div>`:''}`;
  }
  function cards(state,tab,editable){
   const button=(action,id)=>{const q=quote(state,action,id),ready=check(state,action,id);return editable?`<button type="button" class="yard-work" data-yard-action="${action}" data-yard-id="${id}" ${ready.ok?'':'disabled'} title="${ready.message||q.label}">${q.ok?q.label:q.message}${q.ok&&q.cost?` · ${fmt(q.cost)} G`:''}</button>`:''};
@@ -156,5 +157,5 @@
   if(overlay)return;config=options;overlay=document.createElement('div');overlay.className='ship-overlay';overlay.hidden=true;overlay.innerHTML='<section class="ship-dialog" role="dialog" aria-modal="true" aria-labelledby="shipDialogTitle"><header><h2 id="shipDialogTitle">선박</h2><button type="button" data-ship-close aria-label="선박 닫기">×</button></header><div class="ship-dialog-body"></div></section>';document.body.appendChild(overlay);
   overlay.querySelector('[data-ship-close]').onclick=()=>close();overlay.onclick=e=>{if(e.target===overlay)close()};
  }
- window.ROTTA_SHIPYARD={hulls,parts,cabins,blueprints,blueprintArt,planOwned,tier,level,fitted,stats,quote,check,transact,mitigate,plan,renderYard,renderSide,mount,open,close,refresh,handleKey,get active(){return !!overlay&&!overlay.hidden}};
+ window.ROTTA_SHIPYARD={hulls,parts,cabins,blueprints,blueprintArt,grantBlueprint,planOwned,tier,level,fitted,stats,quote,check,transact,mitigate,plan,renderYard,renderSide,mount,open,close,refresh,handleKey,get active(){return !!overlay&&!overlay.hidden}};
 })();
