@@ -1,13 +1,17 @@
 (function(){
  'use strict';
- // Shared continental art direction only; never changes facility availability or sovereignty.
+ // Continental shipyard/bank art and port-specific government rooms; visual context only.
  const regions=['north-europe','south-europe','africa','asia','north-america','south-america','oceania'];
- const facilities=['shipyard','bank'];
- const assets=regions.flatMap(region=>facilities.map(facility=>({
+ const facilities=['shipyard','bank','royal'];
+ const royalPorts=['lisbon','seville','london','istanbul','havana','veracruz','cairo','mecca','baghdad','ayutthaya','hanyang','beijing','edo'];
+ const continentalAssets=regions.flatMap(region=>['shipyard','bank'].map(facility=>({
   key:`facility-${facility}-${region}`,variable:`--facility-${facility}-${region}`,
   path:`assets/facilities/continental-v1/${facility}-${region}.webp`,region,facility
  })));
- const byKey=new Map(assets.map(asset=>[`${asset.facility}:${asset.region}`,asset]));
+ const royalAssets=royalPorts.map(port=>({key:`facility-royal-${port}`,variable:`--facility-royal-${port}`,path:`assets/facilities/royal-v1/${port}.webp`,port,facility:'royal'}));
+ const assets=[...continentalAssets,...royalAssets];
+ const byKey=new Map(continentalAssets.map(asset=>[`${asset.facility}:${asset.region}`,asset]));
+ const royalByPort=new Map(royalAssets.map(asset=>[asset.port,asset]));
  const catalog=new Map((window.ROTTA_PORT_CATALOG||[]).map(row=>[row[0],row[4]]));
  const core={london:'north-europe',lisbon:'south-europe',seville:'south-europe',marseille:'south-europe',istanbul:'south-europe',alexandria:'africa',goa:'asia',calicut:'asia',malacca:'asia',macao:'asia',nagasaki:'asia',mozambique:'africa',zanzibar:'africa',havana:'north-america',veracruz:'north-america',bahia:'south-america'};
  // The legacy catalog groups these northern Pacific ports with South America.
@@ -30,17 +34,18 @@
  function clear(scene){
   if(!scene)return;
   scene.classList.remove('facility-interior');
-  delete scene.dataset.facilityScene;delete scene.dataset.facilityRegion;
+  delete scene.dataset.facilityScene;delete scene.dataset.facilityRegion;delete scene.dataset.facilityPort;
   scene.style.removeProperty('--facility-image');
  }
  function show(scene,facility,id,port={}){
   clear(scene);
-  if(!scene||!facilities.includes(facility)||(facility==='bank'&&!port.bank))return;
-  const region=resolve(id,port),asset=byKey.get(`${facility}:${region}`);
+  if(!scene||!facilities.includes(facility)||(facility==='bank'&&!port.bank)||(facility==='royal'&&!port.royal))return;
+  const region=resolve(id,port),asset=facility==='royal'?royalByPort.get(id):byKey.get(`${facility}:${region}`);
   if(!asset)return;
   scene.dataset.facilityScene=facility;scene.dataset.facilityRegion=region;
+  if(facility==='royal')scene.dataset.facilityPort=id;
   scene.style.setProperty('--facility-image',`var(${asset.variable},url("${asset.path}"))`);
   scene.classList.add('facility-interior');
  }
- window.ROTTA_FACILITY_SCENES={regions,facilities,assets,resolve,show,clear};
+ window.ROTTA_FACILITY_SCENES={regions,facilities,assets,continentalAssets,royalAssets,royalPorts,resolve,show,clear};
 })();
