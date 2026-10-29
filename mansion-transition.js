@@ -24,7 +24,7 @@
   }
  }
  function cancel(){if(current)finish(current,false)}
- function play(commit,{direction='enter',afterReveal=null}={}){
+ function play(commit,{direction='enter',afterReveal=null,facility='mansion'}={}){
   if(current)return current.promise; // Repeated mansion clicks never restart the fade or conversation.
   const overlay=document.querySelector('#mansionTransition'),view=document.querySelector('#portView');
   if(!overlay||!view){commit();afterReveal?.();return Promise.resolve(true)}
@@ -38,7 +38,7 @@
   }
   view.setAttribute('aria-busy','true');phase(task,'fold');overlay.hidden=false;document.body.dataset.mansionTransitionDirection=direction;
   document.body.classList.add('mansion-transitioning');
-  document.querySelector('[data-facility="mansion"]')?.focus({preventScroll:true});
+  document.querySelector(direction==='exit'?'[data-facility].active':`[data-facility="${facility}"]`)?.focus({preventScroll:true});
   const later=(delay,fn)=>task.timers.push(setTimeout(()=>{if(current===task)fn()},delay));
   later(FOLD,()=>phase(task,'fade-out'));
   later(FOLD+FADE_OUT,()=>{

@@ -13,19 +13,19 @@
   revisit:{text:'다른 용건이 있는가?',choices:[['협상에 대하여','negotiation'],['아니오','farewell']]},
   farewell:{text:'그렇다면 돌아가시오.',choices:[['대화 종료',null]]}
  };
- function createConversation({onChange=()=>{},onBook=()=>{},onClose=()=>{}}={}){
+ function createConversation({onChange=()=>{},onBook=()=>{},onClose=()=>{},nodes:script=nodes}={}){
   let current='greeting',closed=false,granted=false,progressed=false;
   function go(next){
    if(closed)return false;
    if(next===null){closed=true;onClose();return true}
-   if(!nodes[next])return false;
+   if(!script[next])return false;
    current=next;progressed=true;
-   if(nodes[next].reward&&!granted){granted=true;onBook(nodes[next].reward)}
+   if(script[next].reward&&!granted){granted=true;onBook(script[next].reward)}
    onChange(current);return true;
   }
-  return{get current(){return current},get node(){return nodes[current]},get progressed(){return progressed},
-   advance(){return nodes[current].next?go(nodes[current].next):false},
-   choose(index){const choice=nodes[current].choices?.[index];return choice?go(choice[1]):false},
+  return{get current(){return current},get node(){return script[current]},get progressed(){return progressed},
+   advance(){return script[current].next?go(script[current].next):false},
+   choose(index){const choice=script[current].choices?.[index];return choice?go(choice[1]):false},
    dispose(){closed=true}
   };
  }
@@ -43,12 +43,16 @@
  function unmount(){
   presentation?.dispose();presentation=null;
   conversation?.dispose();conversation=null;
-  if(root){root.hidden=true;root.querySelector('[data-dialogue-line]').onclick=null;root.querySelector('[data-dialogue-actions]').replaceChildren();delete root.dataset.node;delete root.dataset.dialoguePhase;delete root.dataset.typing}
+  if(root){root.hidden=true;root.querySelector('[data-dialogue-line]').onclick=null;root.querySelector('[data-dialogue-actions]').replaceChildren();delete root.dataset.node;delete root.dataset.dialoguePhase;delete root.dataset.typing;delete root.dataset.dialogueFacility}
   root=null;
  }
- function mount(element,{onClose=()=>{},onBook=()=>{},deferReveal=false}={}){
+ function mount(element,{onClose=()=>{},onBook=()=>{},deferReveal=false,profile=null}={}){
   unmount();if(!element)return;
   root=element;root.hidden=false;root.dataset.dialoguePhase='waiting';root.dataset.node='greeting';
+  root.dataset.dialogueFacility=profile?.facility||'mansion';
+  const portrait=root.querySelector('.mansion-person'),speaker=root.querySelector('#mansionSpeaker span');
+  if(portrait){portrait.src=profile?.portraitSource||portraitPath;portrait.alt=profile?.portraitAlt||'포르투갈 귀족'}
+  if(speaker)speaker.textContent=profile?.speaker||'귀족';
   const line=root.querySelector('[data-dialogue-line]'),actions=root.querySelector('[data-dialogue-actions]');
   const reduced=!!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,timers=new Set();
   let disposed=false,paused=false,typing=false,writer=0,letters=[],cursor=0;
@@ -102,11 +106,11 @@
    })||false;
   }
   presentation={dispose,reveal,handleKey,fold(){for(const id of timers)clearTimeout(id);timers.clear();writer=0;paused=true;root.dataset.dialoguePhase='leaving'},pause(){paused=true;stopWriter()},resume(){if(disposed)return;paused=false;if(typing)writer=later(tick,CHAR_DELAY)}};
-  conversation=createConversation({onChange:render,onBook,onClose:()=>{const result=onClose();if(!result?.then)unmount()}});
+  conversation=createConversation({nodes:profile?.nodes||nodes,onChange:render,onBook,onClose:()=>{const result=onClose();if(!result?.then)unmount()}});
   if(!deferReveal)reveal();
  }
  window.ROTTA_MANSION_DIALOGUE={mount,unmount,preload,createConversation,nodes,portraitPath,assets,PORTRAIT_DURATION,SPEECH_DURATION,CHAR_DELAY,
   reveal:()=>presentation?.reveal(),fold:()=>presentation?.fold(),pause:()=>presentation?.pause(),resume:()=>presentation?.resume(),
   handleKey:event=>presentation?.handleKey(event)||false,
-  get active(){return !!conversation},get progressed(){return !!conversation?.progressed}};
+  get active(){return !!conversation},get facility(){return root?.dataset.dialogueFacility||null},get progressed(){return !!conversation?.progressed}};
 })();

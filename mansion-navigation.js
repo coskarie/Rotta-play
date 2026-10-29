@@ -8,7 +8,7 @@
   if(accept)task.action();
   else{
    window.ROTTA_MANSION_DIALOGUE?.resume();
-   const focus=document.querySelector('#mansionDialogue button')||document.querySelector('[data-facility="mansion"]');
+   const focus=document.querySelector('#mansionDialogue button')||document.querySelector(`[data-facility="${window.ROTTA_MANSION_DIALOGUE?.facility||'mansion'}"]`);
    focus?.focus({preventScroll:true});
   }
  }

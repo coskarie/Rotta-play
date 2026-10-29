@@ -418,23 +418,31 @@ function releaseManualKey(e){const key={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d'}[e.c
 function clearManualKeys(){if(MANUAL_SAIL.frame)cancelAnimationFrame(MANUAL_SAIL.frame);MANUAL_SAIL.frame=0;MANUAL_SAIL.keys.clear();MANUAL_SAIL.last=0;MANUAL_SAIL.velocity=0;clearStraitGuide();if(!state.traveling&&NAV_RENDER.moving&&document.body){document.body.classList.remove('sailing-moving');NAV_RENDER.moving=false}}
 function openFacility(id,confirmed=false){
  const dialogue=window.ROTTA_MANSION_DIALOGUE,transition=window.ROTTA_MANSION_TRANSITION;
- if(id!=='mansion'&&dialogue?.active&&dialogue.progressed&&!confirmed&&!transition?.active&&window.ROTTA_MANSION_NAVIGATION){
+ if(id!==dialogue?.facility&&dialogue?.active&&dialogue.progressed&&!confirmed&&!transition?.active&&window.ROTTA_MANSION_NAVIGATION){
   return window.ROTTA_MANSION_NAVIGATION.request(()=>openFacility(id,true));
  }
- if(id==='mansion'&&transition){
-  if($('#portScene').classList.contains('mansion-interior'))return;
+ if((id==='mansion'||id==='royal'&&PORTS[state.current].royal)&&transition){
+  if(dialogue?.active&&dialogue.facility===id||id==='mansion'&&$('#portScene').classList.contains('mansion-interior'))return;
+  dialogue?.fold?.();
   window.ROTTA_MARKET_DRAWER?.unmount();
-  return transition.play(()=>openFacilityNow(id),{afterReveal:()=>window.ROTTA_MANSION_DIALOGUE?.reveal()});
+  return transition.play(()=>openFacilityNow(id),{afterReveal:()=>window.ROTTA_MANSION_DIALOGUE?.reveal(),facility:id});
  }
  if(dialogue?.active&&!transition?.active)return leaveMansion(()=>openFacilityNow(id));
  transition?.cancel();return openFacilityNow(id);
 }
 function openFacilityNow(id){
+ if(id==='royal'&&!PORTS[state.current].royal)return;
  window.ROTTA_MANSION_DIALOGUE?.unmount();$('#portView').classList.remove('mansion-dialogue-mode');
  window.ROTTA_MANSIONS?.show($('#portScene'),id,state.current,PORTS[state.current],state.nation);
  window.ROTTA_FACILITY_SCENES?.show($('#portScene'),id,state.current,PORTS[state.current]);
  const f=FACILITIES[id];$('#facilityKicker').textContent=`${PORTS[state.current].name} 항구 시설`;$('#facilityTitle').textContent=f.name;$('#facilityIntro').textContent=f.intro;$('#portView').classList.add('facility-mode');$('#portView').classList.toggle('trade-mode',id==='trade');$('#portView').classList.toggle('shop-mode',id==='shop');$('#portView').classList.toggle('shipyard-mode',id==='shipyard');
  $$('[data-facility]').forEach(b=>{const active=b.dataset.facility===id;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});
+ if(id==='royal'&&window.ROTTA_MANSION_DIALOGUE){
+  const profile=window.ROTTA_ROYAL_DIALOGUE?.resolve(state.current,PORTS[state.current]);
+  if(!profile){closeFacilityNow();return}
+  window.ROTTA_MARKET_DRAWER?.unmount();$('#facilityContent').replaceChildren();$('#facilityPanel').classList.add('hidden');$('#cargoPanel').classList.add('hidden');$('#portView').classList.add('mansion-dialogue-mode');
+  window.ROTTA_MANSION_DIALOGUE.mount($('#mansionDialogue'),{profile,deferReveal:!!window.ROTTA_MANSION_TRANSITION?.active,onClose:closeFacility});return;
+ }
  if(id==='mansion'&&state.current==='lisbon'&&window.ROTTA_MANSION_DIALOGUE){
   window.ROTTA_MARKET_DRAWER?.unmount();$('#facilityContent').replaceChildren();$('#facilityPanel').classList.add('hidden');$('#cargoPanel').classList.add('hidden');$('#portView').classList.add('mansion-dialogue-mode');
   window.ROTTA_MANSION_DIALOGUE.mount($('#mansionDialogue'),{deferReveal:!!window.ROTTA_MANSION_TRANSITION?.active,onClose:closeFacility,onBook:key=>{state.books??={};state.books[key]??={name:'협상의 기본',source:'lisbon'}}});return;
@@ -585,9 +593,9 @@ function renderFacility(id){window.ROTTA_MARKET_DRAWER?.unmount();const c=$('#fa
  if(id==='shipyard'){renderShipyard();return}
  if(id==='bank'){c.innerHTML=`<div class="ledger-list"><div class="ledger-row"><span>수중 골드</span><b>${fmt(state.gold)}</b></div><div class="ledger-row"><span>예치금</span><b>${fmt(state.bank)}</b></div></div><div class="facility-actions"><button data-action="deposit">100 골드 예치</button><button data-action="withdraw">100 골드 인출</button></div>`}
  if(id==='mansion'){c.innerHTML=`<div class="ledger-row"><span>협상술</span><b>Lv.${Math.floor(state.bargain)}</b></div><div class="facility-actions"><button data-action="train">수업 · 120 골드</button><button data-action="rumor">시세 · 20 골드</button></div>`}
- if(id==='royal'){c.innerHTML=`<div class="ledger-list"><div class="ledger-row"><span>명성</span><b>${fmt(state.fame)}</b></div><div class="ledger-row"><span>칙명</span><b>향신료 5</b></div></div><div class="facility-actions"><button data-action="charter">축복</button><button data-action="mission">칙명</button></div>`}
+ if(id==='royal'){c.replaceChildren();return}
  $$('[data-action]').forEach(b=>b.onclick=()=>facilityAction(b.dataset.action,id))}
-function facilityAction(action,facility){const spend=(cost,fn)=>{if(state.gold<cost)return toast('골드가 부족합니다.');state.gold-=cost;fn()};if(action==='deposit')spend(100,()=>{state.bank+=100;toast('100 골드를 예치했습니다.')});if(action==='withdraw'){if(state.bank<100)return toast('예치금이 부족합니다.');state.bank-=100;state.gold+=100;toast('100 골드를 인출했습니다.')}if(action==='train')spend(120,()=>{state.bargain=Math.min(5,state.bargain+1);toast('협상술이 향상됐습니다.')});if(action==='rumor')spend(state.nation==='england'?10:20,()=>{const tips=MARKET_SIM?.news(state.current)||[];toast(tips.length?tips[Math.floor(Math.random()*tips.length)]:'새 소식 없음')});if(action==='charter'){state.fame+=1;toast('왕실의 축복으로 명성 +1')}if(action==='mission')toast('후추 또는 정향 5단위를 모아 왕실에 납품하십시오.');updateStats();renderFacility(facility);renderCargoPanel(facility==='trade')}
+function facilityAction(action,facility){const spend=(cost,fn)=>{if(state.gold<cost)return toast('골드가 부족합니다.');state.gold-=cost;fn()};if(action==='deposit')spend(100,()=>{state.bank+=100;toast('100 골드를 예치했습니다.')});if(action==='withdraw'){if(state.bank<100)return toast('예치금이 부족합니다.');state.bank-=100;state.gold+=100;toast('100 골드를 인출했습니다.')}if(action==='train')spend(120,()=>{state.bargain=Math.min(5,state.bargain+1);toast('협상술이 향상됐습니다.')});if(action==='rumor')spend(state.nation==='england'?10:20,()=>{const tips=MARKET_SIM?.news(state.current)||[];toast(tips.length?tips[Math.floor(Math.random()*tips.length)]:'새 소식 없음')});updateStats();renderFacility(facility);renderCargoPanel(facility==='trade')}
 function marketStockToken(portId,key){return `${portId}:${state.year}:${state.month}:${Math.floor(((state.day||1)-1)/7)}:${key}`}
 function marketStock(portId,key){const token=marketStockToken(portId,key),initial=12+(hash(`${token}:stock`)%69);return Math.max(0,Math.floor(initial*(GOODS[key]?.stockScale??1)*marketEffects(portId,key).stock)-(state.marketBought[token]||0))}
 function maxTradeQuantity(key,type,append=false){const basket=marketBasket();return Math.max(0,basket.maximum(type,key)-(append?basket.quantity(type,key):0))}
