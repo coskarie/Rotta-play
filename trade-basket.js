@@ -1,7 +1,7 @@
 (() => {
  'use strict';
  const count=value=>Number.isFinite(Number(value))?Math.max(0,Math.floor(Number(value))):0;
- function create({context,buyPrice,sellQuote,stock,owned,hasGood}){
+ function create({context,buyPrice,sellQuote,stock,owned,hasGood,buyRoom=null,canLoad=null}){
   let port=null;const bags={buy:new Map(),sell:new Map()};
   function sync(){const next=context().port;if(port!==next){port=next;bags.buy.clear();bags.sell.clear()}return context()}
   function entries(side){sync();return [...bags[side]].map(([key,quantity])=>({key,quantity}))}
@@ -9,10 +9,11 @@
   function maximum(side,key){
    const c=sync();if(!hasGood(key,side))return 0;
    if(side==='sell')return count(owned(key));
-   let reserved=0,cost=0;
-   for(const [other,qty]of bags.buy)if(other!==key){reserved+=qty;cost+=qty*buyPrice(other)}
+   let reserved=0,cost=0;const otherRows=[];
+   for(const [other,qty]of bags.buy)if(other!==key){reserved+=qty;cost+=qty*buyPrice(other);otherRows.push({key:other,quantity:qty})}
    const price=buyPrice(key);if(!Number.isSafeInteger(price)||price<1)return 0;
-   return Math.max(0,Math.min(count(stock(key)),count(c.capacity)-count(c.cargo)-reserved,Math.floor((c.gold-cost)/price)));
+   const room=buyRoom?count(buyRoom(key,otherRows)):count(c.capacity)-count(c.cargo)-reserved;
+   return Math.max(0,Math.min(count(stock(key)),room,Math.floor((c.gold-cost)/price)));
   }
   function set(side,key,value){
    sync();if(!['buy','sell'].includes(side)||!hasGood(key,side))return 0;
@@ -28,7 +29,7 @@
     rows.push({key,quantity:qty,...quote});total+=quote.total;units+=qty;
    }
    if(!rows.length)return {ok:false,error:'품목을 담아 주세요.'};
-   if(side==='buy'&&(total>c.gold||units+c.cargo>c.capacity))return {ok:false,error:total>c.gold?'골드 부족':'화물칸 부족'};
+   if(side==='buy'&&(total>c.gold||(canLoad?!canLoad(rows):units+c.cargo>c.capacity)))return {ok:false,error:total>c.gold?'골드 부족':'화물칸 부족'};
    return {ok:true,side,port:c.port,rows,total,units,signature:JSON.stringify([c.port,side,rows.map(r=>[r.key,r.quantity,r.total])])};
   }
   function clear(side){sync();if(side)bags[side].clear();else{bags.buy.clear();bags.sell.clear()}}

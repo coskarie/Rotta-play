@@ -330,6 +330,8 @@ function simplifyPath(points,maxSpan=14){if(points.length<3)return points;const 
 function hash(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h)}
 function toward(name){const code=name.charCodeAt(name.length-1)-0xac00,jong=code>=0&&code<=11171?code%28:0;return `${name}${jong&&jong!==8?'으로':'로'}`}
 function cargoTotal(){return Object.values(state.cargo).reduce((a,b)=>a+b,0)}
+function cargoLimit(){return state.capacity+(window.ROTTA_SHIPYARD?.stats(state).specialCapacity||0)}
+function cargoCapacityTitle(){const s=window.ROTTA_SHIPYARD?.stats(state);return s?.specialGood?`일반 ${state.capacity} · ${GOODS[s.specialGood]?.name||s.specialGood} 전용 ${s.specialCapacity}`:`일반 ${state.capacity}`}
 function nationalBuyPrice(key,value){return Math.max(5,Math.round(value*(state.nation==='portugal'&&['pepper','clove','nutmeg','mace'].includes(key)?.92:1)))}
 function marketPriceAt(pid,key,side='buy'){const raw=MARKET_SIM?.prices?.quote(pid,key);if(raw){const buy=nationalBuyPrice(key,raw.buy);if(side==='buy')return buy;let sell=raw.sell;if(state.nation==='spain'&&key==='silver')sell*=1.14;if(state.nation==='england'&&key==='wool')sell*=1.1;if(state.nation==='france'&&key==='wine')sell*=1.1;return Math.max(1,Math.min(buy-1,Math.floor(sell)))}const p=PORTS[pid],g=GOODS[key],local=p.market[key]??(.94+(hash(pid+key+state.seed)%67)/100),pulse=((hash(`${pid}:${key}:${state.year}:${state.month}`)%17)-8)/100,e=marketEffects(pid,key);let base=g.base*local*(1+pulse)*e.price,buy=base*(1+e.tax);if(state.nation==='portugal'&&['pepper','clove','nutmeg','mace'].includes(key))buy*=.92;buy=Math.max(5,Math.round(buy));if(side==='buy')return buy;let sell=base*.85*(1-e.tax);if(state.nation==='spain'&&key==='silver')sell*=1.14;if(state.nation==='england'&&key==='wool')sell*=1.1;if(state.nation==='france'&&key==='wine')sell*=1.1;return Math.max(1,Math.min(buy-1,Math.floor(sell)))}
 function marketSignal(pid,key){const local=PORTS[pid].market[key];if(local==null)return{label:'수입품',className:'imported'};if(local<=.62)return{label:'대표 특산',className:'specialty'};if(local<=.76)return{label:'풍부',className:'abundant'};return{label:'보통',className:'regular'}}
@@ -394,9 +396,9 @@ function useSupply(key){
  const result=window.ROTTA_SUPPLIES?.use(state,key);if(!result)return false;
  toast(result.message);if(result.ok){updateStats();if($('#portView').classList.contains('shop-mode')){renderShop();if(!window.ROTTA_PLAYER_MENU?.active)($(`[data-supply-use="${key}"]:not(:disabled)`)||$('[data-shop-category]'))?.focus({preventScroll:true})}}return result.ok;
 }
-function syncShipStats(){const stats=window.ROTTA_SHIPYARD?.stats(state);if(!stats)return;state.capacity=stats.capacity;MANUAL_SAIL.maxSpeed=4.2*stats.speed;MANUAL_SAIL.turnRate=48*stats.turn}
+function syncShipStats(){const api=window.ROTTA_SHIPYARD;if(!api)return;api.setGoods(GOODS);api.ensure(state);const stats=api.stats(state);state.capacity=stats.capacity;MANUAL_SAIL.maxSpeed=4.2*stats.speed;MANUAL_SAIL.turnRate=48*stats.turn}
 function renderShipyardSide(){const api=window.ROTTA_SHIPYARD;if(!api)return;$('#cargoPanelTitle').textContent='선박';$('#cargoPanelSummary').textContent='';$('#tradeQuickRow').hidden=true;$('#cargoPanelAction').hidden=true;$('#cargoPanelBack').hidden=true;$('#cargoPanelList').classList.remove('basket-grid');api.renderSide($('#cargoPanelList'),state);$('#cargoPanelTotalLabel').textContent='골드';$('#cargoPanelGold').textContent=fmt(state.gold)+' G'}
-function renderShipyard(){window.ROTTA_SHIPYARD?.renderYard($('#facilityContent'),{state,onAction:shipyardAction});renderShipyardSide()}
+function renderShipyard(){window.ROTTA_SHIPYARD?.renderYard($('#facilityContent'),{state,onAction:shipyardAction,goods:GOODS});renderShipyardSide()}
 function shipyardAction(action,id){if(!playerMenuAvailable()||!state.atPort||!$('#portView').classList.contains('active')||!$('#portView').classList.contains('shipyard-mode'))return false;const result=window.ROTTA_SHIPYARD?.transact(state,action,id,{consume:removeCargoLots,sync:syncShipStats});if(!result)return false;toast(result.message);if(result.ok){updateStats();renderShipyard();($('#facilityContent [data-yard-tab][aria-pressed=\"true\"]'))?.focus({preventScroll:true})}return result.ok}
 function closeSystem(){$('#systemModal').classList.add('hidden')}
 function toggleSystem(){if(!state.nation)return;$('#waitDayBtn').disabled=state.traveling||MANUAL_SAIL.velocity>.001;$('#systemModal').classList.toggle('hidden')}
@@ -444,6 +446,8 @@ function marketBasket(){
   context:()=>({port:state.current,gold:state.gold,capacity:state.capacity,cargo:cargoTotal()}),
   buyPrice:key=>priceAt(state.current,key,'buy'),sellQuote:(key,qty)=>cargoSaleQuote(state.current,key,qty),
   stock:key=>marketStock(state.current,key),owned:key=>state.cargo[key]||0,
+  buyRoom:(key,rows)=>window.ROTTA_SHIPYARD?.cargoRoom(state,key,rows,state.capacity)??Math.max(0,state.capacity-cargoTotal()-rows.reduce((n,r)=>n+r.quantity,0)),
+  canLoad:rows=>window.ROTTA_SHIPYARD?.cargoFits(state,rows,state.capacity)??cargoTotal()+rows.reduce((n,r)=>n+r.quantity,0)<=state.capacity,
   hasGood:(key,side)=>!!GOODS[key]&&(side==='sell'||Object.hasOwn(PORTS[state.current]?.market||{},key))
  });
  if(MARKET_BASKET_UI.port!==state.current){MARKET_BASKET_UI.port=state.current;MARKET_BASKET_UI.mode='owned';MARKET_BASKET.clear()}
@@ -518,7 +522,7 @@ function renderCargoPanel(canSell){
  const action=$('#cargoPanelAction'),back=$('#cargoPanelBack');
  const quick=$('#tradeQuickToggle');$('#tradeQuickRow').hidden=!canSell;quick.checked=MARKET_BASKET_UI.quick;
  quick.onchange=()=>{MARKET_BASKET_UI.quick=quick.checked};
- $('#cargoPanelSummary').textContent=`${cargoTotal()} / ${state.capacity}`;
+ $('#cargoPanelSummary').textContent=`${cargoTotal()} / ${cargoLimit()}`;$('#cargoPanelSummary').title=cargoCapacityTitle();
  const appraisal=entries.reduce((sum,{key,quantity})=>sum+cargoSaleQuote(state.current,key,quantity).total,0);
  $('#cargoPanelTitle').textContent='보유 교역품';$('#cargoPanelTotalLabel').textContent='환산 가치';$('#cargoPanelGold').textContent=`${fmt(appraisal)} G`;
  action.hidden=true;action.onclick=null;back.hidden=true;list.classList.remove('basket-grid');
@@ -531,7 +535,7 @@ function renderCargoPanel(canSell){
  action.onclick=buying?()=>requestBasketCheckout('buy'):null;
  if(buying){
   $('#cargoPanelTitle').textContent='구매 품목';$('#cargoPanelTotalLabel').textContent='합계';$('#cargoPanelGold').textContent=`${fmt(basket.total('buy'))} G`;
-  $('#cargoPanelSummary').textContent=`${cargoTotal()+draft.reduce((sum,row)=>sum+row.quantity,0)} / ${state.capacity}`;
+  $('#cargoPanelSummary').textContent=`${cargoTotal()+draft.reduce((sum,row)=>sum+row.quantity,0)} / ${cargoLimit()}`;
  }
  list.innerHTML=cargoLedgerMarkup(buying?draft:availableCargoEntries(),{side:buying?'buy':'stock'});bindBasketItems(list);refreshMarketStock();
 }
@@ -547,7 +551,7 @@ function commitMarketBasket(expected){
  const rows=plan.rows.map(row=>{
   if(plan.side==='sell')return row;
   let unit=row.unit;
-  if(Math.random()<.3&&Math.random()<.3+bargain*.09+(state.nation==='france'?.15:0)){
+  if(Math.random()<.3&&Math.random()<.3+bargain*.09+(state.nation==='france'?.15:0)+(window.ROTTA_SHIPYARD?.stats(state).negotiation||0)){
    unit=Math.max(marketPriceAt(state.current,row.key,'sell')+1,Math.round(unit*(.88-bargain*.015)));
    unit=Math.min(row.unit,unit);bargain=Math.min(5,bargain+.08);
   }
@@ -901,6 +905,6 @@ function advance(days){
 }
 function showEvent(ev){if(window.ROTTA_PORT_TRANSITIONS?.active||openingEventsProtected())return false;if(!$('#eventModal').classList.contains('hidden'))return false;ev=window.ROTTA_SUPPLIES?.resolveEvent(state,ev)||ev;ev=window.ROTTA_SHIPYARD?.mitigate(state,ev)||ev;window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(ev.marketTemplate)MARKET_SIM?.start(ev.marketTemplate,state.current);for(const [k,v] of Object.entries(ev.effects))state[k]=Math.max(0,(state[k]||0)+v);$('#eventIcon').textContent=ev.icon;$('#eventType').textContent=ev.type;$('#eventTitle').textContent=ev.title;$('#eventBody').textContent=ev.body;$('#eventEffects').innerHTML=ev.labels.map(x=>`<span>${x}</span>`).join('');$('#eventModal').classList.remove('hidden');updateStats()}
 function switchView(which){window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(which!=='sailing')stopDepartureZoom();$('#portView').classList.toggle('active',which==='port');$('#sailingView').classList.toggle('active',which==='sailing');document.body.classList.toggle('sailing-mode',which==='sailing')}
-function updateStats(){if(!state.nation)return;const n=NATIONS[state.nation];$('#nationFlag').textContent=n.flag;$('#nationName').textContent=n.name;$('#nationTrait').textContent=n.trait;$('#goldStat').textContent=fmt(state.gold);$('#fameStat').textContent=fmt(state.fame);$('#crewStat').textContent=`${fmt(state.crew)}명`;$('#hullStat').textContent=`${fmt(state.hull)}%`;$('#foodStat').textContent=`${fmt(state.food)}%`;$('#cargoStat').textContent=`${cargoTotal()}/${state.capacity}`;$('#dateText').textContent=`${state.year}년 ${state.month}월 ${state.day||1}일`;$('#seaDateText').textContent=$('#dateText').textContent;window.ROTTA_PLAYER_MENU?.refresh();window.ROTTA_SHIPYARD?.refresh()}
+function updateStats(){if(!state.nation)return;const n=NATIONS[state.nation];$('#nationFlag').textContent=n.flag;$('#nationName').textContent=n.name;$('#nationTrait').textContent=n.trait;$('#goldStat').textContent=fmt(state.gold);$('#fameStat').textContent=fmt(state.fame);$('#crewStat').textContent=`${fmt(state.crew)}명`;$('#hullStat').textContent=`${fmt(state.hull)}%`;$('#foodStat').textContent=`${fmt(state.food)}%`;$('#cargoStat').textContent=`${cargoTotal()}/${cargoLimit()}`;$('#cargoStat').title=cargoCapacityTitle();$('#dateText').textContent=`${state.year}년 ${state.month}월 ${state.day||1}일`;$('#seaDateText').textContent=$('#dateText').textContent;window.ROTTA_PLAYER_MENU?.refresh();window.ROTTA_SHIPYARD?.refresh()}
 let toastTimer;function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2300)}
 init();
