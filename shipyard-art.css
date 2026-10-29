@@ -16,6 +16,7 @@
 .vessel-tabs button[aria-pressed=true]::after{content:'';position:absolute;left:17px;right:17px;bottom:4px;height:1px;background:#c5a46b88}
 .vessel-scroll{padding:14px 2px 5px;scrollbar-color:#896138 #c6a76f55}
 .vessel-cards{gap:12px}
+.cabin-cards{align-items:start}
 .vessel-card{border:1px solid #89613980;background:linear-gradient(110deg,#f4e5c777,#c9ab7344);box-shadow:inset 0 0 0 3px #fff3cf1a,0 2px 4px #57371812;overflow:hidden}
 .vessel-card.current{border-color:#7f592b;box-shadow:inset 0 0 0 2px #a67b3b40,0 2px 5px #4e301521;background:linear-gradient(110deg,#f5e3bca8,#c1a16b66)}
 .vessel-card h3{font-size:16px;letter-spacing:.02em;color:#3f2a16}
@@ -55,6 +56,7 @@
 .cabin-card .vessel-item-art{height:98px;flex:none;border-bottom:1px solid #6f4b29;box-shadow:inset 0 0 0 3px #4e321740}
 .cabin-card .yard-art{width:100%;height:100%;object-fit:cover;filter:saturate(.8) contrast(.96)}
 .cabin-card .vessel-item-copy{padding:11px 13px 12px;display:flex;flex-direction:column;flex:1}
+.cabin-card .yard-materials:empty{display:none}
 .cabin-tier{display:block;font-size:10px;color:#80623a;margin:2px 0 6px}
 .special-cargo-select{display:block;width:100%;min-width:0;min-height:32px;margin:4px 0 8px;border:1px solid #87643c;background:#e6d5b1;color:#4e351f;padding:4px 7px;font:inherit;font-size:11px}
 .special-cargo-select:disabled{opacity:.5}
