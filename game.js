@@ -71,9 +71,10 @@ const FACILITY_MATERIAL={trade:'parchment',royal:'stone',mansion:'wood',shop:'pa
 const EVENTS=[
  {type:'기상',icon:'♒',title:'돌풍과 돛대',body:'검은 구름이 수평선을 삼키더니 돌풍이 주돛을 후려쳤다.',effects:{hull:-9,morale:-4},labels:['선체 −9','사기 −4']},
  {type:'해상',icon:'⚓',title:'표류 상선 구조',body:'돛을 잃은 상선을 구조하자 선주가 사례금을 건넸다.',effects:{gold:95,fame:4},labels:['95 골드','명성 +4']},
- {type:'역병',icon:'☣',title:'선창의 열병',body:'축축한 선창에서 열병이 번졌다. 격리했지만 손실이 났다.',effects:{crew:-6,morale:-7},labels:['선원 −6','사기 −7']},
+ {type:'역병',icon:'☣',title:'선창의 열병',supplyResponse:'treatment',body:'축축한 선창에서 열병이 번졌다. 격리했지만 손실이 났다.',effects:{crew:-6,morale:-7},labels:['선원 −6','사기 −7']},
  {type:'기후',icon:'☀',title:'무풍대',body:'돛은 축 늘어지고 식수통은 빠르게 비어 간다.',effects:{food:-14,morale:-5},labels:['식량 −14','사기 −5']},
- {type:'해일',icon:'≋',title:'항만의 큰 물결',body:'먼 바다의 지진이 항만으로 거대한 물결을 밀어 넣었다.',effects:{hull:-12,gold:-40},labels:['선체 −12','수리비 40']},
+ {type:'해일',icon:'≋',title:'항만의 큰 물결',supplyResponse:'flooding',body:'먼 바다의 지진이 항만으로 거대한 물결을 밀어 넣었다.',effects:{hull:-12,gold:-40},labels:['선체 −12','수리비 40']},
+ {type:'해상',icon:'⚓',title:'선창의 쥐떼',supplyResponse:'rats',body:'선창에 숨어든 쥐떼가 식량을 갉아먹었다.',effects:{food:-8,morale:-2},labels:['식량 −8','사기 −2']},
  {type:'국가상황',icon:'♜',title:'왕실 관세령',marketTemplate:'EV39',body:'왕실이 일부 수입품의 관세를 올렸다.',effects:{fame:2},labels:['시세 변동','명성 +2']}
 ];
 let state={nation:null,gold:0,bank:0,fame:0,crew:42,hull:100,food:100,morale:78,bargain:1,cargo:{},tools:{},questItems:{},cargoLots:{},marketBought:{},capacity:60,current:null,year:1543,month:3,seed:1,shipX:1360,shipY:650,atPort:true,traveling:false,camX:0,camY:0,zoom:6.5};
@@ -369,7 +370,7 @@ function warehouseItems(category){
  const supplies=window.ROTTA_SUPPLIES;
  const rows=Object.entries(category==='tools'?state.tools||{}:category==='quest'?state.questItems||{}:{}).map(([key,item])=>{
   const supply=category==='tools'&&supplies&&Object.hasOwn(supplies.catalog,key)?supplies.catalog[key]:null;
-  return{key,name:supply?.name||item.name||key,quantity:quantity(item.quantity),...(supply?{art:supplies.art(key)||goodArt(supply.good),effect:supplies.effectText(supply.effects),use:true,canUse:supplies.canUse(state,key)}:{})};
+  return{key,name:supply?.name||item.name||key,quantity:quantity(item.quantity),...(supply?{art:supplies.art(key)||goodArt(supply.good),effect:supplies.description(supply),use:!supply.eventOnly,canUse:supplies.canUse(state,key)}:{})};
  }).filter(item=>item.quantity>0);
  if(category==='tools')for(const [key,book]of Object.entries(state.books||{}))rows.push({key:`book:${key}`,name:book.name,quantity:1,art:'<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 8h25v32H12a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4ZM12 8v26M8 36a4 4 0 0 1 4-4h25M18 17h13M18 23h10"/></svg>'});
  return rows;
@@ -891,7 +892,7 @@ function advance(days){
  if(pendingTrade)updateTradePreview();
  if(SEA_PORT_UI.quoteId)renderSeaMarket();
 }
-function showEvent(ev){if(window.ROTTA_PORT_TRANSITIONS?.active||openingEventsProtected())return false;window.ROTTA_PLAYER_MENU?.close(false);if(ev.marketTemplate)MARKET_SIM?.start(ev.marketTemplate,state.current);for(const [k,v] of Object.entries(ev.effects))state[k]=Math.max(0,(state[k]||0)+v);$('#eventIcon').textContent=ev.icon;$('#eventType').textContent=ev.type;$('#eventTitle').textContent=ev.title;$('#eventBody').textContent=ev.body;$('#eventEffects').innerHTML=ev.labels.map(x=>`<span>${x}</span>`).join('');$('#eventModal').classList.remove('hidden');updateStats()}
+function showEvent(ev){if(window.ROTTA_PORT_TRANSITIONS?.active||openingEventsProtected())return false;if(!$('#eventModal').classList.contains('hidden'))return false;ev=window.ROTTA_SUPPLIES?.resolveEvent(state,ev)||ev;window.ROTTA_PLAYER_MENU?.close(false);if(ev.marketTemplate)MARKET_SIM?.start(ev.marketTemplate,state.current);for(const [k,v] of Object.entries(ev.effects))state[k]=Math.max(0,(state[k]||0)+v);$('#eventIcon').textContent=ev.icon;$('#eventType').textContent=ev.type;$('#eventTitle').textContent=ev.title;$('#eventBody').textContent=ev.body;$('#eventEffects').innerHTML=ev.labels.map(x=>`<span>${x}</span>`).join('');$('#eventModal').classList.remove('hidden');updateStats()}
 function switchView(which){window.ROTTA_PLAYER_MENU?.close(false);if(which!=='sailing')stopDepartureZoom();$('#portView').classList.toggle('active',which==='port');$('#sailingView').classList.toggle('active',which==='sailing');document.body.classList.toggle('sailing-mode',which==='sailing')}
 function updateStats(){if(!state.nation)return;const n=NATIONS[state.nation];$('#nationFlag').textContent=n.flag;$('#nationName').textContent=n.name;$('#nationTrait').textContent=n.trait;$('#goldStat').textContent=fmt(state.gold);$('#fameStat').textContent=fmt(state.fame);$('#crewStat').textContent=`${fmt(state.crew)}명`;$('#hullStat').textContent=`${fmt(state.hull)}%`;$('#foodStat').textContent=`${fmt(state.food)}%`;$('#cargoStat').textContent=`${cargoTotal()}/${state.capacity}`;$('#dateText').textContent=`${state.year}년 ${state.month}월 ${state.day||1}일`;$('#seaDateText').textContent=$('#dateText').textContent;window.ROTTA_PLAYER_MENU?.refresh()}
 let toastTimer;function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2300)}
