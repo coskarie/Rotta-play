@@ -31,7 +31,7 @@
  const count=state=>Object.keys(cabins).filter(id=>fitted(state,id)).length;
  const fmt=value=>Number(value).toLocaleString('ko-KR');
  const planOwned=(state,target)=>num(state.questItems?.['shipPlan'+target]?.quantity);
- const blueprintArt=name=>art('material-blueprint',name||'선박 설계도');
+ const blueprintArt=name=>art('material-blueprint',name||'선박 설계도','good-art');
  // Reward adapter for future quest completion. Not a purchasable shipyard action.
  function grantBlueprint(state,target){
   if(!/^[2-5]$/.test(String(target)))return{ok:false,message:'설계도 없음'};
