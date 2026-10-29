@@ -178,12 +178,17 @@
  function renderYard(container,{state,onAction,goods}){
   if(goods)setGoods(goods);
   window.ROTTA_SHIPYARD_ART?.materials(container.closest('.facility-panel')||container);
-  container.innerHTML=`<div class="shipyard-overview">${summary(state)}<button class="yard-work yard-repair" type="button" data-yard-action="repair" data-yard-id="" ${check(state,'repair').ok?'':'disabled'}>${state.hull>=100?'수리 완료':`수리 · ${fmt(quote(state,'repair').cost)} G`}</button></div>${tabs(yardTab,'data-yard-tab')}<div class="vessel-scroll">${cards(state,yardTab,true)}</div>`;
+  container.innerHTML=`${tabs(yardTab,'data-yard-tab')}<div class="vessel-scroll">${cards(state,yardTab,true)}</div>`;
   container.querySelectorAll('[data-yard-tab]').forEach(b=>b.onclick=()=>{yardTab=b.dataset.yardTab;renderYard(container,{state,onAction})});
   container.querySelectorAll('[data-yard-action]').forEach(b=>b.onclick=()=>{if(!b.disabled)onAction(b.dataset.yardAction,b.dataset.yardId)});
   container.querySelectorAll('[data-special-good]').forEach(select=>select.onchange=()=>{if(onAction('special-good',select.value)===false)select.value=state.ship?.cabins?.specialHold?.good||''});
  }
- function renderSide(container,state){const rooms=Object.entries(cabins).filter(([id])=>fitted(state,id));container.innerHTML=`<div class="vessel-side">${vesselPortrait(state)}<div class="vessel-identity"><strong>Santa Rotta</strong><span>${hulls[tier(state)-1].name}</span></div><div class="vessel-slot-line"><span>선실</span><b>${rooms.length} / ${stats(state).slots}</b></div><div class="vessel-fitted">${rooms.map(([id,c])=>`<div title="${escape(cabinEffect(state,id))}">${art(cabinImage(id),c.name)}<span>${c.name}</span></div>`).join('')}${Array.from({length:Math.max(0,stats(state).slots-rooms.length)},()=>'<i class="vessel-empty-slot" aria-hidden="true"></i>').join('')}</div></div>`}
+ function renderSide(container,state,{onAction}={}){
+  const rooms=Object.entries(cabins).filter(([id])=>fitted(state,id));
+  const repair=`<button class="yard-work yard-repair" type="button" data-yard-action="repair" data-yard-id="" ${check(state,'repair').ok?'':'disabled'}>${state.hull>=100?'수리 완료':`수리 · ${fmt(quote(state,'repair').cost)} G`}</button>`;
+  container.innerHTML=`<div class="vessel-side">${vesselPortrait(state)}<div class="vessel-side-details">${summary(state)}${repair}</div><div class="vessel-fitted">${rooms.map(([id,c])=>`<div title="${escape(cabinEffect(state,id))}">${art(cabinImage(id),c.name)}<span>${c.name}</span></div>`).join('')}${Array.from({length:Math.max(0,stats(state).slots-rooms.length)},()=>'<i class="vessel-empty-slot" aria-hidden="true"></i>').join('')}</div></div>`;
+  container.querySelectorAll('[data-yard-action="repair"]').forEach(button=>button.onclick=()=>{if(!button.disabled)onAction?.('repair','')});
+ }
  function refresh(){
   if(!overlay||overlay.hidden)return;
   window.ROTTA_SHIPYARD_ART?.materials(overlay.querySelector('.ship-dialog'));
