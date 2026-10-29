@@ -34,7 +34,7 @@
   const $=id=>document.querySelector(id);
   nodes={toggle:$('#playerMenuToggle'),menu:$('#playerMenu'),overlay:$('#warehouseOverlay'),dialog:$('#warehouseDialog'),contents:$('#warehouseContents'),close:$('#warehouseClose'),game:$('#game'),topbar:$('.topbar'),tabs:[...document.querySelectorAll('[data-warehouse-tab]')]};
   nodes.toggle.onclick=()=>{if(!config.canOpen())return;const show=nodes.menu.hidden;nodes.menu.hidden=!show;nodes.toggle.setAttribute('aria-expanded',String(show))};
-  nodes.menu.querySelector('[data-player-page="warehouse"]').onclick=open;
+  nodes.menu.querySelector('[data-player-page="warehouse"]').onclick=open;const shipButton=nodes.menu.querySelector('[data-player-page="ship"]');if(shipButton)shipButton.onclick=()=>{dismissMenu();config.ship?.()};
   nodes.close.onclick=()=>close();nodes.overlay.onclick=event=>{if(event.target===nodes.overlay)close()};
   nodes.contents.onclick=event=>{const button=event.target.closest('[data-tool-use]');if(!button||button.disabled||!nodes.contents.contains(button))return;const key=button.dataset.toolUse;config.use?.(key);render();(nodes.contents.querySelector?.(`[data-tool-use="${key}"]:not(:disabled)`)||nodes.contents).focus({preventScroll:true})};
   nodes.tabs.forEach(button=>button.onclick=()=>selectTab(button.dataset.warehouseTab));
@@ -62,7 +62,7 @@
   if(!nodes.menu.hidden&&key==='escape'){event.preventDefault();dismissMenu();nodes.toggle.focus({preventScroll:true});return true}
   if(['enter',' '].includes(key)&&(event.target===nodes.toggle||nodes.menu.contains(event.target)))return true;
   if(['INPUT','SELECT','TEXTAREA'].includes(event.target?.tagName)||event.target?.isContentEditable||!config.canOpen()||!page)return false;
-  event.preventDefault();if(!event.repeat&&page==='warehouse')open();return true;
+  event.preventDefault();if(!event.repeat){if(page==='warehouse')open();if(page==='ship'){dismissMenu();config.ship?.()}}return true;
  }
  window.ROTTA_PLAYER_MENU={mount,refresh,open,close,handleKey,shortcuts,get active(){return opened}};
 })();
