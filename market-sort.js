@@ -11,7 +11,7 @@
   return keys.map((key,index)=>({key,index})).sort((a,b)=>{
    const av=values[a.key],bv=values[b.key];
    const delta=field==='category'
-    ?(ranks.get(av.category)??categories.length)-(ranks.get(bv.category)??categories.length)
+    ?((av.requiredLevel??1)-(bv.requiredLevel??1))||((ranks.get(av.category)??categories.length)-(ranks.get(bv.category)??categories.length))
     :av[field]-bv[field];
    // Ties always retain the port's original display order, including descending.
    return (asc?delta:-delta)||a.index-b.index;
