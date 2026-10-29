@@ -369,8 +369,9 @@ function warehouseItems(category){
  if(category==='goods')return Object.entries(state.cargo).filter(([key,value])=>GOODS[key]&&quantity(value)>0).map(([key,value])=>({key,name:GOODS[key].name,quantity:quantity(value),art:goodArt(key,GOODS[key].icon)}));
  const supplies=window.ROTTA_SUPPLIES;
  const rows=Object.entries(category==='tools'?state.tools||{}:category==='quest'?state.questItems||{}:{}).map(([key,item])=>{
+  const blueprint=category==='tools'&&Object.hasOwn(window.ROTTA_SHIPYARD?.blueprints||{},key)?window.ROTTA_SHIPYARD.blueprints[key]:null;
   const supply=category==='tools'&&supplies&&Object.hasOwn(supplies.catalog,key)?supplies.catalog[key]:null;
-  return{key,name:supply?.name||item.name||key,quantity:quantity(item.quantity),...(supply?{art:supplies.art(key)||goodArt(supply.good),effect:supplies.description(supply),use:!supply.eventOnly,canUse:supplies.canUse(state,key)}:{})};
+  return{key,name:supply?.name||item.name||key,quantity:quantity(item.quantity),...(blueprint?{art:window.ROTTA_SHIPYARD.blueprintArt,effect:'선박 건조'}:{}),...(supply?{art:supplies.art(key)||goodArt(supply.good),effect:supplies.description(supply),use:!supply.eventOnly,canUse:supplies.canUse(state,key)}:{})};
  }).filter(item=>item.quantity>0);
  if(category==='tools')for(const [key,book]of Object.entries(state.books||{}))rows.push({key:`book:${key}`,name:book.name,quantity:1,art:'<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 8h25v32H12a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4ZM12 8v26M8 36a4 4 0 0 1 4-4h25M18 17h13M18 23h10"/></svg>'});
  return rows;

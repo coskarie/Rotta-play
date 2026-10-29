@@ -46,6 +46,8 @@
 .hull-copy{min-width:0}.hull-copy h3{margin:0 0 6px!important;font-size:16px!important}.hull-copy p{margin-bottom:8px!important}
 .hull-copy .hull-price{display:block;font:12px Georgia,serif;color:#76502a}
 .hull-copy .yard-work{margin-top:10px;width:100%;grid-column:auto}
+.build-requirements{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 12px;margin-top:12px;padding-top:9px;border-top:1px solid #8b653648;font-size:10px;color:#5f4d2b;line-height:1.5;font-variant-numeric:tabular-nums}
+.build-requirements .lacking{color:#8b432b}.build-actions{display:flex;gap:8px;flex-wrap:wrap}.build-actions .yard-work{flex:1 1 130px;min-width:0;font-size:11px;white-space:nowrap}.build-actions .blueprint-buy{background:linear-gradient(105deg,#6b5538,#8c744e)!important}
 .cabin-card{padding:0;display:flex;flex-direction:column;min-height:0}
 .cabin-card .vessel-item-art{height:98px;flex:none;border-bottom:1px solid #6f4b29;box-shadow:inset 0 0 0 3px #4e321740}
 .cabin-card .yard-art{width:100%;height:100%;object-fit:cover;filter:saturate(.8) contrast(.96)}
