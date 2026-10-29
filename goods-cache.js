@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   const VERSION = '29';
-  const urls = [...new Set([...Object.values(window.ROTTA_GOODS_ATLAS),...(window.ROTTA_SUPPLIES?.assets||[])].map(art => `${art.path}?v=${VERSION}`))];
+  const urls = [...new Set([...Object.values(window.ROTTA_GOODS_ATLAS),...(window.ROTTA_SUPPLIES?.assets||[]),...(window.ROTTA_SHIPYARD_ART?.assets||[])].map(art => `${art.path}?v=${VERSION}`))];
   const decoded = new Map();
   const stats = {total: urls.length, loaded: 0, cached: 0, downloaded: 0, ready: false};
   let pending = null;

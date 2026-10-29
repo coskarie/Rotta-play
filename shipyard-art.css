@@ -1,0 +1,117 @@
+/* Shipwright's folio: generated vellum, isolated ship/part art, real cabin scenes. */
+.shipyard-mode .facility-panel,.ship-dialog{
+ background-image:linear-gradient(115deg,#f0e0bd80,#d6bd8930),var(--yard-vellum)!important;
+ background-size:cover!important;background-position:center!important;
+ border:1px solid #ad8c50;box-shadow:0 12px 32px #100a0570,inset 0 0 0 4px #4e331718,inset 0 0 32px #6e451e38;
+}
+.shipyard-mode .facility-panel{padding-bottom:18px}
+.shipyard-overview{padding:2px 2px 16px;gap:24px}
+.shipyard-overview .vessel-summary>strong{font-size:22px;letter-spacing:.06em}
+.shipyard-overview .vessel-summary>span{margin-bottom:13px;color:#6b4c2c}
+.shipyard-overview .vessel-summary dl{gap:16px}
+.vessel-summary dt{color:#755a36}.vessel-summary dd{font-variant-numeric:tabular-nums}
+.vessel-tabs{gap:0;padding-bottom:0;border-bottom:1px solid #8c663b80;margin:0 0 2px}
+.vessel-tabs button{position:relative;padding:9px 24px!important;border:0!important;border-right:1px solid #95704440!important;background:#5a391307!important;color:#6a4928!important;min-height:36px}
+.vessel-tabs button[aria-pressed=true]{background:linear-gradient(100deg,#5d3d24,#8c683e)!important;box-shadow:inset 0 1px #dac28b66!important;color:#f5e4bd!important}
+.vessel-tabs button[aria-pressed=true]::after{content:'';position:absolute;left:17px;right:17px;bottom:4px;height:1px;background:#c5a46b88}
+.vessel-scroll{padding:14px 2px 5px;scrollbar-color:#896138 #c6a76f55}
+.vessel-cards{gap:12px}
+.vessel-card{border:1px solid #89613980;background:linear-gradient(110deg,#f4e5c777,#c9ab7344);box-shadow:inset 0 0 0 3px #fff3cf1a,0 2px 4px #57371812;overflow:hidden}
+.vessel-card.current{border-color:#7f592b;box-shadow:inset 0 0 0 2px #a67b3b40,0 2px 5px #4e301521;background:linear-gradient(110deg,#f5e3bca8,#c1a16b66)}
+.vessel-card h3{font-size:16px;letter-spacing:.02em;color:#3f2a16}
+.vessel-card p{font-size:11px;color:#6a4d2d;line-height:1.45;margin:0 0 8px}
+.part-card{display:grid;grid-template-columns:94px minmax(0,1fr);align-items:center;gap:14px;min-height:144px;padding:10px 13px}
+.vessel-item-art{position:relative;min-width:0;overflow:hidden}
+.part-card .vessel-item-art{height:110px;background:radial-gradient(ellipse,#fff1c745,transparent 72%)}
+.yard-art{display:block;user-select:none;-webkit-user-drag:none}
+.part-card .yard-art{position:absolute;inset:0;margin:auto;width:100%;height:100%;object-fit:contain;filter:drop-shadow(2px 5px 3px #3b230d35)}
+.vessel-item-copy{min-width:0}
+.vessel-card-top{gap:8px;align-items:baseline;margin:0 0 8px}
+.vessel-card-top h3{margin:0}.vessel-card-top span{font:11px Georgia,serif;white-space:nowrap;color:#77562f}
+.part-levels{gap:4px;margin:9px 0}
+.part-levels i{height:4px;border:1px solid #8e6b3a48;background:#4e321214}
+.part-levels .filled{background:linear-gradient(#ab874e,#6c4a26);border-color:#815d30}
+.yard-materials{gap:9px;flex-wrap:wrap;margin:8px 0;min-height:15px;line-height:1.4;color:#5e472a}
+.yard-materials .lacking{color:#8b432b}
+.part-card .vessel-card-top{margin-bottom:6px}.part-card p{margin-bottom:4px}.part-card .part-levels{margin:6px 0}.part-card .yard-materials{margin:6px 0;min-height:13px;line-height:1.3}
+.yard-work{position:relative;min-height:30px;letter-spacing:.03em;border:1px solid #704822!important;outline:1px solid #d3b27966;outline-offset:-3px;background:linear-gradient(105deg,#4a301c,#89623a 54%,#50321d)!important;box-shadow:inset 0 1px #e0bd7977,0 2px 3px #42271126!important;text-shadow:0 1px #24160c80;color:#f7e6c0!important;transition:filter .15s}
+.yard-work:not(:disabled):hover{filter:brightness(1.13)}
+.yard-work:disabled{opacity:.57;cursor:default;text-shadow:none}
+.yard-repair{align-self:flex-start;margin-top:2px;min-width:100px;font-size:11px}
+.hull-ladder{gap:10px}
+.hull-ladder .hull-card{display:grid;grid-template-columns:150px minmax(0,1fr);padding:10px 16px;gap:24px;min-height:132px}
+.hull-art{position:relative;height:120px}
+.hull-art .yard-art{width:100%;height:100%;object-fit:contain;filter:drop-shadow(2px 5px 3px #4c2e1233)}
+.hull-number{position:absolute;left:-5px;top:0;font:16px Georgia,serif;color:#795b32}
+.hull-copy{min-width:0}.hull-copy h3{margin:0 0 6px!important;font-size:16px!important}.hull-copy p{margin-bottom:8px!important}
+.hull-copy .hull-price{display:block;font:12px Georgia,serif;color:#76502a}
+.hull-copy .yard-work{margin-top:10px;width:100%;grid-column:auto}
+.cabin-card{padding:0;display:flex;flex-direction:column;min-height:0}
+.cabin-card .vessel-item-art{height:98px;flex:none;border-bottom:1px solid #6f4b29;box-shadow:inset 0 0 0 3px #4e321740}
+.cabin-card .yard-art{width:100%;height:100%;object-fit:cover;filter:saturate(.8) contrast(.96)}
+.cabin-card .vessel-item-copy{padding:11px 13px 12px;display:flex;flex-direction:column;flex:1}
+.cabin-card .vessel-card-top{margin-bottom:6px}.cabin-card .vessel-card-top span{font-size:10px}
+.cabin-card .vessel-item-copy>small{margin:0 0 8px;font-size:10px;color:#785a34}
+.cabin-card .yard-work{margin-top:auto}
+.vessel-side{height:auto;min-height:100%}
+.vessel-portrait{position:relative;width:100%;height:245px;flex:none;display:grid;place-items:center;background:radial-gradient(ellipse,#bf9f5a26,transparent 68%)}
+.vessel-portrait-image{position:absolute;inset:0;margin:auto;width:100%;height:100%;min-width:0;min-height:0;max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(3px 9px 5px #110a0566)}
+.vessel-rank{position:absolute;left:3px;top:2px;display:grid;place-items:center;width:30px;height:36px;color:#d6bd7d;font:18px Georgia,serif;border-top:1px solid #a7874a;border-bottom:1px solid #a7874a;z-index:1;background:#24180d55}
+.vessel-identity{width:100%;text-align:center;padding:12px 0 19px;border-bottom:1px solid #91713b66}
+.vessel-identity strong{display:block;font:19px Georgia,serif;letter-spacing:.08em;color:#e1ca92}
+.vessel-identity>span{display:block;margin-top:7px;font-size:11px;color:#ad915a}
+.vessel-slot-line{display:flex;justify-content:space-between;width:100%;padding:17px 0 0;font-size:11px;color:#bea16c}.vessel-slot-line b{font:13px Georgia,serif;color:#d9c18a}
+.vessel-fitted{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:9px;padding:12px 0}
+.vessel-fitted>div{position:relative;min-width:0;height:70px;overflow:hidden;border:1px solid #a17d404f;background:#1c120b55}
+.vessel-fitted .yard-art{width:100%;height:100%;object-fit:cover;opacity:.78}
+.vessel-fitted span{position:absolute;bottom:0;left:0;right:0;padding:4px;background:#180f08c4;color:#e5cf9a;font-size:10px;border:0;text-align:center}
+.vessel-empty-slot{height:70px;border:1px dashed #8a6c394a;background:linear-gradient(140deg,#d3b96a05,#120b071f);position:relative}
+.vessel-empty-slot::after{content:'';position:absolute;left:calc(50% - 6px);top:calc(50% - 6px);width:10px;height:10px;border:1px solid #a3824140;transform:rotate(45deg)}
+.ship-overlay{backdrop-filter:none;background:#0d0906c4}
+.ship-dialog{width:min(1100px,96vw);height:min(650px,90vh);border:1px solid #ad8c50;outline:3px solid #3a2719;outline-offset:0;box-shadow:0 24px 90px #0009,inset 0 0 0 5px #6b482520,inset 0 0 60px #6c401b2e}
+.ship-dialog header{padding:15px 23px;background:linear-gradient(100deg,#39271a,#66472b 55%,#382719);color:#ecd8a9;border-bottom:3px double #9e7942;box-shadow:inset 0 1px #bd9e5e55}
+.ship-dialog h2{font-size:20px;letter-spacing:.15em}
+.ship-dialog-body{grid-template-columns:300px minmax(0,1fr)}
+.ship-dialog-body>aside{padding:16px 20px;background:linear-gradient(120deg,#38271eec,#4e3726e8);border-right:3px double #987242;box-shadow:inset -7px 0 18px #0b070426}
+.ship-dialog-body .vessel-portrait{height:255px;margin:0 -8px;width:calc(100% + 16px)}
+.ship-dialog-body .vessel-summary{border-top:1px solid #96703e66;padding-top:20px;margin-top:14px}
+.ship-dialog-body .vessel-summary>strong{color:#e2ca92;font-size:20px}.ship-dialog-body .vessel-summary>span{color:#b79c68}
+.ship-dialog-body .vessel-summary dt{color:#b69860}.ship-dialog-body .vessel-summary dd{color:#e6d3a6;font-size:17px}
+.ship-dialog-body .vessel-summary dl{gap:18px 20px;margin-top:18px}
+.ship-dialog-body>section{padding:18px 20px}
+.ship-dialog-body .vessel-card.part-card{padding:13px;min-height:165px}
+.ship-dialog-body .vessel-card.cabin-card{padding:0}
+.ship-dialog-body .cabin-cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ship-dialog-body .cabin-card .vessel-item-art{height:125px}
+.ship-dialog-body .hull-ladder .hull-card{padding:10px 15px;grid-template-columns:155px minmax(0,1fr)}
+.ship-dialog :focus-visible,.shipyard-mode :focus-visible{outline:2px solid #7f5529;outline-offset:2px}
+@media(max-width:1100px){
+ .part-card{grid-template-columns:70px minmax(0,1fr);gap:10px;padding:10px;min-height:157px}
+ .vessel-card h3{font-size:14px}.vessel-card-top{gap:4px}.vessel-card-top span{font-size:10px}
+ .part-card .vessel-item-art{height:112px}.yard-materials{gap:5px;font-size:9px}
+ .shipyard-overview{gap:12px}.shipyard-overview .vessel-summary dl{gap:8px}.shipyard-overview .vessel-summary dd{font-size:14px}
+ .hull-ladder .hull-card{grid-template-columns:110px minmax(0,1fr);gap:14px;padding:10px}.hull-art{height:105px}
+ .ship-dialog-body{grid-template-columns:250px minmax(0,1fr)}.ship-dialog-body .vessel-portrait{height:230px}
+ .ship-dialog-body .vessel-card.part-card{grid-template-columns:80px minmax(0,1fr)}
+}
+@media(max-width:820px){
+ .ship-dialog-body .cabin-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .shipyard-mode .vessel-card.part-card{padding:10px}.shipyard-mode .vessel-card.cabin-card{padding:0}
+ .shipyard-mode .vessel-cards{gap:10px}.vessel-tabs button{padding:8px 21px!important}
+ .ship-dialog-body{grid-template-columns:200px minmax(0,1fr)}.ship-dialog-body>section{padding:14px}
+ .ship-dialog-body>aside{padding:14px}.ship-dialog-body .vessel-portrait{height:200px}
+ .ship-dialog-body .vessel-card.part-card{grid-template-columns:58px minmax(0,1fr);gap:9px;padding:10px}
+ .ship-dialog-body .hull-ladder .hull-card{grid-template-columns:100px minmax(0,1fr);padding:10px}
+ .cabin-card .vessel-item-art,.ship-dialog-body .cabin-card .vessel-item-art{height:80px}
+}
+@media(max-width:550px){
+ .ship-dialog-body{grid-template-columns:1fr}.ship-dialog-body>aside{display:flex;flex-direction:row;border:0;border-bottom:2px solid #87643b;gap:16px;padding:13px}
+ .ship-dialog-body .vessel-portrait{height:150px;width:140px;flex:none;margin:0}
+ .ship-dialog-body .vessel-summary{margin:0;padding:0;border:0}.ship-dialog-body .vessel-summary dl{gap:7px;grid-template-columns:repeat(2,1fr);margin-top:10px}
+ .ship-dialog-body .vessel-summary>strong{font-size:17px}.ship-dialog-body .vessel-summary dd{font-size:14px}
+ .vessel-cards{grid-template-columns:1fr}.cabin-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .part-card,.ship-dialog-body .vessel-card.part-card{grid-template-columns:95px minmax(0,1fr);min-height:135px}
+ .ship-dialog-body>section{min-height:300px}.vessel-card h3{font-size:14px}.cabin-card .vessel-item-copy{padding:9px}
+ .cabin-card .vessel-card-top{align-items:flex-start;flex-direction:column;gap:5px}.cabin-card .vessel-item-art{height:85px}
+ .shipyard-overview .vessel-summary>strong{font-size:18px}.yard-repair{min-width:75px;font-size:10px}
+}
