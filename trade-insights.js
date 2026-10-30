@@ -18,13 +18,19 @@
   for(const row of rows)if(Number.isFinite(row.unitCost)&&row.unitCost>=0){known+=row.quantity;cost+=row.quantity*row.unitCost}else unknown+=row.quantity;
   return{quantity:count(quantity),known,unknown,complete:unknown===0,cost:unknown?null:cost,knownCost:cost};
  }
- function suppliers(ports,key){return Object.entries(ports).filter(([,port])=>Object.hasOwn(port.market||{},key)).map(([id,port])=>({id,name:port.name}))}
- function routes({ports,key,from,quantity=1,lots,engine,quote,limit=3}){
+ function unitCostLabel(lots,quantity){
+  const rows=slices(lots,quantity),cost=basis(rows,quantity);
+  if(!cost.quantity||!cost.complete)return '—';
+  const prices=rows.map(row=>row.unitCost),low=Math.min(...prices),high=Math.max(...prices);
+  return low===high?number(low):`${number(low)}–${number(high)}`;
+ }
+ function suppliers(ports,key,canSupply=()=>true){return Object.entries(ports).filter(([id,port])=>Object.hasOwn(port.market||{},key)&&canSupply(id,key)).map(([id,port])=>({id,name:port.name}))}
+ function routes({ports,key,from,quantity=1,lots,engine,quote,canSell=()=>true,limit=3}){
   quantity=count(quantity);
   if(!ports[from]||!engine?.distance||!engine?.factor||typeof quote!=='function'||!quantity)return [];
   const rows=slices(lots,quantity),cost=basis(rows,quantity),offers=[];
   for(const [id,port]of Object.entries(ports)){
-   if(id===from)continue;
+   if(id===from||!canSell(id,key))continue;
    const distance=engine.distance(from,id);if(!Number.isFinite(distance)||distance<=.001)continue;
    const price=quote(id,key);if(!Number.isFinite(price)||price<1)continue;
    let revenue=0,valid=true;
@@ -50,12 +56,12 @@
   return `<small class="cargo-cost" title="표시 수량의 매입 원가 · 현재 항구 예상 차익 · 항해 비용 제외">원가 ${number(cost.cost)} · <span class="trade-${style}">${signed(profit)} G</span></small>`;
  }
  function render(model){
-  const {name,category,grade,origin,specialty,season,volatility=1,ports=[],offers=[],buyPrice,art}=model;
+  const {name,category,grade,origin,specialty,season,volatility=1,ports=[],offers=[],buyPrice,art,restriction=''}=model;
   const days=value=>value<1?'1일 미만':`${Math.ceil(value)}일`;
   return `<header class="trade-insight-heading"><div class="trade-insight-art">${art||''}</div><div><h2 id="tradeInsightTitle">${escape(name)}</h2><p>${escape(category)} · ${escape(grade.label)} · Lv.${grade.level}</p>${specialty?'<span class="trade-specialty-seal">명산품</span>':''}</div></header>
-   <dl class="trade-insight-facts">${origin?`<div><dt>산지</dt><dd>${escape(origin)}</dd></div>`:''}<div><dt>구매가</dt><dd>${number(buyPrice)}</dd></div><div><dt>계절</dt><dd>${escape(season||'—')}</dd></div><div><dt>변동성</dt><dd class="trade-volatility" aria-label="가격 변동 ${volatility}/3">${[1,2,3].map(level=>`<i${level<=volatility?' class="filled"':''}></i>`).join('')}</dd></div></dl>
-   <details class="trade-insight-suppliers"><summary>취급 항구 ${ports.length}</summary><p>${ports.map(port=>escape(port.name)).join(' · ')||'—'}</p></details>
-   <section class="trade-insight-routes"><h3 title="현재 차익과 항해 거리를 함께 비교">판매처</h3><div class="trade-route-head"><span>항구</span><span>항해</span><span>판매가</span><span>예상 차익</span></div>${offers.length?offers.map(row=>`<div class="trade-route-row" data-offer-port="${escape(row.id)}"><strong>${escape(row.name)}</strong><span>${days(row.days)}</span><span>${number(row.unit)}</span><b class="trade-${row.profit>0?'gain':row.profit<0?'loss':'even'}">${row.profit===null?'—':signed(row.profit)}</b></div>`).join(''):'<p class="trade-routes-empty">확인된 항로 없음</p>'}<p class="trade-insight-note">1개 기준 · 현재 시세 · 항해 비용 제외</p></section>`;
+   <dl class="trade-insight-facts">${origin?`<div><dt>산지</dt><dd>${escape(origin)}</dd></div>`:''}<div><dt>구매가</dt><dd>${restriction?'—':number(buyPrice)}</dd></div><div><dt>계절</dt><dd>${escape(season||'—')}</dd></div><div><dt>변동성</dt><dd class="trade-volatility" aria-label="가격 변동 ${volatility}/3">${[1,2,3].map(level=>`<i${level<=volatility?' class="filled"':''}></i>`).join('')}</dd></div></dl>
+   ${restriction?`<p class="trade-policy-note">${escape(restriction)}</p>`:''}<details class="trade-insight-suppliers"><summary>취급 항구 ${ports.length}</summary><p>${ports.map(port=>escape(port.name)).join(' · ')||'—'}</p></details>
+   <section class="trade-insight-routes"><h3 title="현재 차익과 항해 거리를 함께 비교">판매처</h3><div class="trade-route-head"><span>항구</span><span>항해</span><span>판매가</span><span>예상 차익</span></div>${offers.length?offers.map(row=>`<div class="trade-route-row" data-offer-port="${escape(row.id)}"><strong>${escape(row.name)}</strong><span>${days(row.days)}</span><span>${number(row.unit)}</span><b class="trade-${row.profit>0?'gain':row.profit<0?'loss':'even'}">${row.profit===null?'—':signed(row.profit)}</b></div>`).join(''):`<p class="trade-routes-empty">${restriction?'현지 매입 불가':'확인된 항로 없음'}</p>`}<p class="trade-insight-note">1개 기준 · 현재 시세 · 항해 비용 제외</p></section>`;
  }
  let active=null;
  function close(restoreFocus=true){
@@ -83,5 +89,5 @@
   if(!['Enter',' ','ArrowUp','ArrowDown','PageUp','PageDown','Home','End'].includes(event.key)||event.repeat&&['Enter',' '].includes(event.key))event.preventDefault();
   return true;
  }
- window.ROTTA_TRADE_INSIGHTS={basis,routes,suppliers,signed,ledgerMarkup,render,open,close,handleKey,get active(){return !!active}};
+ window.ROTTA_TRADE_INSIGHTS={basis,unitCostLabel,routes,suppliers,signed,ledgerMarkup,render,open,close,handleKey,get active(){return !!active}};
 })();
