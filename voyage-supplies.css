@@ -1,14 +1,24 @@
 .voyage-supplies[hidden],.voyage-supply-panel[hidden]{display:none!important}
-.voyage-supplies{position:absolute;z-index:12;right:18px;bottom:14px;color:#e2cca1;font-family:inherit}
-.voyage-supply-status{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 9px;border:1px solid #99764b;background:linear-gradient(110deg,#2e2119ed,#473121ed);box-shadow:0 3px 10px #0005,inset 0 1px #d2af6133}
-.voyage-supply-status>span{display:flex;align-items:center;gap:4px;min-width:48px;font:11px Georgia,serif;font-variant-numeric:tabular-nums}
-.voyage-supply-status>span svg{width:16px;height:16px;fill:none;stroke:#c4a46e;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
+.voyage-supplies{position:absolute;z-index:12;left:0;right:0;bottom:0;height:34px;color:#ddca91;font-family:inherit;background:#1d130de8;border-top:2px solid #997536;box-shadow:0 -5px 15px #0008}
+#sailingView .sea-viewport{bottom:34px}
+#sailingView .arrival-prompt{bottom:48px}
+.voyage-supply-status{height:100%;display:flex;align-items:center;gap:12px;padding:0 14px}
+.voyage-summary{display:flex;align-items:center;gap:12px;min-width:0;overflow-x:auto;scrollbar-width:thin}
+.voyage-ledger{display:flex;flex-shrink:0;margin:0}
+.voyage-ledger>div{display:flex;align-items:center;gap:5px;padding:0 10px;border-right:1px solid #634b2c;white-space:nowrap;font-size:9px}
+.voyage-ledger>div:first-child{padding-left:0}
+.voyage-ledger dt{color:#9f875b}.voyage-ledger dd{margin:0;font-weight:bold;font-variant-numeric:tabular-nums}
+.voyage-summary>span{display:flex;align-items:center;gap:4px;min-width:48px;font:11px Georgia,serif;font-variant-numeric:tabular-nums}
+.voyage-summary>span svg{width:16px;height:16px;fill:none;stroke:#c4a46e;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
 .voyage-supply-status .low,.voyage-supply-status .low svg{color:#e6a17b;stroke:#e6a17b}
 .voyage-supplies button{font:inherit;cursor:pointer;box-sizing:border-box;text-shadow:none}
-.voyage-supplies [data-voyage-toggle]{display:grid;place-items:center;width:28px;height:26px;padding:2px;color:#dac391;background:transparent;border:0;border-left:1px solid #ab895644;border-radius:0;box-shadow:none}
-.voyage-supplies [data-voyage-toggle] svg{width:22px;height:22px;stroke:currentColor;stroke-width:1.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.voyage-tools{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
+.voyage-tools button{display:grid;place-items:center;width:28px;height:26px;padding:2px;color:#dac391;background:transparent;border:0;border-left:1px solid #ab895644;border-radius:0;box-shadow:none}
+.voyage-tools button svg{width:22px;height:22px;stroke:currentColor;stroke-width:1.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.voyage-tools [data-voyage-warehouse] svg{stroke-width:2.2;stroke-linejoin:miter}
+.voyage-tools button:hover{color:#fff0c5;background:#9c743633}
 .voyage-supplies [data-voyage-toggle][aria-expanded="true"]{color:#fff0c5;background:#9c743633}
-.voyage-supply-panel{position:absolute;bottom:calc(100% + 7px);right:0;width:292px;padding:12px 13px;color:#422d1b;background:repeating-linear-gradient(103deg,#714e2705 0 1px,transparent 1px 5px),linear-gradient(120deg,#baa16c,#dfcd99 52%,#c4a771);border:1px solid #ad8750;box-shadow:0 5px 16px #0006,inset 0 0 20px #6c482c33;animation:voyageSupplyReveal .18s ease-out both}
+.voyage-supply-panel{position:absolute;bottom:calc(100% + 7px);right:14px;width:292px;padding:12px 13px;color:#422d1b;background:repeating-linear-gradient(103deg,#714e2705 0 1px,transparent 1px 5px),linear-gradient(120deg,#baa16c,#dfcd99 52%,#c4a771);border:1px solid #ad8750;box-shadow:0 5px 16px #0006,inset 0 0 20px #6c482c33;animation:voyageSupplyReveal .18s ease-out both}
 .voyage-supply-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2.8px}
 .voyage-supply-grid .voyage-supply-item{position:relative;display:grid;place-items:center;aspect-ratio:1;padding:2px;border:1px solid #92714477;border-radius:0;color:#412c19;background:radial-gradient(ellipse at center,#f2dfb644,transparent 75%),#8e6a3210;box-shadow:inset 0 1px #f0dfad55}
 .voyage-supply-item .good-art{position:absolute;inset:0;margin:auto;width:calc(100% - 3px);height:calc(100% - 3px);min-width:0;object-fit:contain;padding:0;border:0;box-shadow:none;background:none}

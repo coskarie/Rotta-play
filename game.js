@@ -439,6 +439,8 @@ function mountVoyageSupplies(){
  window.ROTTA_VOYAGE_SUPPLIES?.mount({root:$('#voyageSupplies'),state:()=>state,supplies:()=>window.ROTTA_SUPPLIES,
   visible:()=>!!state.nation&&$('#sailingView').classList.contains('active'),
   canOpen:()=>$('#sailingView').classList.contains('active')&&playerMenuAvailable()&&!window.ROTTA_PLAYER_MENU?.active&&!ARRIVAL_UI.portId,
+  summary:()=>({gold:fmt(state.gold),fame:fmt(state.fame),cargo:`${cargoTotal()}/${cargoLimit()}`,crew:`${fmt(state.crew)}명`}),
+  openWarehouse:()=>window.ROTTA_PLAYER_MENU?.open(),
   rate:sailingFoodRate,carry:()=>DAY_CLOCK.food,use:useSupply,goodArt});
 }
 function syncShipStats(){const api=window.ROTTA_SHIPYARD;if(!api)return;api.setGoods(GOODS);api.ensure(state);const stats=api.stats(state);state.capacity=stats.capacity;MANUAL_SAIL.maxSpeed=4.2*stats.speed;MANUAL_SAIL.turnRate=48*stats.turn}
