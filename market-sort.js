@@ -12,6 +12,8 @@
    // Eligibility is never reversed by a descending numeric/category sort.
    const availability=Number(bv.tradable!==false)-Number(av.tradable!==false);
    if(availability)return availability;
+   // Unavailable stock has a fixed unlock-level order; equal levels keep the port's source order.
+   if(av.tradable===false&&bv.tradable===false)return ((av.requiredLevel??1)-(bv.requiredLevel??1))||a.index-b.index;
    if(field==='default')return a.index-b.index;
    const delta=field==='category'
     ?((av.requiredLevel??1)-(bv.requiredLevel??1))||((ranks.get(av.category)??categories.length)-(ranks.get(bv.category)??categories.length))
