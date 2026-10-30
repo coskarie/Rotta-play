@@ -187,6 +187,7 @@ function handleArrivalPromptKey(e){
 const DAY_CLOCK={distance:0,food:0,morale:0,unitsPerDay:28};
 function initMarketSystem(){
  state.year=1543;state.month=3;state.day=1;state.elapsedDays=0;
+ mountVoyageSupplies();
  DAY_CLOCK.distance=DAY_CLOCK.food=DAY_CLOCK.morale=0;
  window.ROTTA_APPLY_SPECIALTY_DATA?.(window.ROTTA_MARKET_DATA);
  MARKET_SIM=window.ROTTA_MARKET_EVENTS?.create({data:window.ROTTA_MARKET_DATA,ports:PORTS,goods:GOODS,seed:state.seed});
@@ -433,6 +434,13 @@ function useSupply(key){
  const result=window.ROTTA_SUPPLIES?.use(state,key);if(!result)return false;
  toast(result.message);if(result.ok){updateStats();if($('#portView').classList.contains('shop-mode')){renderShop();if(!window.ROTTA_PLAYER_MENU?.active)($(`[data-supply-use="${key}"]:not(:disabled)`)||$('[data-shop-category]'))?.focus({preventScroll:true})}}return result.ok;
 }
+function sailingFoodRate(){const modifier=window.ROTTA_SHIPYARD?.stats(state).food??1;return (state.nation==='portugal'?.55:.7)*(Number.isFinite(modifier)&&modifier>=0?modifier:1)}
+function mountVoyageSupplies(){
+ window.ROTTA_VOYAGE_SUPPLIES?.mount({root:$('#voyageSupplies'),state:()=>state,supplies:()=>window.ROTTA_SUPPLIES,
+  visible:()=>!!state.nation&&$('#sailingView').classList.contains('active'),
+  canOpen:()=>$('#sailingView').classList.contains('active')&&playerMenuAvailable()&&!window.ROTTA_PLAYER_MENU?.active&&!ARRIVAL_UI.portId,
+  rate:sailingFoodRate,carry:()=>DAY_CLOCK.food,use:useSupply,goodArt});
+}
 function syncShipStats(){const api=window.ROTTA_SHIPYARD;if(!api)return;api.setGoods(GOODS);api.ensure(state);const stats=api.stats(state);state.capacity=stats.capacity;MANUAL_SAIL.maxSpeed=4.2*stats.speed;MANUAL_SAIL.turnRate=48*stats.turn}
 function renderShipyardSide(){const api=window.ROTTA_SHIPYARD;if(!api)return;$('#cargoPanelTitle').textContent='선박';$('#cargoPanelSummary').textContent='';$('#tradeQuickRow').hidden=true;$('#cargoPanelAction').hidden=true;$('#cargoPanelBack').hidden=true;$('#cargoPanelList').classList.remove('basket-grid');api.renderSide($('#cargoPanelList'),state,{onAction:shipyardAction});$('#cargoPanelTotalLabel').textContent='골드';$('#cargoPanelGold').textContent=fmt(state.gold)+' G'}
 function renderShipyard(){window.ROTTA_SHIPYARD?.renderYard($('#facilityContent'),{state,onAction:shipyardAction,goods:GOODS});renderShipyardSide()}
@@ -440,6 +448,7 @@ function shipyardAction(action,id){if(!playerMenuAvailable()||!state.atPort||!$(
 function closeSystem(){$('#systemModal').classList.add('hidden')}
 function toggleSystem(){if(!state.nation)return;$('#waitDayBtn').disabled=state.traveling||MANUAL_SAIL.velocity>.001;$('#systemModal').classList.toggle('hidden')}
 function handleGlobalKey(e){
+ if(window.ROTTA_VOYAGE_SUPPLIES?.handleKey(e))return;
  if(window.ROTTA_TRADE_INSIGHTS?.handleKey(e))return;
  if(window.ROTTA_SHIPYARD?.handleKey(e))return;
  if(window.ROTTA_TRADE_BASKET?.handleKey(e))return;
@@ -863,7 +872,7 @@ function portActionIcon(kind){
 }
 function closeSeaPortActions(){const id=SEA_PORT_UI.actionsId;SEA_PORT_UI.actionsId=null;const menu=$('#seaPortActions');if(menu)menu.hidden=true;if(id)$(`[data-seaport="${id}"]`)?.setAttribute('aria-expanded','false')}
 function closeSeaMarket(){SEA_PORT_UI.quoteId=null;const panel=$('#seaMarketPanel');if(panel)panel.hidden=true}
-function closeSeaPortUI(){closeSeaPortActions();closeSeaMarket()}
+function closeSeaPortUI(){window.ROTTA_VOYAGE_SUPPLIES?.close(false);closeSeaPortActions();closeSeaMarket()}
 function positionSeaPortActions(){
  const id=SEA_PORT_UI.actionsId,menu=$('#seaPortActions');if(!id||!menu)return;const p=PORTS[id],x=NAV_RENDER.lastTx+p.x*state.zoom,y=NAV_RENDER.lastTy+p.y*state.zoom;
  menu.style.left=`${Math.max(82,Math.min(NAV_RENDER.width-82,x))}px`;menu.style.top=`${Math.max(91,Math.min(NAV_RENDER.height-10,y-12))}px`;menu.style.visibility=x<0||y<0||x>NAV_RENDER.width||y>NAV_RENDER.height?'hidden':'visible';
@@ -948,20 +957,22 @@ function finishCourse(id,days){const arrivalId=ARRIVAL_UI.routePortId;ARRIVAL_UI
 function enterPort(){if(window.ROTTA_PORT_TRANSITIONS?.active)return;dismissArrivalPrompt();closeSeaPortUI();stopAutoCamera();const id=nearestDockId();if(!id){updateDockingState(true);return;}if(state.traveling)cancelAutoSail();clearManualKeys();return playPortTransition('arrive',()=>{state.current=id;state.atPort=true;reportFleetAward(window.ROTTA_FLEET?.discover(state,id));const p=PORTS[id];setSailingPosition(p.navX??p.x,p.navY??p.y);$('#destinationSelect').disabled=false;renderPort();updateStats()})}
 function advance(days){
  const count=Math.max(0,Math.floor(Number(days)||0));if(!Number.isFinite(count)||!count)return;
- let latest=null;
+ let latest=null,provisions=0;
  for(let i=0;i<count;i++){
   if(MARKET_SIM){const started=MARKET_SIM.nextDay();latest=started.find(e=>e.portId===state.current)||latest;Object.assign(state,MARKET_SIM.date());state.elapsedDays=MARKET_SIM.day()}
   else{const date=new Date(Date.UTC(state.year,state.month-1,(state.day||1)+1));state.year=date.getUTCFullYear();state.month=date.getUTCMonth()+1;state.day=date.getUTCDate();state.elapsedDays=(state.elapsedDays||0)+1}
-  if($('#sailingView').classList.contains('active')){DAY_CLOCK.food+=(state.nation==='portugal'?.55:.7)*(window.ROTTA_SHIPYARD?.stats(state).food??1);DAY_CLOCK.morale+=(1/13)*(window.ROTTA_SHIPYARD?.stats(state).morale??1);const food=Math.floor(DAY_CLOCK.food),morale=Math.floor(DAY_CLOCK.morale);state.food=Math.max(0,state.food-food);state.morale=Math.max(0,state.morale-morale);DAY_CLOCK.food-=food;DAY_CLOCK.morale-=morale}
+  if($('#sailingView').classList.contains('active')){DAY_CLOCK.food+=sailingFoodRate();DAY_CLOCK.morale+=(1/13)*(window.ROTTA_SHIPYARD?.stats(state).morale??1);const food=Math.floor(DAY_CLOCK.food),morale=Math.floor(DAY_CLOCK.morale);state.food=Math.max(0,state.food-food);state.morale=Math.max(0,state.morale-morale);DAY_CLOCK.food-=food;DAY_CLOCK.morale-=morale;
+   if(playerMenuAvailable()&&window.ROTTA_VOYAGE_SUPPLIES?.autoFeed(state,window.ROTTA_SUPPLIES,{sailing:true}))provisions++;
+  }
  }
  syncMarketDiagnostics();updateStats();
- if(latest)toast(`${PORTS[latest.portId].name} · ${latest.name}`);
+ if(latest)toast(`${PORTS[latest.portId].name} · ${latest.name}`);else if(provisions)toast(`자동 보급 ×${provisions}`);
  if($('#portView').classList.contains('active')&&!$('#facilityPanel').classList.contains('hidden')){const id=$('[data-facility].active')?.dataset.facility;if(id){renderFacility(id);renderCargoPanel(id==='trade')}}
  if(pendingTrade)updateTradePreview();
  if(SEA_PORT_UI.quoteId)renderSeaMarket();
 }
 function showEvent(ev){if(window.ROTTA_PORT_TRANSITIONS?.active||openingEventsProtected())return false;if(!$('#eventModal').classList.contains('hidden'))return false;ev=window.ROTTA_SUPPLIES?.resolveEvent(state,ev)||ev;ev=window.ROTTA_SHIPYARD?.mitigate(state,ev)||ev;window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(ev.marketTemplate)MARKET_SIM?.start(ev.marketTemplate,state.current);for(const [k,v] of Object.entries(ev.effects))state[k]=Math.max(0,(state[k]||0)+v);$('#eventIcon').textContent=ev.icon;$('#eventType').textContent=ev.type;$('#eventTitle').textContent=ev.title;$('#eventBody').textContent=ev.body;$('#eventEffects').innerHTML=ev.labels.map(x=>`<span>${x}</span>`).join('');$('#eventModal').classList.remove('hidden');updateStats()}
-function switchView(which){window.ROTTA_TRADE_INSIGHTS?.close(false);window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(which!=='sailing')stopDepartureZoom();$('#portView').classList.toggle('active',which==='port');$('#sailingView').classList.toggle('active',which==='sailing');document.body.classList.toggle('sailing-mode',which==='sailing')}
-function updateStats(){if(!state.nation)return;const n=NATIONS[state.nation];$('#nationFlag').textContent=n.flag;$('#nationName').textContent=n.name;$('#nationTrait').textContent=n.trait;$('#goldStat').textContent=fmt(state.gold);$('#fameStat').textContent=fmt(state.fame);$('#crewStat').textContent=`${fmt(state.crew)}명`;$('#hullStat').textContent=`${fmt(state.hull)}%`;$('#foodStat').textContent=`${fmt(state.food)}%`;$('#cargoStat').textContent=`${cargoTotal()}/${cargoLimit()}`;$('#cargoStat').title=cargoCapacityTitle();$('#dateText').textContent=`${state.year}년 ${state.month}월 ${state.day||1}일`;$('#seaDateText').textContent=$('#dateText').textContent;renderFleetStatus();window.ROTTA_PLAYER_MENU?.refresh();window.ROTTA_SHIPYARD?.refresh()}
+function switchView(which){window.ROTTA_VOYAGE_SUPPLIES?.close(false);window.ROTTA_TRADE_INSIGHTS?.close(false);window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(which!=='sailing')stopDepartureZoom();$('#portView').classList.toggle('active',which==='port');$('#sailingView').classList.toggle('active',which==='sailing');document.body.classList.toggle('sailing-mode',which==='sailing');window.ROTTA_VOYAGE_SUPPLIES?.refresh()}
+function updateStats(){if(!state.nation)return;const n=NATIONS[state.nation];$('#nationFlag').textContent=n.flag;$('#nationName').textContent=n.name;$('#nationTrait').textContent=n.trait;$('#goldStat').textContent=fmt(state.gold);$('#fameStat').textContent=fmt(state.fame);$('#crewStat').textContent=`${fmt(state.crew)}명`;$('#hullStat').textContent=`${fmt(state.hull)}%`;$('#foodStat').textContent=`${fmt(state.food)}%`;$('#cargoStat').textContent=`${cargoTotal()}/${cargoLimit()}`;$('#cargoStat').title=cargoCapacityTitle();$('#dateText').textContent=`${state.year}년 ${state.month}월 ${state.day||1}일`;$('#seaDateText').textContent=$('#dateText').textContent;renderFleetStatus();window.ROTTA_PLAYER_MENU?.refresh();window.ROTTA_SHIPYARD?.refresh();window.ROTTA_VOYAGE_SUPPLIES?.refresh()}
 let toastTimer;function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2300)}
 init();
