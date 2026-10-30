@@ -9,8 +9,6 @@
 .voyage-supplies [data-voyage-toggle] svg{width:28px;height:28px;stroke:currentColor;stroke-width:1.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .voyage-supplies [data-voyage-toggle][aria-expanded="true"]{color:#fff0c5;background:#9c743633}
 .voyage-supply-panel{position:absolute;bottom:57px;right:0;width:292px;padding:12px 13px;color:#422d1b;background:repeating-linear-gradient(103deg,#714e2705 0 1px,transparent 1px 5px),linear-gradient(120deg,#baa16c,#dfcd99 52%,#c4a771);border:1px solid #ad8750;box-shadow:0 5px 16px #0006,inset 0 0 20px #6c482c33;animation:voyageSupplyReveal .18s ease-out both}
-.voyage-supply-panel header{display:flex;align-items:center;justify-content:space-between;padding-bottom:7px;margin-bottom:9px;border-bottom:3px double #88643b;font-size:13px}
-.voyage-supply-panel [data-voyage-close]{display:grid;place-items:center;width:24px;height:24px;padding:0;background:none;border:0;box-shadow:none;color:#49311f;font:22px Georgia,serif}
 .voyage-supply-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2.8px}
 .voyage-supply-grid .voyage-supply-item{position:relative;display:grid;place-items:center;aspect-ratio:1;padding:2px;border:1px solid #92714477;border-radius:0;color:#412c19;background:radial-gradient(ellipse at center,#f2dfb644,transparent 75%),#8e6a3210;box-shadow:inset 0 1px #f0dfad55}
 .voyage-supply-item .good-art{position:absolute;inset:0;margin:auto;width:calc(100% - 3px);height:calc(100% - 3px);min-width:0;object-fit:contain;padding:0;border:0;box-shadow:none;background:none}
@@ -22,6 +20,6 @@
 .voyage-auto-food input{width:14px;height:14px;margin:0;accent-color:#6b482a;cursor:pointer}
 .voyage-supplies button:focus-visible,.voyage-auto-food input:focus-visible{outline:2px solid #bd9256;outline-offset:2px}
 @keyframes voyageSupplyReveal{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-@media(max-height:650px){.voyage-supply-panel{width:242px;padding:9px 11px}.voyage-supply-grid{gap:2px}.voyage-supply-panel header{margin-bottom:6px;padding-bottom:4px}.voyage-auto-food{margin-top:7px;padding-top:7px}}
+@media(max-height:650px){.voyage-supply-panel{width:242px;padding:9px 11px}.voyage-supply-grid{gap:2px}.voyage-auto-food{margin-top:7px;padding-top:7px}}
 @media(max-width:600px){.voyage-supplies{right:18px;bottom:15px}.voyage-supply-status{gap:10px;padding-left:10px}.voyage-supply-panel{width:min(280px,calc(100vw - 44px));max-height:calc(100dvh - 225px);overflow:auto;scrollbar-width:thin}}
 @media(prefers-reduced-motion:reduce){.voyage-supply-panel{animation:none}}

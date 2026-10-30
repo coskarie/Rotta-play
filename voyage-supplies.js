@@ -59,7 +59,7 @@
  function mount(settings){
   if(nodes)return;const root=settings.root,supplies=settings.supplies();if(!root||!supplies)return;
   config=settings;
-  root.innerHTML=`<div class="voyage-supply-status"><span data-voyage-food>${foodIcon}<b></b></span><span data-voyage-hull>${hullIcon}<b></b></span><button type="button" data-voyage-toggle aria-label="항해 물자" aria-controls="voyageSupplyPanel" aria-expanded="false">${bag}</button></div><section id="voyageSupplyPanel" class="voyage-supply-panel" aria-label="항해 물자" hidden><header><span>물자</span><button type="button" data-voyage-close aria-label="물자 닫기">×</button></header><div class="voyage-supply-grid">${Object.entries(supplies.catalog).map(([key,item])=>`<button type="button" class="voyage-supply-item" data-voyage-use="${key}">${supplies.art(key)||settings.goodArt(item.good)}${item.grade?`<i aria-hidden="true">${'ⅠⅡⅢ'[item.grade-1]}</i>`:''}<b data-voyage-count>0</b></button>`).join('')}</div><label class="voyage-auto-food" title="항해 중 식량이 25% 이하이면 보유한 식량을 하루 최대 한 개 사용합니다."><input type="checkbox" data-voyage-auto>자동 보급</label></section>`;
+  root.innerHTML=`<div class="voyage-supply-status"><span data-voyage-food>${foodIcon}<b></b></span><span data-voyage-hull>${hullIcon}<b></b></span><button type="button" data-voyage-toggle aria-label="항해 물자" aria-controls="voyageSupplyPanel" aria-expanded="false">${bag}</button></div><section id="voyageSupplyPanel" class="voyage-supply-panel" aria-label="항해 물자" hidden><div class="voyage-supply-grid">${Object.entries(supplies.catalog).map(([key,item])=>`<button type="button" class="voyage-supply-item" data-voyage-use="${key}">${supplies.art(key)||settings.goodArt(item.good)}${item.grade?`<i aria-hidden="true">${'ⅠⅡⅢ'[item.grade-1]}</i>`:''}<b data-voyage-count>0</b></button>`).join('')}</div><label class="voyage-auto-food" title="항해 중 식량이 25% 이하이면 보유한 식량을 하루 최대 한 개 사용합니다."><input type="checkbox" data-voyage-auto>자동 보급</label></section>`;
   const foodWrap=root.querySelector('[data-voyage-food]'),hullWrap=root.querySelector('[data-voyage-hull]');
   foodWrap.setAttribute('role','img');hullWrap.setAttribute('role','img');
   nodes={root,foodWrap,hullWrap,food:foodWrap.querySelector('b'),hull:hullWrap.querySelector('b'),toggle:root.querySelector('[data-voyage-toggle]'),panel:root.querySelector('#voyageSupplyPanel'),auto:root.querySelector('[data-voyage-auto]'),items:new Map()};
@@ -72,7 +72,6 @@
    opened=true;nodes.panel.hidden=false;nodes.toggle.setAttribute('aria-expanded','true');refresh();
   };
   nodes.auto.onchange=()=>{if(!config.canOpen()){refresh();return}options(config.state()).autoFood=nodes.auto.checked;refresh()};
-  root.querySelector('[data-voyage-close]').onclick=()=>close();
   document.addEventListener('pointerdown',event=>{if(opened&&!root.contains(event.target))close(false)});
   refresh();
  }
