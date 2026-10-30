@@ -64,9 +64,10 @@
   return base;
  }
  function canBuy(state,good){return !!good&&status(state).level>=requirement(good).level}
+ function tradeGrade(state){const level=status(state).level;return grades.filter(grade=>level>=grade.level).at(-1)}
  function facilityOrder(port){
   const ids=['trade','shop','shipyard'];if(port.bank)ids.push('bank');
   if(port.mansion)ids.push('mansion');if(port.royal)ids.push('royal');return ids;
  }
- window.ROTTA_FLEET={MAX_LEVEL,maxXP,grades,BALANCE,thresholds,status,award,discover,sail,saleXP,requirement,canBuy,facilityOrder};
+ window.ROTTA_FLEET={MAX_LEVEL,maxXP,grades,BALANCE,thresholds,status,award,discover,sail,saleXP,requirement,canBuy,tradeGrade,facilityOrder};
 })();
