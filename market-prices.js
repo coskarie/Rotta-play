@@ -85,8 +85,9 @@
    const p=ports[id],g=goods[key],profile=profiles.get(key);if(!p||!g)return null;
    const d=day(),date=dateAt(d),e=effects(id,key),local=p.market[key]??(.94+(hash(id+key+seed)%67)/100);
    const n=.65*noise(`${seed}:${id}:${key}:short`,d/13)+.35*noise(`${seed}:${id}:${key}:long`,d/47);
-   const value=g.base*local*seasonality(id,key,date)*(1+profile.noise*n)*Math.pow(e.price,profile.sensitivity);
-   return{buy:Math.max(5,Math.round(value*(1+e.tax))),sell:Math.max(1,Math.floor(value*.85*(1-e.tax))),reasons:e.events.map(e=>e.name)};
+   const value=(window.ROTTA_TRADE_BALANCE?.baseValue(g)??g.base)*local*seasonality(id,key,date)*(1+profile.noise*n)*Math.pow(e.price,profile.sensitivity);
+   const resale=window.ROTTA_TRADE_BALANCE?.profile(g).resale??.85;
+   return{buy:Math.max(5,Math.round(value*(1+e.tax))),sell:Math.max(1,Math.floor(value*resale*(1-e.tax))),reasons:e.events.map(e=>e.name)};
   }
   function record(id,key){
    const q=quote(id,key);if(!q)return;const date=dateAt(day()),token=`${id}:${key}`,stamp=`${date.year}-${date.month}`;
