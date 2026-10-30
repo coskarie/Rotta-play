@@ -23,11 +23,9 @@
 .trade-route-row{min-height:43px;border-bottom:1px dotted #90704655;font-size:13px;font-variant-numeric:tabular-nums}.trade-route-row strong{font-weight:500;overflow-wrap:anywhere}
 .trade-gain{color:#436044}.trade-loss{color:#913d30}.trade-even{color:#806646}
 .trade-insight-note{font-size:10px;color:#876c49;margin:12px 0 0;text-align:right}.trade-routes-empty{font-size:12px;color:#80623f;text-align:center;padding:12px}
-.trade-mode .good-cell{position:relative;padding-right:21px;min-width:0}
-.facility-panel .good-info{position:absolute;right:0;top:50%;transform:translateY(-50%);width:19px;height:23px;display:grid;place-items:center;padding:2px!important;border:0!important;box-shadow:none!important;background:transparent!important;color:#85623a;cursor:pointer}
-.good-info svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5}
-.good-info:hover{color:#4e351d}
-.trade-insight-dialog button:focus-visible,.trade-insight-dialog summary:focus-visible,.good-info:focus-visible{outline:1px solid #896132;outline-offset:2px}
+.trade-mode .good-cell{min-width:0}
+.facility-panel .good-art-trigger{display:grid;place-items:center;flex-shrink:0;padding:0!important;border:0!important;box-shadow:none!important;background:transparent!important;cursor:pointer;line-height:0}
+.trade-insight-dialog button:focus-visible,.trade-insight-dialog summary:focus-visible,.good-art-trigger:focus-visible{outline:1px solid #896132;outline-offset:2px}
 .cargo-good .cargo-cost{font-size:10px;line-height:1.5;color:#a9946c}
 .cargo-good .trade-gain{color:#acc29a}.cargo-good .trade-loss{color:#d18d75}.cargo-good .trade-even{color:#b9a77c}
 @media(max-width:620px){.trade-insight-overlay{padding:15px}.trade-insight-dialog{padding:22px 18px}.trade-insight-heading{gap:14px}.trade-insight-art{width:80px;height:80px}.trade-insight-art .good-art{width:70px;height:70px}.trade-insight-heading h2{font-size:21px}.trade-route-head,.trade-route-row{grid-template-columns:minmax(72px,1fr) 55px 52px 66px;gap:5px}.trade-route-row{font-size:12px}.trade-insight-facts{gap:12px;font-size:11px}}

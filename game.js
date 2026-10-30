@@ -112,7 +112,7 @@ function distanceTradeEngine(){
 function tradeInsightData(key){
  const api=window.ROTTA_TRADE_INSIGHTS,g=GOODS[key];if(!api||!g||!Object.hasOwn(PORTS[state.current]?.market||{},key))return null;
  const buyPrice=priceAt(state.current,key,'buy'),profile=MARKET_SIM?.prices?.profile(key)||{},engine=distanceTradeEngine();
- return{name:g.name,category:g.category,grade:tradeRequirement(key),origin:g.originRegion||'',specialty:!!g.specialty,
+ return{name:g.name,category:g.category,grade:tradeRequirement(key),levelLocked:!(window.ROTTA_FLEET?.canBuy(state,g)??true),origin:g.originRegion||'',specialty:!!g.specialty,
   season:profile.season&&profile.season!=='none'?profile.seasonLabel:'',volatility:profile.noise>=.09?3:profile.noise>.04?2:1,
   buyPrice,art:goodArt(key,g.icon),restriction:tradePolicy(state.current,key).reason,ports:api.suppliers(PORTS,key,(id,item)=>tradePolicy(id,item).allowed),
   offers:tradePolicy(state.current,key).allowed?api.routes({ports:PORTS,key,from:state.current,lots:[{origin:state.current,unitCost:buyPrice,quantity:1}],engine,quote:(id,item)=>marketPriceAt(id,item,'sell'),canSell:(id,item)=>canSellGood(item,id)}):[]};
@@ -164,7 +164,7 @@ function dismissArrivalPrompt(){
 }
 function answerArrivalPrompt(accept){
  const id=ARRIVAL_UI.portId;if(!id)return;
- const allowed=accept&&performance.now()<ARRIVAL_UI.deadline&&$('#sailingView').classList.contains('active')&&canDockAt(id);
+ const allowed=(accept||performance.now()>=ARRIVAL_UI.deadline)&&$('#sailingView').classList.contains('active')&&canDockAt(id);
  dismissArrivalPrompt();
  if(allowed){DOCK_SELECTION.portId=id;enterPort()}
  else if($('#arrivalPrompt').contains?.(document.activeElement))NAV_RENDER.viewport.focus({preventScroll:true});
@@ -175,7 +175,7 @@ function showArrivalPrompt(id){
  $('#arrivalQuestion').textContent=`${PORTS[id].name} · 입항하시겠습니까?`;
  $('#arrivalYes').onclick=()=>answerArrivalPrompt(true);$('#arrivalNo').onclick=()=>answerArrivalPrompt(false);
  panel.hidden=false;void panel.offsetWidth;panel.classList.add('counting');panel.focus({preventScroll:true});
- ARRIVAL_UI.timer=setTimeout(()=>{if(token===ARRIVAL_UI.token)answerArrivalPrompt(false)},10000);return true;
+ ARRIVAL_UI.timer=setTimeout(()=>{if(token===ARRIVAL_UI.token)answerArrivalPrompt(true)},10000);return true;
 }
 function handleArrivalPromptKey(e){
  if(!ARRIVAL_UI.portId)return false;
@@ -637,8 +637,8 @@ function renderFacility(id){window.ROTTA_MARKET_DRAWER?.unmount();const c=$('#fa
  if(MARKET_UI.port!==state.current||!keys.includes(MARKET_UI.key)){MARKET_UI.port=state.current;MARKET_UI.key=keys[0];MARKET_UI.month=null}
  const sortValues=Object.fromEntries(keys.map(k=>[k,{category:GOODS[k].category,requiredLevel:tradeRequirement(k).level,tradable:canBuyGood(k)&&marketAvailableStock(k)>0,stock:marketAvailableStock(k),buy:priceAt(state.current,k,'buy'),sell:priceAt(state.current,k,'sell')}]));MARKET_UI.stockValues=sortValues;
  c.innerHTML=marketStatusMarkup()+`<div class="market-head"><button class="market-sort" type="button" data-market-sort="default">상품</button><button class="market-sort" type="button" data-market-sort="category">종류</button><button class="market-sort" type="button" data-market-sort="stock">수량</button><button class="market-sort" type="button" data-market-sort="buy">구매가</button><button class="market-sort" type="button" data-market-sort="sell">판매가</button><span></span></div><div class="market-rows">`+keys.map(k=>{
- const g=GOODS[k],{sell:pr,buy:ask,stock}=sortValues[k],condition=MARKET_SIM?.status(state.current,k)||'',signal=marketSignal(state.current,k),selected=MARKET_UI.key===k,grade=tradeRequirement(k),locked=!canBuyGood(k),policy=tradePolicy(state.current,k),salePolicy=tradePolicy(state.current,k,'sell');
- return `<div class="market-row ${signal.className}${stock===0?' market-sold-out':''}${locked?' market-locked':''}${selected?' selected':''}" data-market-good="${k}" data-required-level="${grade.level}"><div class="good-cell"><button class="market-item" data-select-good="${k}" aria-pressed="${selected}" aria-label="${g.name} 시세">${goodArt(k,g.icon)}<span class="good-copy"><b>${g.name}</b>${condition?`<small class="market-good-status">${condition}</small>`:''}</span></button><button type="button" class="good-info" data-good-info="${k}" aria-label="${g.name} 교역 정보"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 5.5v1.2"/></svg></button></div><div class="good-type" title="${grade.label} · 선단 Lv.${grade.level}"><span class="trade-grade">${grade.label}</span>${g.category}</div><div class="stock">${fmt(stock)}</div><div class="base-price" title="${policy.reason}">${policy.allowed?fmt(ask):'—'}</div><div class="sale-price" title="${salePolicy.reason}">${salePolicy.allowed?fmt(pr):'—'}</div><div class="actions"><button data-buy="${k}" title="${policy.reason}"${stock<1||locked?' disabled':''}>${!policy.allowed?policy.label:locked?`Lv.${grade.level}`:'선택'}</button></div></div>`;
+ const g=GOODS[k],{sell:pr,buy:ask,stock}=sortValues[k],condition=MARKET_SIM?.status(state.current,k)||'',signal=marketSignal(state.current,k),selected=MARKET_UI.key===k,grade=tradeRequirement(k),levelLocked=!(window.ROTTA_FLEET?.canBuy(state,g)??true),locked=!canBuyGood(k),policy=tradePolicy(state.current,k),salePolicy=tradePolicy(state.current,k,'sell');
+ return `<div class="market-row ${signal.className}${stock===0?' market-sold-out':''}${locked?' market-locked':''}${selected?' selected':''}" data-market-good="${k}" data-required-level="${grade.level}"><div class="good-cell"><button type="button" class="good-art-trigger" data-good-info="${k}" aria-label="${g.name} 교역 정보">${goodArt(k,g.icon)}</button><button class="market-item" data-select-good="${k}" aria-pressed="${selected}" aria-label="${g.name} 시세"><span class="good-copy">${levelLocked?`<small class="market-level-lock" title="선단 Lv.${grade.level}">선단 레벨이 부족합니다</small>`:''}<b>${g.name}</b>${condition?`<small class="market-good-status">${condition}</small>`:''}</span></button></div><div class="good-type">${g.category}</div><div class="stock">${fmt(stock)}</div><div class="base-price" title="${policy.reason}">${policy.allowed?fmt(ask):'—'}</div><div class="sale-price" title="${salePolicy.reason}">${salePolicy.allowed?fmt(pr):'—'}</div><div class="actions"><button data-buy="${k}" title="${policy.reason}"${stock<1||locked?' disabled':''}>${!policy.allowed?policy.label:'선택'}</button></div></div>`;
  }).join('')+`</div><div class="market-chart-drawer" data-chart-drawer><button class="market-chart-handle" data-chart-handle type="button" aria-label="시세 그래프 접기" aria-expanded="true" aria-controls="marketChart"></button><div class="market-chart-reveal"><section id="marketChart" class="market-chart" aria-label="교역품 시세"></section></div></div>`;
  $$('[data-market-good]').forEach(row=>row.onclick=e=>{if(!e.target.closest('[data-buy]'))selectMarketGood(row.dataset.marketGood)});
  $$('[data-select-good]').forEach(b=>b.onclick=e=>{e.stopPropagation();selectMarketGood(b.dataset.selectGood)});
