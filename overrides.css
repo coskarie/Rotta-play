@@ -268,3 +268,14 @@
 #closeFacility:hover{color:#281b10;opacity:1}
 #closeFacility:focus-visible{outline:1px solid currentColor;outline-offset:1px}
 .system-backdrop{z-index:140;background:#0d0805d9}.system-modal{width:min(330px,88vw);padding:32px 36px;text-align:center}.system-modal h2{margin:0 0 22px;font-size:25px;letter-spacing:.12em}.system-modal button{display:block;width:100%;margin-top:8px;padding:11px;border:1px solid #493117;background:linear-gradient(#c9aa59,#7d5725);color:#24170e;font:12px Georgia;cursor:pointer;box-shadow:inset 0 1px #f1db91,0 2px 4px #0006}.system-modal button:hover{filter:brightness(1.12)}
+
+/* Regional geometry stays vector-sharp; only viewport-sized paper grain is composited. */
+.europe-chart .ocean-world,.europe-chart .chart-map,.europe-chart .route-svg,.europe-chart .cloud-sky{width:var(--chart-width);height:var(--chart-height)}
+.europe-chart .ocean-world{background:#426b6b!important;backface-visibility:visible;isolation:auto}
+.europe-chart .sea-viewport.dragging .ocean-world,.europe-chart .ocean-world.recentering{will-change:auto!important}
+.europe-chart .ocean-world:after,.europe-chart .chart-raster,.europe-chart .chart-tiles{display:none!important}
+.europe-chart .sea-viewport:after{content:"";position:absolute;inset:0;z-index:7;pointer-events:none;background:url('assets/map-grain.webp?v=38') repeat;opacity:.14;mix-blend-mode:soft-light}
+.europe-chart .sky-cloud{content-visibility:auto;contain-intrinsic-size:600px 300px}
+.chart-mode-choice{display:flex;justify-content:center;gap:24px;margin:0 0 18px}
+.chart-mode-choice a{color:#5a3b1d;text-decoration:none;padding:4px 12px;border-bottom:1px solid transparent}
+.chart-mode-choice a[aria-current="true"]{border-color:#5a3b1d;font-weight:bold}
