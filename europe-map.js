@@ -2,6 +2,7 @@
 (function(root){
 'use strict';
 const WIDTH=16384,HEIGHT=17192,WEST=-32,EAST=44,SOUTH=25,NORTH=72;
+const FJORD_BOUNDS=[8020,5250,8540,5740];
 const enabled=!!(root?.location&&new URLSearchParams(root.location.search).get('map')!=='world');
 const merc=lat=>Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));
 const project=(lat,lon)=>({x:(lon-WEST)/(EAST-WEST)*WIDTH,y:(merc(NORTH)-merc(lat))*WIDTH/((EAST-WEST)*Math.PI/180)});
@@ -80,8 +81,30 @@ function mount(svg){
  }
  svg.append(defs,element('rect',{width:WIDTH,height:HEIGHT,fill:'url(#europe-sea-paper)'}));
  const layer=element('g',{});svg.append(layer);const materials=root?.ROTTA_LISBON_COAST?.mount(svg,defs,layer,meta);const visible=new Map();let signature='';
+ let fjordRelief, fjordVisible=false;
+ const [west,north,east,south]=FJORD_BOUNDS;
+ const intersectsFjord=(x0,y0,x1,y1)=>x0<east&&x1>west&&y0<south&&y1>north;
+ function updateFjord(x0,y0,x1,y1){
+  const inView=intersectsFjord(x0,y0,x1,y1);
+  if(inView===fjordVisible)return;
+  fjordVisible=inView;
+  if(!fjordRelief){
+   const clip=element('clipPath',{id:'europe-fjord-clip',clipPathUnits:'userSpaceOnUse'});
+   for(const chunk of meta.chunks){
+    if(intersectsFjord(...chunk.bbox))clip.append(element('path',{d:chunk.land,'clip-rule':'evenodd'}));
+   }
+   defs.append(clip);
+   fjordRelief=element('image',{
+    class:'fjord-land-relief',href:'assets/europe/fjord/land.webp?v=1',x:west,y:north,
+    width:east-west,height:south-north,preserveAspectRatio:'none',
+    'clip-path':'url(#europe-fjord-clip)','pointer-events':'none'
+   });
+   svg.append(fjordRelief);
+  }
+  fjordRelief.setAttribute('visibility',inView?'visible':'hidden');
+ }
  function update(x0,y0,x1,y1){materials?.update(x0,y0,x1,y1);const pad=96;const chunks=meta.chunks.filter(c=>c.bbox[0]<x1+pad&&c.bbox[2]>x0-pad&&c.bbox[1]<y1+pad&&c.bbox[3]>y0-pad);const key=chunks.map(c=>c.id).join(',');if(key===signature)return;signature=key;const ids=new Set(chunks.map(c=>c.id));for(const[id,node]of visible)if(!ids.has(id)){node.remove();visible.delete(id)}for(const c of chunks)if(!visible.has(c.id)){const g=element('g',{}),land=element('path',{d:c.land,fill:'url(#europe-land-paper)','fill-rule':'evenodd'});g.append(land);layer.append(g);visible.set(c.id,g)}}
- return{update};
+ return{update(x0,y0,x1,y1){update(x0,y0,x1,y1);updateFjord(x0,y0,x1,y1)}};
 }
 const api={enabled,width:WIDTH,height:HEIGHT,bounds:{west:WEST,east:EAST,south:SOUTH,north:NORTH},project,createNavigation,load,routeAsync,mount,get meta(){return meta},get nav(){return nav}};
 if(typeof module!=='undefined')module.exports=api;if(root)root.ROTTA_EUROPE=api;
