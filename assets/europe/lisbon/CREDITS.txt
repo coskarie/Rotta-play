@@ -1,0 +1,10 @@
+Land relief produced using Copernicus WorldDEM™-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved.
+The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any use of the Copernicus WorldDEM™-90.
+https://registry.opendata.aws/copernicus-dem/
+
+Bathymetry and supplementary elevation: NOAA NCEI ETOPO 2022, 15 arc-second Global Relief Model.
+https://www.ncei.noaa.gov/products/etopo-global-relief-model
+Subset: OceanWatch ERDDAP, 37.5–40.2 N, 10.8–7.3 W.
+
+Terrain materials generated with OpenAI image generation.
+Coastline clipping: existing Rotta Europe GSHHG chart (see ../LICENSE.TXT).

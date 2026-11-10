@@ -64,6 +64,7 @@ async function load(progress=()=>{}){if(task)return task;task=(async()=>{
  const [chart,water,graph]=await Promise.all([fetchAsset('chart.json').then(r=>r.json()).then(v=>{downloaded(28);return v}),fetchAsset('water.bin').then(r=>r.arrayBuffer()).then(v=>{downloaded(34);return v}),fetchAsset('graph.bin').then(r=>r.arrayBuffer()).then(v=>{downloaded(14);return v})]);
  meta=chart;nav=createNavigation(chart,new Uint8Array(water),new Uint8Array(graph));
  try{worker=new Worker('europe-route-worker.js?v=5');await new Promise((resolve,reject)=>{worker.onmessage=e=>{if(e.data.ready)resolve();else{const p=pending.get(e.data.id);if(p){pending.delete(e.data.id);e.data.error?p.reject(Error(e.data.error)):p.resolve(e.data.path)}}};worker.onerror=e=>{reject(e);for(const p of pending.values())p.reject(Error('Europe route worker failed'));pending.clear();worker?.terminate();worker=null};worker.postMessage({init:true,meta:{...chart,chunks:[]},water,graph})})}catch(e){worker?.terminate();worker=null;console.warn('[Rotta Europe worker fallback]',e)}
+ await root?.ROTTA_LISBON_COAST?.preload();
  progress(94);return{meta,nav};
  })().catch(e=>{task=null;throw e});return task}
 function routeAsync(start,end){if(!worker)return Promise.resolve(nav.route(start,end));return new Promise((resolve,reject)=>{const id=++requestId;pending.set(id,{resolve,reject});worker.postMessage({id,start,end})})}
@@ -78,8 +79,8 @@ function mount(svg){
   pattern.append(element('rect',{width:128,height:128,fill:color}),element('image',{href:'assets/map-grain.webp?v=38',width:128,height:128,opacity,style:'mix-blend-mode:soft-light'}));defs.append(pattern);
  }
  svg.append(defs,element('rect',{width:WIDTH,height:HEIGHT,fill:'url(#europe-sea-paper)'}));
- const layer=element('g',{});svg.append(layer);const visible=new Map();let signature='';
- function update(x0,y0,x1,y1){const pad=96;const chunks=meta.chunks.filter(c=>c.bbox[0]<x1+pad&&c.bbox[2]>x0-pad&&c.bbox[1]<y1+pad&&c.bbox[3]>y0-pad);const key=chunks.map(c=>c.id).join(',');if(key===signature)return;signature=key;const ids=new Set(chunks.map(c=>c.id));for(const[id,node]of visible)if(!ids.has(id)){node.remove();visible.delete(id)}for(const c of chunks)if(!visible.has(c.id)){const g=element('g',{}),land=element('path',{d:c.land,fill:'url(#europe-land-paper)','fill-rule':'evenodd'});g.append(land);layer.append(g);visible.set(c.id,g)}}
+ const layer=element('g',{});svg.append(layer);const materials=root?.ROTTA_LISBON_COAST?.mount(svg,defs,layer,meta);const visible=new Map();let signature='';
+ function update(x0,y0,x1,y1){materials?.update(x0,y0,x1,y1);const pad=96;const chunks=meta.chunks.filter(c=>c.bbox[0]<x1+pad&&c.bbox[2]>x0-pad&&c.bbox[1]<y1+pad&&c.bbox[3]>y0-pad);const key=chunks.map(c=>c.id).join(',');if(key===signature)return;signature=key;const ids=new Set(chunks.map(c=>c.id));for(const[id,node]of visible)if(!ids.has(id)){node.remove();visible.delete(id)}for(const c of chunks)if(!visible.has(c.id)){const g=element('g',{}),land=element('path',{d:c.land,fill:'url(#europe-land-paper)','fill-rule':'evenodd'});g.append(land);layer.append(g);visible.set(c.id,g)}}
  return{update};
 }
 const api={enabled,width:WIDTH,height:HEIGHT,bounds:{west:WEST,east:EAST,south:SOUTH,north:NORTH},project,createNavigation,load,routeAsync,mount,get meta(){return meta},get nav(){return nav}};
