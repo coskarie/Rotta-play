@@ -1,6 +1,6 @@
 (() => {
   const path = 'assets/europe/terrain/';
-  const version = '?v=1';
+  const version = '?v=2';
   const maxDownloads = 4;
   const maxDecodedBytes = 48 * 1024 * 1024;
   const retryDelay = 15000;
