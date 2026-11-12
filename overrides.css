@@ -276,6 +276,21 @@
 .europe-chart .ocean-world:after,.europe-chart .chart-raster,.europe-chart .chart-map,.europe-chart .chart-tiles{display:none!important}
 .europe-terrain{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .europe-chart .sky-cloud{content-visibility:auto;contain-intrinsic-size:600px 300px}
+
+/* The marker artwork ends at y=36px, the existing shoreline anchor. */
+.europe-chart .sea-port[data-port-kind="harbor"]{--port-art:url("assets/port-markers/anchor.webp")}
+.europe-chart .sea-port[data-port-kind="trade"]{--port-art:url("assets/port-markers/trade.webp")}
+.europe-chart .sea-port[data-port-kind="royal"]{--port-art:url("assets/port-markers/royal.webp")}
+.europe-chart .sea-port[data-port-kind="fort"]{--port-art:url("assets/port-markers/fort.webp")}
+.europe-chart .sea-port[data-port-kind="trade"][data-port-culture="islamic"]{--port-art:url("assets/port-markers/trade-eastern.webp")}
+.europe-chart .sea-port[data-port-kind="royal"][data-port-culture="islamic"]{--port-art:url("assets/port-markers/royal-eastern.webp")}
+.europe-chart .sea-port:is([data-port-kind="harbor"],[data-port-kind="trade"],[data-port-kind="royal"],[data-port-kind="fort"]) .port-emblem{
+  background:var(--port-art) center/100% 100% no-repeat!important;
+}
+.europe-chart .sea-port:is([data-port-kind="harbor"],[data-port-kind="trade"],[data-port-kind="royal"],[data-port-kind="fort"]) .port-emblem svg{
+  visibility:hidden;
+}
+
 .chart-mode-choice{display:flex;justify-content:center;gap:24px;margin:0 0 18px}
 .chart-mode-choice a{color:#5a3b1d;text-decoration:none;padding:4px 12px;border-bottom:1px solid transparent}
 .chart-mode-choice a[aria-current="true"]{border-color:#5a3b1d;font-weight:bold}
