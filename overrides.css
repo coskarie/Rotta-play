@@ -271,10 +271,10 @@
 
 /* Regional geometry stays vector-sharp; only viewport-sized paper grain is composited. */
 .europe-chart .ocean-world,.europe-chart .chart-map,.europe-chart .route-svg,.europe-chart .cloud-sky{width:var(--chart-width);height:var(--chart-height)}
-.europe-chart .ocean-world{background:#426b6b!important;backface-visibility:visible;isolation:auto}
+.europe-chart .ocean-world{background:transparent!important;backface-visibility:visible;isolation:auto}
 .europe-chart .sea-viewport.dragging .ocean-world,.europe-chart .ocean-world.recentering{will-change:auto!important}
-.europe-chart .ocean-world:after,.europe-chart .chart-raster,.europe-chart .chart-tiles{display:none!important}
-.europe-chart .sea-viewport:after{content:"";position:absolute;inset:0;z-index:7;pointer-events:none;background:url('assets/map-grain.webp?v=38') repeat;opacity:.14;mix-blend-mode:soft-light}
+.europe-chart .ocean-world:after,.europe-chart .chart-raster,.europe-chart .chart-map,.europe-chart .chart-tiles{display:none!important}
+.europe-terrain{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .europe-chart .sky-cloud{content-visibility:auto;contain-intrinsic-size:600px 300px}
 .chart-mode-choice{display:flex;justify-content:center;gap:24px;margin:0 0 18px}
 .chart-mode-choice a{color:#5a3b1d;text-decoration:none;padding:4px 12px;border-bottom:1px solid transparent}
