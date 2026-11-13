@@ -49,7 +49,7 @@
 @keyframes wisp-unfurl{from{transform:translate3d(0,0,0) scaleX(.94)}to{transform:translate3d(var(--wisp-x),0,0) scaleX(1.1)}}
 @media(prefers-reduced-motion:reduce){.cloud-sky{transition:none}.sky-cloud,.wisp-strand{animation-play-state:paused!important}}
 .sea-port{--port-anchor:81.8181818182%;--port-emphasis:1;position:absolute;display:block;width:40px;height:44px;overflow:visible;font:10px Georgia,'Times New Roman',serif;line-height:1;border:0;background:transparent;cursor:pointer;padding:0;z-index:4;color:#ecd69b;text-shadow:0 2px 2px #201208;transform:translate(-50%,calc(-1 * var(--port-anchor))) scale(var(--inverse-zoom,1));transform-origin:50% var(--port-anchor)}
-.port-emblem{position:absolute;inset:0;display:block!important;width:40px;height:44px;margin:0;background:none!important;padding:0!important;transform:scale(calc(var(--port-logo-scale,.67) * var(--port-emphasis)));transform-origin:50% var(--port-anchor)}
+.port-emblem{position:absolute;inset:0;display:block!important;width:40px;height:44px;margin:0;background:none!important;padding:0!important;transform:scale(calc(var(--port-logo-scale,.67) * var(--port-emphasis) * var(--port-art-scale,1)));transform-origin:50% var(--port-anchor)}
 .port-emblem svg{display:block;width:100%;height:100%;overflow:visible}
 .port-label{position:absolute;top:100%;left:50%;transform:translateX(-50%);width:max-content;display:none;margin-top:1px;background:linear-gradient(90deg,#2a190eea,#49301bea,#2a190eea);border:1px solid #9d7438;padding:3px 7px;letter-spacing:.05em;box-shadow:inset 0 0 7px #0008}
 .sea-port.near .port-label,.sea-port:hover .port-label,.sea-port:focus .port-label{display:block}
@@ -285,6 +285,7 @@
 .europe-chart .sea-port[data-port-kind="trade"][data-port-culture="islamic"]{--port-art:url("assets/port-markers/trade-eastern.webp")}
 .europe-chart .sea-port[data-port-kind="royal"][data-port-culture="islamic"]{--port-art:url("assets/port-markers/royal-eastern.webp")}
 .europe-chart .sea-port:is([data-port-kind="harbor"],[data-port-kind="trade"],[data-port-kind="royal"],[data-port-kind="fort"]) .port-emblem{
+  --port-art-scale:2;
   background:var(--port-art) center/100% 100% no-repeat!important;
 }
 .europe-chart .sea-port:is([data-port-kind="harbor"],[data-port-kind="trade"],[data-port-kind="royal"],[data-port-kind="fort"]) .port-emblem svg{
