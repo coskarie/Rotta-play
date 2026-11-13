@@ -36,6 +36,8 @@
     canvas.setAttribute('aria-hidden', 'true');
     viewport.insertBefore(canvas, world);
     const context = canvas.getContext('2d', {alpha: false});
+    const pitch = window.ROTTA_EUROPE_PITCH;
+    let pitchCanvas, relief, elevationLoad, view, sourceRect;
     const cache = new Map();
     const loading = new Map();
     const failures = new Map();
@@ -108,7 +110,10 @@
       const leftEdge = Math.max(0, originX), topEdge = Math.max(0, originY);
       const viewWidth = Math.min(deviceWidth, endX) - leftEdge;
       const viewHeight = Math.min(deviceHeight, endY) - topEdge;
-      if (viewWidth <= 0 || viewHeight <= 0) return;
+      if (viewWidth <= 0 || viewHeight <= 0) {
+        present();
+        return;
+      }
       context.save();
       context.beginPath();
       context.rect(leftEdge, topEdge, viewWidth, viewHeight);
@@ -135,6 +140,45 @@
       }
       context.restore();
       paintCount++;
+      present();
+    }
+
+    function prepareRelief() {
+      if (elevationLoad) return;
+      elevationLoad = pitch.loadHeights().then(heights => {
+        pitchCanvas = document.createElement('canvas');
+        pitchCanvas.className = 'europe-terrain';
+        pitchCanvas.hidden = true;
+        pitchCanvas.setAttribute('aria-hidden', 'true');
+        relief = pitch.renderer(pitchCanvas, heights);
+        if (!relief) return;
+        pitchCanvas.addEventListener('webglcontextlost', event => {
+          event.preventDefault();
+          relief = null;
+          if (active) present();
+        });
+        pitchCanvas.addEventListener('webglcontextrestored', () => {
+          relief = pitch.renderer(pitchCanvas, heights);
+          if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+        });
+        viewport.insertBefore(pitchCanvas, world);
+        if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+      }).catch(error => console.warn(error));
+    }
+
+    function present() {
+      const rendered = Boolean(sourceRect && relief?.draw(canvas, view, sourceRect, camera.displayRatio));
+      if (pitchCanvas) pitchCanvas.hidden = !rendered;
+      canvas.style.visibility = rendered ? 'hidden' : '';
+      if (sourceRect && !rendered) {
+        canvas.style.width = sourceRect.width + 'px';
+        canvas.style.height = sourceRect.height + 'px';
+        canvas.style.transformOrigin = '0 0';
+        canvas.style.transform = view.projection.transform(sourceRect.left, sourceRect.top);
+      } else {
+        canvas.style.width = canvas.style.height = canvas.style.transform = '';
+      }
+      viewport.dataset.terrainPitch = rendered ? 'relief' : sourceRect ? 'flat' : '';
     }
 
     function evict() {
@@ -176,11 +220,20 @@
       }
     }
 
-    function update(tx, ty, zoom, w, h) {
+    function update(tx, ty, zoom, w, h, projection = null) {
       if (w < 1 || h < 1) return;
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
-      camera = {tx, ty, zoom, w, h, ratio};
+      view = {tx, ty, zoom, w, h, projection};
       if (!active) return;
+      const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      sourceRect = projection ? pitch.sourceRect(projection, zoom) : null;
+      if (sourceRect) {
+        prepareRelief();
+        const {left, top, width, height} = sourceRect;
+        const ratio = Math.min(displayRatio, (relief?.maxTextureSize ?? 4096) / Math.max(width, height));
+        camera = {tx: tx - left, ty: ty - top, zoom, w: width, h: height, ratio, displayRatio};
+      } else {
+        camera = {tx, ty, zoom, w, h, ratio: displayRatio, displayRatio};
+      }
       wanted = visibleTiles(camera);
       for (const [key, controller] of loading) {
         if (!wanted.has(key)) controller.abort();
@@ -200,7 +253,7 @@
       if (active === value) return;
       active = value;
       if (active) {
-        if (camera) update(camera.tx, camera.ty, camera.zoom, camera.w, camera.h);
+        if (view) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
         return;
       }
       wanted.clear();
@@ -209,6 +262,10 @@
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
       canvas.width = canvas.height = 1;
+      if (pitchCanvas) {
+        pitchCanvas.hidden = true;
+        pitchCanvas.width = pitchCanvas.height = 1;
+      }
     }
 
     return {update, setActive, stats: () => ({
