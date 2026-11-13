@@ -16,10 +16,10 @@
     const matrix = `matrix3d(1,0,0,0,0,${cos},0,${-sin / focal},0,0,1,0,0,0,0,1)`;
     return {
       degrees, cx, cy, cos, sin, focal,
-      apply(x, y) {
-        const v = y - cy, depth = 1 - v * sin / focal;
+      apply(x, y, height = 0) {
+        const v = y - cy, depth = 1 - (v * sin + height * cos) / focal;
         if (depth <= 0) return {x: Infinity, y: Infinity};
-        return {x: cx + (x - cx) / depth, y: cy + v * cos / depth};
+        return {x: cx + (x - cx) / depth, y: cy + (v * cos - height * sin) / depth};
       },
       invert(x, y) {
         const v = (y - cy) / (cos + (y - cy) * sin / focal);
@@ -51,6 +51,20 @@
       if (heights.length !== region.samples ** 2) throw new Error('Invalid Lisbon elevation dimensions');
       return heights;
     });
+  }
+
+  function sampleHeight(heights, x, y) {
+    const u = (x - region.x) / region.span, v = (y - region.y) / region.span;
+    const edge = fade(Math.min(u, v, 1 - u, 1 - v), .05);
+    if (!edge) return 0;
+    const last = region.samples - 1;
+    const column = u * last, row = v * last;
+    const left = Math.floor(column), top = Math.floor(row);
+    const index = top * region.samples + left;
+    const across = column - left, down = row - top;
+    const upper = heights[index] * (1 - across) + heights[index + 1] * across;
+    const lower = heights[index + region.samples] * (1 - across) + heights[index + region.samples + 1] * across;
+    return (upper * (1 - down) + lower * down) * (1020 * heightScale / 255) * edge * edge * (3 - 2 * edge);
   }
 
   const vertexSource = precision => `
@@ -152,9 +166,12 @@
     gl.clearColor(45 / 255, 85 / 255, 87 / 255, 1);
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
+    let uploadedRevision = -1;
+    let textureUploads = 0;
     return {
+      get textureUploads() { return textureUploads; },
       maxTextureSize,
-      draw(source, view, rect, ratio) {
+      draw(source, view, rect, ratio, revision) {
         if (gl.isContextLost()) return false;
         const {projection: {cx, cy, cos, sin, focal}, tx, ty, zoom, w, h} = view;
         const width = Math.round(w * ratio), height = Math.round(h * ratio);
@@ -162,7 +179,11 @@
         if (canvas.height !== height) canvas.height = height;
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        if (uploadedRevision !== revision) {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+          uploadedRevision = revision;
+          textureUploads++;
+        }
         gl.uniform2f(sourceSize, rect.width, rect.height);
         gl.uniform2f(offset, rect.left, rect.top);
         gl.uniform2f(center, cx, cy);
@@ -175,5 +196,5 @@
     };
   }
 
-  window.ROTTA_EUROPE_PITCH = {coverage, project, sourceRect, maxAngle, loadHeights, renderer};
+  window.ROTTA_EUROPE_PITCH = {coverage, project, sourceRect, maxAngle, loadHeights, sampleHeight, renderer};
 })();

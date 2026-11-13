@@ -29,7 +29,7 @@
     });
   }
 
-  function mount(viewport, world, terrain) {
+  function mount(viewport, world, terrain, onReliefChange) {
     const {width, height, gutter, levels, overview} = terrain;
     const canvas = document.createElement('canvas');
     canvas.className = 'europe-terrain';
@@ -37,7 +37,8 @@
     viewport.insertBefore(canvas, world);
     const context = canvas.getContext('2d', {alpha: false});
     const pitch = window.ROTTA_EUROPE_PITCH;
-    let pitchCanvas, relief, elevationLoad, view, sourceRect;
+    let pitchCanvas, relief, elevationLoad, elevations, view;
+    let reliefVisible = false;
     const cache = new Map();
     const loading = new Map();
     const failures = new Map();
@@ -105,6 +106,7 @@
       const yAt = y => Math.round((ty + y * zoom) * ratio);
       context.fillStyle = '#2d5557';
       context.fillRect(0, 0, deviceWidth, deviceHeight);
+      paintCount++;
       const originX = xAt(0), originY = yAt(0);
       const endX = xAt(width), endY = yAt(height);
       const leftEdge = Math.max(0, originX), topEdge = Math.max(0, originY);
@@ -139,13 +141,13 @@
           left, top, xAt(x + worldSize) - left, yAt(y + worldSize) - top);
       }
       context.restore();
-      paintCount++;
       present();
     }
 
     function prepareRelief() {
       if (elevationLoad) return;
       elevationLoad = pitch.loadHeights().then(heights => {
+        elevations = heights;
         pitchCanvas = document.createElement('canvas');
         pitchCanvas.className = 'europe-terrain';
         pitchCanvas.hidden = true;
@@ -167,18 +169,21 @@
     }
 
     function present() {
-      const rendered = Boolean(sourceRect && relief?.draw(canvas, view, sourceRect, camera.displayRatio));
+      const left = view.tx - camera.tx;
+      const top = view.ty - camera.ty;
+      const rect = {left, top, width: camera.w, height: camera.h};
+      const rendered = Boolean(view.projection && relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
       if (pitchCanvas) pitchCanvas.hidden = !rendered;
       canvas.style.visibility = rendered ? 'hidden' : '';
-      if (sourceRect && !rendered) {
-        canvas.style.width = sourceRect.width + 'px';
-        canvas.style.height = sourceRect.height + 'px';
-        canvas.style.transformOrigin = '0 0';
-        canvas.style.transform = view.projection.transform(sourceRect.left, sourceRect.top);
-      } else {
-        canvas.style.width = canvas.style.height = canvas.style.transform = '';
+      if (!rendered) {
+        canvas.style.transform = view.projection?.transform(left, top) ?? 'translate3d(' + left + 'px,' + top + 'px,0)';
       }
-      viewport.dataset.terrainPitch = rendered ? 'relief' : sourceRect ? 'flat' : '';
+      const mode = rendered ? 'relief' : view.projection ? 'flat' : '';
+      if (viewport.dataset.terrainPitch !== mode) viewport.dataset.terrainPitch = mode;
+      if (reliefVisible !== rendered) {
+        reliefVisible = rendered;
+        onReliefChange?.();
+      }
     }
 
     function evict() {
@@ -225,15 +230,28 @@
       view = {tx, ty, zoom, w, h, projection};
       if (!active) return;
       const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
-      sourceRect = projection ? pitch.sourceRect(projection, zoom) : null;
-      if (sourceRect) {
-        prepareRelief();
-        const {left, top, width, height} = sourceRect;
-        const ratio = Math.min(displayRatio, (relief?.maxTextureSize ?? 4096) / Math.max(width, height));
-        camera = {tx: tx - left, ty: ty - top, zoom, w: width, h: height, ratio, displayRatio};
-      } else {
-        camera = {tx, ty, zoom, w, h, ratio: displayRatio, displayRatio};
+      if (projection) prepareRelief();
+      const required = projection ? pitch.sourceRect(projection, zoom) : {left: 0, top: 0, width: w, height: h};
+      const textureLimit = relief?.maxTextureSize ?? 4096;
+      if (camera && camera.zoom === zoom && camera.viewWidth === w && camera.viewHeight === h &&
+          camera.displayRatio === displayRatio &&
+          (projection ? Math.max(canvas.width, canvas.height) <= textureLimit : camera.ratio === displayRatio)) {
+        const left = tx - camera.tx, top = ty - camera.ty;
+        if (left <= required.left && top <= required.top &&
+            left + camera.w >= required.left + required.width &&
+            top + camera.h >= required.top + required.height) {
+          present();
+          return;
+        }
       }
+      const pad = Math.min(128, Math.ceil(Math.min(w, h) * .12));
+      const left = required.left - pad, top = required.top - pad;
+      const width = required.width + 2 * pad, height = required.height + 2 * pad;
+      const ratio = projection ? Math.min(displayRatio, textureLimit / Math.max(width, height)) : displayRatio;
+      camera = {tx: tx - left, ty: ty - top, zoom, w: width, h: height, ratio, displayRatio, viewWidth: w, viewHeight: h};
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      canvas.style.transformOrigin = '0 0';
       wanted = visibleTiles(camera);
       for (const [key, controller] of loading) {
         if (!wanted.has(key)) controller.abort();
@@ -256,6 +274,8 @@
         if (view) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
         return;
       }
+      camera = null;
+      reliefVisible = false;
       wanted.clear();
       loadOrder = [];
       for (const controller of loading.values()) controller.abort();
@@ -268,10 +288,12 @@
       }
     }
 
-    return {update, setActive, stats: () => ({
-      cachedTiles: cache.size, decodedBytes, downloads: loading.size,
-      peakDownloads, paintCount, visibleTiles: wanted.size
-    })};
+    return {update, setActive,
+      heightAt: (x, y) => reliefVisible ? pitch.sampleHeight(elevations, x, y) : 0,
+      stats: () => ({
+        cachedTiles: cache.size, decodedBytes, downloads: loading.size,
+        peakDownloads, paintCount, textureUploads: relief?.textureUploads ?? 0, visibleTiles: wanted.size
+      })};
   }
 
   window.ROTTA_EUROPE_TERRAIN = {preload, mount};

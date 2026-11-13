@@ -33,7 +33,7 @@
 .map-loader-track i{display:block;width:0;height:100%;background:linear-gradient(90deg,#59401f,#8d7041);transition:width .12s linear}
 .map-loader>b{position:relative;color:#bda66d;font-size:9px;letter-spacing:.12em}
 .route-svg{position:absolute;inset:0;width:3072px;height:2048px;z-index:3;pointer-events:none;overflow:visible}
-.route-svg polyline{fill:none;stroke:#6f3f1f;stroke-width:var(--route-width,.6);stroke-dasharray:3 5;stroke-linecap:butt;stroke-linejoin:round;opacity:.82;vector-effect:non-scaling-stroke}
+.route-svg :is(polyline,path){fill:none;stroke:#6f3f1f;stroke-width:var(--route-width,.6);stroke-dasharray:3 5;stroke-linecap:butt;stroke-linejoin:round;opacity:.82;vector-effect:non-scaling-stroke}
 .route-line{display:none!important}
 .cloud-sky{position:absolute;inset:0;width:3072px;height:2048px;z-index:6;overflow:hidden;pointer-events:none;user-select:none;contain:layout paint style;opacity:0;visibility:hidden;transition:opacity .6s ease,visibility .6s}
 .sea-viewport.clouds-visible .cloud-sky{opacity:1;visibility:visible}
@@ -55,7 +55,7 @@
 .sea-port.near .port-label,.sea-port:hover .port-label,.sea-port:focus .port-label{display:block}
 .sea-port.near{--port-emphasis:1.2}
 .sea-port:hover,.sea-port:focus-visible{--port-emphasis:1.35}
-.ocean-world.world-overview .port-label{display:none!important}
+.world-overview .port-label{display:none!important}
 .sea-port:focus-visible{outline:1px dotted #f0d177;outline-offset:4px}
 .sea-port.outside-view{display:none}
 .sea-click-target{position:absolute;z-index:3;width:13px;height:13px;border:1px solid #d5b158;border-radius:50%;box-sizing:border-box;pointer-events:none;transform:translate(-50%,-50%) scale(var(--inverse-zoom,1));transform-origin:center;box-shadow:0 0 0 1px #2b190dcc,0 0 5px #e4c26b99}
@@ -270,7 +270,7 @@
 .system-backdrop{z-index:140;background:#0d0805d9}.system-modal{width:min(330px,88vw);padding:32px 36px;text-align:center}.system-modal h2{margin:0 0 22px;font-size:25px;letter-spacing:.12em}.system-modal button{display:block;width:100%;margin-top:8px;padding:11px;border:1px solid #493117;background:linear-gradient(#c9aa59,#7d5725);color:#24170e;font:12px Georgia;cursor:pointer;box-shadow:inset 0 1px #f1db91,0 2px 4px #0006}.system-modal button:hover{filter:brightness(1.12)}
 
 /* Regional geometry stays vector-sharp; only viewport-sized paper grain is composited. */
-.europe-chart .ocean-world,.europe-chart .chart-map,.europe-chart .route-svg,.europe-chart .cloud-sky{width:var(--chart-width);height:var(--chart-height)}
+.europe-chart .ocean-world,.europe-chart .chart-map,.europe-chart .cloud-sky{width:var(--chart-width);height:var(--chart-height)}
 .europe-chart .ocean-world{background:transparent!important;backface-visibility:visible;isolation:auto}
 .europe-chart .sea-viewport.dragging .ocean-world,.europe-chart .ocean-world.recentering{will-change:auto!important}
 .europe-chart .ocean-world:after,.europe-chart .chart-raster,.europe-chart .chart-map,.europe-chart .chart-tiles{display:none!important}
@@ -295,3 +295,9 @@
 .chart-mode-choice{display:flex;justify-content:center;gap:24px;margin:0 0 18px}
 .chart-mode-choice a{color:#5a3b1d;text-decoration:none;padding:4px 12px;border-bottom:1px solid transparent}
 .chart-mode-choice a[aria-current="true"]{border-color:#5a3b1d;font-weight:bold}
+
+.chart-annotations{position:absolute;inset:0;pointer-events:none;z-index:6;--inverse-zoom:1;--route-width:1.25px}
+.chart-annotations .route-svg{width:100%;height:100%;overflow:hidden}
+.chart-annotations .sea-port{pointer-events:auto}
+.chart-annotations .ship[hidden]{display:none}
+.sea-viewport.dragging .chart-annotations .sea-port{pointer-events:none}

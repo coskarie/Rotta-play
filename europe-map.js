@@ -68,9 +68,9 @@ async function load(progress=()=>{}){if(task)return task;task=(async()=>{
  progress(94);return{meta,nav};
  })().catch(e=>{task=null;throw e});return task}
 function routeAsync(start,end){if(!worker)return Promise.resolve(nav.route(start,end));return new Promise((resolve,reject)=>{const id=++requestId;pending.set(id,{resolve,reject});worker.postMessage({id,start,end})})}
-function mount(svg){
+function mount(svg,onReliefChange){
  const world=svg.parentElement;
- return root.ROTTA_EUROPE_TERRAIN.mount(world.parentElement,world,terrain);
+ return root.ROTTA_EUROPE_TERRAIN.mount(world.parentElement,world,terrain,onReliefChange);
 }
 const api={enabled,width:WIDTH,height:HEIGHT,bounds:{west:WEST,east:EAST,south:SOUTH,north:NORTH},project,createNavigation,load,routeAsync,mount,get meta(){return meta},get nav(){return nav}};
 if(typeof module!=='undefined')module.exports=api;if(root)root.ROTTA_EUROPE=api;
