@@ -1,6 +1,6 @@
 (() => {
   const path = 'assets/europe/terrain/';
-  const version = '?v=2';
+  const version = '?v=3';
   const maxDownloads = 4;
   const maxDecodedBytes = 48 * 1024 * 1024;
   const retryDelay = 15000;
@@ -42,6 +42,7 @@
     let active = false;
     let camera;
     let wanted = new Map();
+    let loadOrder = [];
     let visibleCoarseCount = 0;
     let decodedBytes = 0;
     let frame = 0;
@@ -55,9 +56,9 @@
       const bottom = Math.min(height, (h - ty) / zoom);
       const centerX = (left + right) / 2;
       const centerY = (top + bottom) / 2;
-      const visible = [];
-      let availableBytes = maxDecodedBytes;
-      for (const level of levels) {
+      const tiers = [];
+      for (const [index, level] of levels.entries()) {
+        if (zoom < (level.minZoom ?? 0)) break;
         const {worldSize: span, pixels, tiles} = level;
         const tileBytes = (pixels + gutter * 2) ** 2 * 4;
         const levelTiles = [];
@@ -72,13 +73,22 @@
           }
         }
         if (level === levels[0]) visibleCoarseCount = levelTiles.length;
-        const tileLimit = Math.floor(availableBytes / tileBytes);
         levelTiles.sort((a, b) => a.priority - b.priority);
-        visible.push(...levelTiles.slice(0, tileLimit));
-        if (levelTiles.length > tileLimit || zoom * ratio <= pixels / span * 1.6) break;
-        availableBytes -= levelTiles.length * tileBytes;
+        tiers.push({tileBytes, tiles: levelTiles});
+        if (!levels[index + 1]?.minZoom && zoom * ratio <= pixels / span * 1.6) break;
       }
-      return new Map(visible.map(tile => [tile.key, tile]));
+
+      const priorities = zoom >= (levels.find(level => level.minZoom)?.minZoom ?? Infinity)
+        ? [...tiers.slice(0, 2), ...tiers.slice(2).reverse()]
+        : tiers;
+      let availableBytes = maxDecodedBytes;
+      loadOrder = [];
+      for (const tier of priorities) {
+        tier.tiles.length = Math.min(tier.tiles.length, Math.floor(availableBytes / tier.tileBytes));
+        availableBytes -= tier.tiles.length * tier.tileBytes;
+        loadOrder.push(...tier.tiles);
+      }
+      return new Map(tiers.flatMap(tier => tier.tiles.map(tile => [tile.key, tile])));
     }
 
     function paint() {
@@ -140,7 +150,7 @@
     function pump() {
       if (!active || loading.size >= maxDownloads) return;
       const now = performance.now();
-      const queue = [...wanted.values()].filter(({key}) =>
+      const queue = loadOrder.filter(({key}) =>
         !cache.has(key) && !loading.has(key) && (failures.get(key) ?? 0) <= now);
       for (const {key} of queue.slice(0, maxDownloads - loading.size)) {
         const controller = new AbortController();
@@ -194,6 +204,7 @@
         return;
       }
       wanted.clear();
+      loadOrder = [];
       for (const controller of loading.values()) controller.abort();
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
