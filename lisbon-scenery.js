@@ -1,11 +1,12 @@
 (() => {
   const root = 'assets/europe/scenery/';
   const imageSize = 128;
-  // At Lisbon, one world unit is about 403 metres. Footprints stay in world
-  // coordinates so they shrink with the terrain instead of acting like port icons.
+  const footprintScale = 3;
+  // Base footprints are in chart units. The scenery scale makes the roof patterns
+  // legible while keeping their size tied to the terrain.
   const sites = [
-    {id: 'lisbon-old-town', x: 4926.8, y: 13696.2, width: 5.1, height: 3.8, near: 37, far: 72},
-    {id: 'lisbon-riverside', x: 4930.8, y: 13694.7, width: 3.3, height: 2.5, near: 39, far: 74},
+    {id: 'lisbon-old-town', x: 4917.8, y: 13694.2, width: 5.1, height: 3.8, near: 37, far: 72},
+    {id: 'lisbon-riverside', x: 4930.8, y: 13689.2, width: 3.3, height: 2.5, near: 39, far: 74},
     {id: 'tagus-hamlet', x: 4879.5, y: 13700.5, width: 1.26, height: .90, near: 17, far: 46},
     {id: 'tagus-lookout', x: 4854.5, y: 13684.5, width: .17, height: .15, near: 36, far: 67}
   ];
@@ -53,8 +54,10 @@
       image.hidden = true;
       image.width = image.height = imageSize;
       layer.append(image);
-      const left = site.x - site.width / 2, right = site.x + site.width / 2;
-      const top = site.y - site.height / 2, bottom = site.y + site.height / 2;
+      const halfWidth = site.width * footprintScale / 2;
+      const halfHeight = site.height * footprintScale / 2;
+      const left = site.x - halfWidth, right = site.x + halfWidth;
+      const top = site.y - halfHeight, bottom = site.y + halfHeight;
       const corners = [[left, top], [right, top], [right, bottom], [left, bottom]];
       return {site, image, corners, opacity: -1, transform: '', requested: false};
     });
@@ -72,7 +75,7 @@
           }
 
           const {x, y} = project(site.x, site.y, true);
-          const margin = 90;
+          const margin = Math.max(90, site.width * footprintScale * zoom);
           const visible = x > -margin && x < width + margin && y > -margin && y < height + margin;
           const transform = visible ? transformForQuad(...corners.map(([x, y]) => project(x, y, true))) : '';
           if (!transform) {
