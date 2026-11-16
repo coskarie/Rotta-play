@@ -157,14 +157,14 @@
         pitchCanvas.addEventListener('webglcontextlost', event => {
           event.preventDefault();
           relief = null;
-          if (active) present();
+          if (active && camera) present();
         });
         pitchCanvas.addEventListener('webglcontextrestored', () => {
           relief = pitch.renderer(pitchCanvas, heights);
-          if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+          if (active && view.reliefWanted) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
         });
         viewport.insertBefore(pitchCanvas, world);
-        if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+        if (active && view.reliefWanted) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
       }).catch(error => console.warn(error));
     }
 
@@ -172,7 +172,7 @@
       const left = view.tx - camera.tx;
       const top = view.ty - camera.ty;
       const rect = {left, top, width: camera.w, height: camera.h};
-      const rendered = Boolean(view.projection && relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
+      const rendered = Boolean(view.reliefWanted && relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
       if (pitchCanvas) pitchCanvas.hidden = !rendered;
       canvas.style.visibility = rendered ? 'hidden' : '';
       if (!rendered) {
@@ -230,9 +230,12 @@
       view = {tx, ty, zoom, w, h, projection};
       if (!active) return;
       const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
-      if (projection) prepareRelief();
-      const required = projection ? pitch.sourceRect(projection, zoom) : {left: 0, top: 0, width: w, height: h};
-      const textureLimit = relief?.maxTextureSize ?? 4096;
+      const required = projection
+        ? pitch.sourceRect(projection, tx, ty, zoom)
+        : {left: 0, top: 0, width: w, height: h};
+      view.reliefWanted = required.relief === true;
+      if (view.reliefWanted) prepareRelief();
+      const textureLimit = view.reliefWanted ? (relief?.maxTextureSize ?? 4096) : 4096;
       if (camera && camera.zoom === zoom && camera.viewWidth === w && camera.viewHeight === h &&
           camera.displayRatio === displayRatio &&
           (projection ? Math.max(canvas.width, canvas.height) <= textureLimit : camera.ratio === displayRatio)) {

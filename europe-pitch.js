@@ -4,11 +4,6 @@
   const heightScale = .0135;
   const fade = (distance, width) => Math.max(0, Math.min(1, distance / width));
 
-  function coverage(x, y, zoom) {
-    const dx = x - region.x, dy = y - region.y;
-    return fade(Math.min(dx, dy, region.span - dx, region.span - dy), 56) * fade(zoom - 1, 1);
-  }
-
   function project(w, h, degrees) {
     const radians = degrees * Math.PI / 180;
     const cos = Math.cos(radians), sin = Math.sin(radians);
@@ -31,17 +26,25 @@
     };
   }
 
-  function sourceRect(projection, zoom) {
+  function sourceRect(projection, tx, ty, zoom) {
     const {cx, cy} = projection;
-    const corners = [projection.invert(0, 0), projection.invert(2 * cx, 0),
-      projection.invert(0, 2 * cy), projection.invert(2 * cx, 2 * cy)];
-    // Include extra land below the viewport for terrain elevated into view.
+    const far = projection.invert(0, 0);
+    const near = projection.invert(0, 2 * cy);
+    // The far edge is wider in map coordinates than the near edge.
+    const left = Math.floor(Math.min(far.x, near.x));
+    const top = Math.floor(far.y);
+    const right = Math.ceil(2 * cx - left);
+    const bottom = Math.ceil(near.y);
+
+    // Include land that can rise into view before deciding whether Lisbon needs WebGL.
     const pad = Math.ceil(1020 * heightScale * zoom);
-    const left = Math.floor(Math.min(...corners.map(point => point.x))) - pad;
-    const top = Math.floor(Math.min(...corners.map(point => point.y)));
-    const right = Math.ceil(Math.max(...corners.map(point => point.x))) + pad;
-    const bottom = Math.ceil(Math.max(...corners.map(point => point.y))) + pad * 2;
-    return {left, top, width: right - left, height: bottom - top};
+    const relief = tx + region.x * zoom < right + pad &&
+      tx + (region.x + region.span) * zoom > left - pad &&
+      ty + region.y * zoom < bottom + 2 * pad &&
+      ty + (region.y + region.span) * zoom > top;
+    return relief
+      ? {left: left - pad, top, width: right - left + 2 * pad, height: bottom - top + 2 * pad, relief}
+      : {left, top, width: right - left, height: bottom - top, relief};
   }
 
   function loadHeights() {
@@ -196,5 +199,5 @@
     };
   }
 
-  window.ROTTA_EUROPE_PITCH = {coverage, project, sourceRect, maxAngle, loadHeights, sampleHeight, renderer};
+  window.ROTTA_EUROPE_PITCH = {project, sourceRect, maxAngle, loadHeights, sampleHeight, renderer};
 })();
