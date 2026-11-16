@@ -1,24 +1,32 @@
 (() => {
   const region = {x: 4480, y: 13312, span: 768, samples: 385};
   const maxAngle = 48;
-  const heightScale = .0135;
+  const atlasSize = 4096;
+  const chartSize = {width: 16384, height: 17192};
+  const maxHeight = 32;
+  const lisbonMaxHeight = 1020 * .0135;
   const fade = (distance, width) => Math.max(0, Math.min(1, distance / width));
 
   function project(w, h, degrees) {
     const radians = degrees * Math.PI / 180;
     const cos = Math.cos(radians), sin = Math.sin(radians);
     const cx = w / 2, cy = h / 2, focal = Math.max(w, h) * 1.35;
+    const lift = fade(degrees, 12);
+    const reliefScale = lift * lift * (3 - 2 * lift);
     const matrix = `matrix3d(1,0,0,0,0,${cos},0,${-sin / focal},0,0,1,0,0,0,0,1)`;
     return {
-      degrees, cx, cy, cos, sin, focal,
+      degrees, cx, cy, cos, sin, focal, reliefScale,
       apply(x, y, height = 0) {
         const v = y - cy, depth = 1 - (v * sin + height * cos) / focal;
         if (depth <= 0) return {x: Infinity, y: Infinity};
         return {x: cx + (x - cx) / depth, y: cy + (v * cos - height * sin) / depth};
       },
-      invert(x, y) {
-        const v = (y - cy) / (cos + (y - cy) * sin / focal);
-        return {x: cx + (x - cx) * (1 - v * sin / focal), y: cy + v};
+      invert(x, y, height = 0) {
+        const screenY = y - cy;
+        const v = (screenY * (1 - height * cos / focal) + height * sin) /
+          (cos + screenY * sin / focal);
+        const depth = 1 - (v * sin + height * cos) / focal;
+        return {x: cx + (x - cx) * depth, y: cy + v};
       },
       transform(x, y) {
         return `translate3d(${cx}px,${cy}px,0) ${matrix} translate3d(${x - cx}px,${y - cy}px,0)`;
@@ -26,67 +34,85 @@
     };
   }
 
-  function sourceRect(projection, tx, ty, zoom) {
+  function sourceRect(projection, zoom) {
     const {cx, cy} = projection;
-    const far = projection.invert(0, 0);
-    const near = projection.invert(0, 2 * cy);
-    // The far edge is wider in map coordinates than the near edge.
-    const left = Math.floor(Math.min(far.x, near.x));
-    const top = Math.floor(far.y);
+    const highest = maxHeight * zoom * projection.reliefScale;
+    // Bound both planes so a mountain just beyond the sea-level view still has source tiles.
+    const corners = [projection.invert(0, 0), projection.invert(0, 2 * cy),
+      projection.invert(0, 0, highest), projection.invert(0, 2 * cy, highest)];
+    const left = Math.floor(Math.min(...corners.map(point => point.x)));
     const right = Math.ceil(2 * cx - left);
-    const bottom = Math.ceil(near.y);
-
-    // Include land that can rise into view before deciding whether Lisbon needs WebGL.
-    const pad = Math.ceil(1020 * heightScale * zoom);
-    const relief = tx + region.x * zoom < right + pad &&
-      tx + (region.x + region.span) * zoom > left - pad &&
-      ty + region.y * zoom < bottom + 2 * pad &&
-      ty + (region.y + region.span) * zoom > top;
-    return relief
-      ? {left: left - pad, top, width: right - left + 2 * pad, height: bottom - top + 2 * pad, relief}
-      : {left, top, width: right - left, height: bottom - top, relief};
+    const top = Math.floor(Math.min(...corners.map(point => point.y)));
+    const bottom = Math.ceil(Math.max(...corners.map(point => point.y)));
+    return {left, top, width: right - left, height: bottom - top};
   }
 
-  function loadHeights() {
-    return fetch('assets/europe/terrain/lisbon-elevation.bin?v=1', {cache: 'force-cache'}).then(async response => {
-      if (!response.ok) throw new Error(`Lisbon elevation: ${response.status}`);
-      const heights = new Uint8Array(await response.arrayBuffer());
-      if (heights.length !== region.samples ** 2) throw new Error('Invalid Lisbon elevation dimensions');
-      return heights;
-    });
+  async function loadHeightAsset(file, expected, compressed = false) {
+    const response = await fetch('assets/europe/terrain/' + file, {cache: 'force-cache'});
+    if (!response.ok) throw new Error(`Terrain elevation ${file}: ${response.status}`);
+    const bytes = compressed
+      ? await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+      : await response.arrayBuffer();
+    if (bytes.byteLength !== expected) throw new Error(`Invalid elevation dimensions: ${file}`);
+    return new Uint8Array(bytes);
+  }
+
+  async function loadHeights() {
+    const [europe, lisbon] = await Promise.all([
+      loadHeightAsset('europe-elevation-v1.bin.gz', atlasSize ** 2, true),
+      loadHeightAsset('lisbon-elevation.bin?v=1', region.samples ** 2)
+    ]);
+    return {europe, lisbon};
+  }
+
+  function bilinear(data, size, column, row) {
+    column = Math.max(0, Math.min(size - 1, column));
+    row = Math.max(0, Math.min(size - 1, row));
+    const x = Math.floor(column), y = Math.floor(row);
+    const nextX = Math.min(size - 1, x + 1), nextY = Math.min(size - 1, y + 1);
+    const across = column - x, down = row - y;
+    const upper = data[y * size + x] * (1 - across) + data[y * size + nextX] * across;
+    const lower = data[nextY * size + x] * (1 - across) + data[nextY * size + nextX] * across;
+    return (upper * (1 - down) + lower * down) / 255;
   }
 
   function sampleHeight(heights, x, y) {
+    if (x < 0 || x > chartSize.width || y < 0 || y > chartSize.height) return 0;
     const u = (x - region.x) / region.span, v = (y - region.y) / region.span;
     const edge = fade(Math.min(u, v, 1 - u, 1 - v), .05);
-    if (!edge) return 0;
-    const last = region.samples - 1;
-    const column = u * last, row = v * last;
-    const left = Math.floor(column), top = Math.floor(row);
-    const index = top * region.samples + left;
-    const across = column - left, down = row - top;
-    const upper = heights[index] * (1 - across) + heights[index + 1] * across;
-    const lower = heights[index + region.samples] * (1 - across) + heights[index + region.samples + 1] * across;
-    return (upper * (1 - down) + lower * down) * (1020 * heightScale / 255) * edge * edge * (3 - 2 * edge);
+    const weight = edge * edge * (3 - 2 * edge);
+    const europe = weight < 1
+      ? maxHeight * bilinear(heights.europe, atlasSize,
+        x * atlasSize / chartSize.width - .5, y * atlasSize / chartSize.height - .5)
+      : 0;
+    const lisbon = weight > 0
+      ? lisbonMaxHeight * bilinear(heights.lisbon, region.samples,
+        u * (region.samples - 1), v * (region.samples - 1))
+      : 0;
+    return europe * (1 - weight) + lisbon * weight;
   }
 
   const vertexSource = precision => `
     precision highp float;
     attribute vec2 a_uv;
-    uniform sampler2D u_height;
+    uniform sampler2D u_europe, u_lisbon;
     uniform vec2 u_sourceSize, u_offset, u_center, u_translation;
     uniform vec3 u_camera;
-    uniform float u_zoom;
+    uniform float u_zoom, u_reliefScale;
     varying ${precision} vec2 v_uv;
 
     void main() {
       vec2 mapPosition = a_uv * u_sourceSize + u_offset;
       vec2 world = (mapPosition - u_translation) / u_zoom;
+      vec2 chart = world / vec2(${chartSize.width}.0, ${chartSize.height}.0);
+      float inChart = step(0.0, min(chart.x, chart.y)) * step(max(chart.x, chart.y), 1.0);
+      float europe = texture2D(u_europe, chart).r * ${maxHeight}.0 * inChart;
       vec2 local = (world - vec2(${region.x}.0, ${region.y}.0)) / ${region.span}.0;
       vec2 edge = min(local, 1.0 - local);
       float weight = smoothstep(0.0, 0.05, min(edge.x, edge.y));
       vec2 sampleAt = (local * ${region.samples - 1}.0 + 0.5) / ${region.samples}.0;
-      float height = texture2D(u_height, sampleAt).r * ${1020 * heightScale} * u_zoom * weight;
+      float lisbon = texture2D(u_lisbon, sampleAt).r * ${lisbonMaxHeight};
+      float height = mix(europe, lisbon, weight) * u_zoom * u_reliefScale;
       vec2 offset = mapPosition - u_center;
       float depth = 1.0 - (offset.y * u_camera.y + height * u_camera.x) / u_camera.z;
       gl_Position = vec4(offset.x / u_center.x,
@@ -127,7 +153,8 @@
 
   function renderer(canvas, heights) {
     const gl = canvas.getContext('webgl', {alpha: false, antialias: false});
-    if (!gl || gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 1) return null;
+    if (!gl || gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 2 ||
+        gl.getParameter(gl.MAX_TEXTURE_SIZE) < atlasSize) return null;
 
     function compile(type, source) {
       const shader = gl.createShader(type);
@@ -156,13 +183,16 @@
     const count = createMesh(gl, gl.getAttribLocation(program, 'a_uv'));
     const uniform = name => gl.getUniformLocation(program, 'u_' + name);
     const sourceSize = uniform('sourceSize'), offset = uniform('offset'), center = uniform('center');
-    const translation = uniform('translation'), camera = uniform('camera'), scale = uniform('zoom');
+    const translation = uniform('translation'), camera = uniform('camera'), scale = uniform('zoom'), heightScale = uniform('reliefScale');
 
-    texture(1);
-    gl.uniform1i(uniform('height'), 1);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, region.samples, region.samples, 0,
-      gl.LUMINANCE, gl.UNSIGNED_BYTE, heights);
+    function uploadHeight(unit, name, size, data) {
+      texture(unit);
+      gl.uniform1i(uniform(name), unit);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, size, size, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
+    }
+    uploadHeight(1, 'europe', atlasSize, heights.europe);
+    uploadHeight(2, 'lisbon', region.samples, heights.lisbon);
     texture(0);
     gl.uniform1i(uniform('color'), 0);
     gl.enable(gl.DEPTH_TEST);
@@ -176,7 +206,7 @@
       maxTextureSize,
       draw(source, view, rect, ratio, revision) {
         if (gl.isContextLost()) return false;
-        const {projection: {cx, cy, cos, sin, focal}, tx, ty, zoom, w, h} = view;
+        const {projection: {cx, cy, cos, sin, focal, reliefScale}, tx, ty, zoom, w, h} = view;
         const width = Math.round(w * ratio), height = Math.round(h * ratio);
         if (canvas.width !== width) canvas.width = width;
         if (canvas.height !== height) canvas.height = height;
@@ -193,6 +223,7 @@
         gl.uniform2f(translation, tx, ty);
         gl.uniform3f(camera, cos, sin, focal);
         gl.uniform1f(scale, zoom);
+        gl.uniform1f(heightScale, reliefScale);
         gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
         return true;
       }

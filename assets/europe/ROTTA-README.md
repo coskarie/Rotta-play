@@ -8,6 +8,8 @@ Rotta projects and clips this data to 32° W–44° E / 25° N–72° N, then de
 
 `terrain/` contains the overview and zoom-level WebP tiles rendered from the water mask and NOAA ETOPO 2022 elevation and bathymetry (15 arc-seconds, WGS 84). Relief source: https://www.ncei.noaa.gov/products/etopo-global-relief-model. The surface GeoTIFFs are published at https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO2022/data/15s/15s_surface_elev_gtif/.
 
+`terrain/europe-elevation-v1.bin.gz` stores the Mercator height atlas derived from those GeoTIFFs for the tilted map. Coast heights taper to the water mask, and display heights are exaggerated. The Lisbon elevation file provides a finer local layer. NOAA dataset DOI: https://doi.org/10.25921/fd45-gt74.
+
 `chart.json` contains source geometry and harbour metadata. The game loads `navigation.json` for harbour metadata, `water.bin` for the 1-bit water mask, `graph.bin` for navigation edges and `distances.json` for sailing distances.
 
 Rebuild tools and source attribution are maintained in the Rotta development repository under tools/europe/.

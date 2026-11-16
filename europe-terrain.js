@@ -38,6 +38,7 @@
     const context = canvas.getContext('2d', {alpha: false});
     const pitch = window.ROTTA_EUROPE_PITCH;
     let pitchCanvas, relief, elevationLoad, elevations, view;
+    let nextElevationRetry = 0;
     let reliefVisible = false;
     const cache = new Map();
     const loading = new Map();
@@ -145,7 +146,7 @@
     }
 
     function prepareRelief() {
-      if (elevationLoad) return;
+      if (elevationLoad || performance.now() < nextElevationRetry) return;
       elevationLoad = pitch.loadHeights().then(heights => {
         elevations = heights;
         pitchCanvas = document.createElement('canvas');
@@ -161,18 +162,22 @@
         });
         pitchCanvas.addEventListener('webglcontextrestored', () => {
           relief = pitch.renderer(pitchCanvas, heights);
-          if (active && view.reliefWanted) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+          if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
         });
         viewport.insertBefore(pitchCanvas, world);
-        if (active && view.reliefWanted) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
-      }).catch(error => console.warn(error));
+        if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+      }).catch(error => {
+        console.warn(error);
+        nextElevationRetry = performance.now() + retryDelay;
+        elevationLoad = null;
+      });
     }
 
     function present() {
       const left = view.tx - camera.tx;
       const top = view.ty - camera.ty;
       const rect = {left, top, width: camera.w, height: camera.h};
-      const rendered = Boolean(view.reliefWanted && relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
+      const rendered = Boolean(view.projection && relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
       if (pitchCanvas) pitchCanvas.hidden = !rendered;
       canvas.style.visibility = rendered ? 'hidden' : '';
       if (!rendered) {
@@ -231,11 +236,10 @@
       if (!active) return;
       const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
       const required = projection
-        ? pitch.sourceRect(projection, tx, ty, zoom)
+        ? pitch.sourceRect(projection, zoom)
         : {left: 0, top: 0, width: w, height: h};
-      view.reliefWanted = required.relief === true;
-      if (view.reliefWanted) prepareRelief();
-      const textureLimit = view.reliefWanted ? (relief?.maxTextureSize ?? 4096) : 4096;
+      if (view.projection) prepareRelief();
+      const textureLimit = view.projection ? (relief?.maxTextureSize ?? 4096) : 4096;
       if (camera && camera.zoom === zoom && camera.viewWidth === w && camera.viewHeight === h &&
           camera.displayRatio === displayRatio &&
           (projection ? Math.max(canvas.width, canvas.height) <= textureLimit : camera.ratio === displayRatio)) {
@@ -292,7 +296,7 @@
     }
 
     return {update, setActive,
-      heightAt: (x, y) => reliefVisible ? pitch.sampleHeight(elevations, x, y) : 0,
+      heightAt: (x, y) => reliefVisible && view.projection ? view.projection.reliefScale * pitch.sampleHeight(elevations, x, y) : 0,
       stats: () => ({
         cachedTiles: cache.size, decodedBytes, downloads: loading.size,
         peakDownloads, paintCount, textureUploads: relief?.textureUploads ?? 0, visibleTiles: wanted.size
