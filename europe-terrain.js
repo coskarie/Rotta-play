@@ -4,7 +4,7 @@
   const maxDownloads = 4;
   const maxDecodedBytes = 48 * 1024 * 1024;
   const retryDelay = 15000;
-  const waterInterval = 1000 / 18;
+  const waterInterval = 1000 / 12;
   let assets;
 
   async function fetchAsset(file, signal) {
@@ -393,7 +393,8 @@
       heightAt: (x, y) => reliefVisible && view.projection ? view.projection.reliefScale * pitch.sampleHeight(elevations, x, y) : 0,
       stats: () => ({
         cachedTiles: cache.size, decodedBytes, downloads: loading.size,
-        peakDownloads, paintCount, textureUploads: relief?.textureUploads ?? 0, visibleTiles: wanted.size
+        peakDownloads, paintCount, textureUploads: relief?.textureUploads ?? 0, visibleTiles: wanted.size,
+        waterDraws: relief?.waterDraws ?? 0, waterPixels: relief?.waterPixels ?? 0
       })};
   }
 

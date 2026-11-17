@@ -326,33 +326,13 @@
 
   const fragmentSource = precision => `
     precision ${precision} float;
-    uniform sampler2D u_color;
-    uniform ${precision} sampler2D u_waveFlow, u_waveCross;
+    uniform sampler2D u_color, u_waterEffect;
+    uniform bool u_waterReady;
     varying ${precision} vec2 v_uv, v_chart;
     ${elevationSource}
-    ${waterSource}
 
     void main() {
       vec4 terrain = texture2D(u_color, v_uv);
-      if (u_waterReady) {
-        bool inChart = min(v_chart.x, v_chart.y) >= 0.0 && max(v_chart.x, v_chart.y) <= 1.0;
-        float distance = inChart ? texture2D(u_shore, v_chart).r * 31.875 - 8.0 : 23.875;
-        float tone = waterTone(terrain.rgb);
-        float wet = smoothstep(-1.3, 1.35, distance) * tone;
-        if (wet > 0.0 || abs(distance) <= 4.4) {
-          vec2 world = v_chart * vec2(${chartSize.width}.0, ${chartSize.height}.0);
-          vec4 flow = waveFlow(world, inChart);
-          vec3 localFlow = coastFlow(flow.xy, distance);
-          vec3 phase = swellPhase(flow.zw);
-          vec3 edge = coastalWash(terrain.rgb, distance, world, tone, phase, localFlow.z);
-          if (wet > 0.0) {
-            vec3 water = waterSurface(terrain.rgb, distance, world, localFlow, phase, flow.zw);
-            gl_FragColor = vec4(mix(edge, water, wet), terrain.a);
-            return;
-          }
-          terrain.rgb = edge;
-        }
-      }
       vec3 samples = readElevation(v_chart);
       // Undo the atlas' display compression to place vegetation bands in metres.
       float europeMetres = samples.x * 2200.0 / (35.2 - samples.x);
@@ -369,7 +349,50 @@
       vec3 dryGrass = light * vec3(1.20, 1.04, 0.78);
       vec3 stone = (light * 0.89 + 0.075) * vec3(1.045, 1.015, 0.99);
       vec3 color = mix(terrain.rgb, dryGrass, dry * 0.86);
-      gl_FragColor = vec4(mix(color, stone, rock * 0.96), terrain.a);
+      vec3 painted = mix(color, stone, rock * 0.96);
+      if (u_waterReady) painted += texture2D(u_waterEffect, v_uv).rgb - 128.0 / 255.0;
+      gl_FragColor = vec4(painted, terrain.a);
+    }`;
+
+  const waterVertexSource = precision => `
+    precision highp float;
+    attribute vec2 a_uv;
+    uniform vec2 u_waterOrigin, u_waterSpan;
+    varying ${precision} vec2 v_uv, v_chart;
+    void main() {
+      v_uv = a_uv;
+      v_chart = u_waterOrigin + a_uv * u_waterSpan;
+      gl_Position = vec4(a_uv * 2.0 - 1.0, 0.0, 1.0);
+    }`;
+
+  const waterFragmentSource = precision => `
+    precision ${precision} float;
+    uniform sampler2D u_color;
+    uniform ${precision} sampler2D u_waveFlow, u_waveCross;
+    varying ${precision} vec2 v_uv, v_chart;
+    ${waterSource}
+
+    void main() {
+      vec3 terrain = texture2D(u_color, v_uv).rgb;
+      vec3 color = terrain;
+      bool inChart = min(v_chart.x, v_chart.y) >= 0.0 && max(v_chart.x, v_chart.y) <= 1.0;
+      float distance = inChart ? texture2D(u_shore, v_chart).r * 31.875 - 8.0 : 23.875;
+      float tone = waterTone(terrain);
+      float wet = smoothstep(-1.3, 1.35, distance) * tone;
+      if (wet > 0.0 || abs(distance) <= 4.4) {
+        vec2 world = v_chart * vec2(${chartSize.width}.0, ${chartSize.height}.0);
+        vec4 flow = waveFlow(world, inChart);
+        vec3 localFlow = coastFlow(flow.xy, distance);
+        vec3 phase = swellPhase(flow.zw);
+        vec3 edge = coastalWash(terrain, distance, world, tone, phase, localFlow.z);
+        if (wet > 0.0) {
+          vec3 water = waterSurface(terrain, distance, world, localFlow, phase, flow.zw);
+          edge = mix(edge, water, wet);
+        }
+        color = edge;
+      }
+      // Center the color difference on an exact byte so untouched land stays unchanged.
+      gl_FragColor = vec4(color - terrain + 128.0 / 255.0, 1.0);
     }`;
 
   function createMesh(gl, position) {
@@ -447,56 +470,124 @@
 
     function texture(unit) {
       gl.activeTexture(gl.TEXTURE0 + unit);
-      gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+      const object = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, object);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return object;
     }
 
     const precision = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)?.precision ? 'highp' : 'mediump';
-    const program = gl.createProgram();
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource(precision)));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource(precision)));
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+    function link(vertex, fragment) {
+      const program = gl.createProgram();
+      const vertexShader = compile(gl.VERTEX_SHADER, vertex(precision));
+      const fragmentShader = compile(gl.FRAGMENT_SHADER, fragment(precision));
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.bindAttribLocation(program, 0, 'a_uv');
+      gl.linkProgram(program);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+      return program;
+    }
+    const program = link(vertexSource, fragmentSource);
+    const waterProgram = link(waterVertexSource, waterFragmentSource);
     gl.useProgram(program);
-    const count = createMesh(gl, gl.getAttribLocation(program, 'a_uv'));
+    const count = createMesh(gl, 0);
+    const quadOffset = count * Uint16Array.BYTES_PER_ELEMENT;
     const uniform = name => gl.getUniformLocation(program, 'u_' + name);
+    const waterUniform = name => gl.getUniformLocation(waterProgram, 'u_' + name);
     const sourceSize = uniform('sourceSize'), offset = uniform('offset'), center = uniform('center');
     const translation = uniform('translation'), camera = uniform('camera'), scale = uniform('zoom'), heightScale = uniform('reliefScale');
-
-    const edgeDropUniform = uniform('edgeDrop');
-    const waterReadyUniform = uniform('waterReady'), waterTime = uniform('waterTime'), waterDetail = uniform('waterDetail');
-    const worldToSource = uniform('worldToSource');
-    const waterTilt = uniform('waterTilt');
+    const edgeDropUniform = uniform('edgeDrop'), waterReadyUniform = uniform('waterReady');
+    const waterOrigin = waterUniform('waterOrigin'), waterSpan = waterUniform('waterSpan');
+    const waterTime = waterUniform('waterTime'), waterDetail = waterUniform('waterDetail');
+    const worldToSource = waterUniform('worldToSource'), waterTilt = waterUniform('waterTilt');
 
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    function uploadBytes(unit, name, size, data, format = gl.LUMINANCE) {
-      texture(unit);
-      gl.uniform1i(uniform(name), unit);
+    function uploadBytes(unit, size, data, format = gl.LUMINANCE) {
+      const object = texture(unit);
       gl.texImage2D(gl.TEXTURE_2D, 0, format, size, size, 0, format, gl.UNSIGNED_BYTE, data);
+      return object;
     }
-    uploadBytes(1, 'europe', atlasSize, heights.europe);
-    uploadBytes(2, 'lisbon', region.samples, heights.lisbon);
-    uploadBytes(3, 'shore', 1, new Uint8Array(1));
-    uploadBytes(4, 'waveNoise', waveNoiseSize, waveNoise(), gl.RGBA);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    uploadBytes(5, 'waveFlow', 1, new Uint8Array([237, 62, 128, 0]), gl.RGBA);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    uploadBytes(6, 'waveCross', 1, new Uint8Array([128, 0]), gl.LUMINANCE_ALPHA);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    uploadBytes(7, 'surfaceNormals', surfaceNormalSize, surfaceNormalPixels(), gl.LUMINANCE_ALPHA);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    texture(0);
     gl.uniform1i(uniform('color'), 0);
-    gl.enable(gl.DEPTH_TEST);
+    gl.uniform1i(uniform('europe'), 1);
+    gl.uniform1i(uniform('lisbon'), 2);
+    gl.uniform1i(uniform('waterEffect'), 4);
+    uploadBytes(1, atlasSize, heights.europe);
+    uploadBytes(2, region.samples, heights.lisbon);
+    const rawColor = uploadBytes(0, 1, new Uint8Array([45,85,87,255]), gl.RGBA);
+    gl.useProgram(waterProgram);
+    gl.uniform1i(waterUniform('color'), 0);
+    gl.uniform1i(waterUniform('shore'), 3);
+    gl.uniform1i(waterUniform('waveNoise'), 4);
+    gl.uniform1i(waterUniform('waveFlow'), 5);
+    gl.uniform1i(waterUniform('waveCross'), 6);
+    gl.uniform1i(waterUniform('surfaceNormals'), 7);
+    uploadBytes(3, 1, new Uint8Array(1));
+    const noiseTexture = uploadBytes(4, waveNoiseSize, waveNoise(), gl.RGBA);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    uploadBytes(5, 1, new Uint8Array([237, 62, 128, 0]), gl.RGBA);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    uploadBytes(6, 1, new Uint8Array([128, 0]), gl.LUMINANCE_ALPHA);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    uploadBytes(7, surfaceNormalSize, surfaceNormalPixels(), gl.LUMINANCE_ALPHA);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+    // The expensive wave shader draws a small, flat texture. The map projects it
+    // onto the same full-resolution terrain mesh as its land and coastal imagery.
+    const waterEffect = uploadBytes(4, 1, new Uint8Array([128,128,128,255]), gl.RGBA);
+    const waterTarget = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, waterEffect, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.clearColor(45 / 255, 85 / 255, 87 / 255, 1);
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+
+    let waterWidth = 1, waterHeight = 1, waterRevision = -1, waterPassPhase, waterPassTilt;
+    let waterDraws = 0, waterPixels = 0;
+    function renderWater(view, rect, revision, phase) {
+      const tilt = Math.round(view.projection.sin * 20) / 20;
+      if (waterRevision === revision && waterPassPhase === phase && waterPassTilt === tilt) return;
+      const {width, height, left, top} = rect;
+      const {zoom, tx, ty} = view;
+      const ratio = Math.min(.70, Math.sqrt(360000 / (width * height)));
+      const w = Math.max(1, Math.round(width * ratio));
+      const h = Math.max(1, Math.round(height * ratio));
+      gl.activeTexture(gl.TEXTURE4);
+      if (w !== waterWidth || h !== waterHeight) {
+        gl.bindTexture(gl.TEXTURE_2D, waterEffect);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        waterWidth = w;
+        waterHeight = h;
+      }
+      gl.bindTexture(gl.TEXTURE_2D, noiseTexture);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
+      gl.useProgram(waterProgram);
+      gl.disable(gl.DEPTH_TEST);
+      gl.viewport(0, 0, w, h);
+      gl.uniform2f(waterOrigin, (left-tx) / (zoom*chartSize.width), (top-ty) / (zoom*chartSize.height));
+      gl.uniform2f(waterSpan, width / (zoom*chartSize.width), height / (zoom*chartSize.height));
+      gl.uniform2f(worldToSource, zoom / width, zoom / height);
+      gl.uniform1f(waterTime, phase);
+      gl.uniform1f(waterDetail, fade(zoom - 1.25, 3.25));
+      gl.uniform1f(waterTilt, tilt);
+      gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, quadOffset);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.bindTexture(gl.TEXTURE_2D, waterEffect);
+      waterRevision = revision;
+      waterPassPhase = phase;
+      waterPassTilt = tilt;
+      waterDraws++;
+      waterPixels += w*h;
+    }
 
     let uploadedRevision = -1;
     let textureUploads = 0;
@@ -511,9 +602,12 @@
         gl.activeTexture(gl.TEXTURE6);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE_ALPHA, waveFlowSize, waveFlowSize, 0, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE, cross);
         gl.activeTexture(gl.TEXTURE0);
+        waterRevision = -1;
         hasWater = true;
       },
       get textureUploads() { return textureUploads; },
+      get waterDraws() { return waterDraws; },
+      get waterPixels() { return waterPixels; },
       maxTextureSize,
       draw(source, view, rect, ratio, revision, waterPhase = 0) {
         if (gl.isContextLost()) return false;
@@ -523,13 +617,19 @@
         if (canvas.height !== height) canvas.height = height;
         if (canvas.style.width !== w + 'px') canvas.style.width = w + 'px';
         if (canvas.style.height !== h + 'px') canvas.style.height = h + 'px';
-        gl.viewport(0, 0, width, height);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         if (uploadedRevision !== revision) {
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, rawColor);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
           uploadedRevision = revision;
           textureUploads++;
         }
+        if (hasWater) renderWater(view, rect, revision, waterPhase);
+        gl.useProgram(program);
+        if (reliefScale) gl.enable(gl.DEPTH_TEST);
+        else gl.disable(gl.DEPTH_TEST);
+        gl.viewport(0, 0, width, height);
+        gl.clear(gl.COLOR_BUFFER_BIT | (reliefScale ? gl.DEPTH_BUFFER_BIT : 0));
         gl.uniform2f(sourceSize, rect.width, rect.height);
         gl.uniform2f(offset, rect.left, rect.top);
         gl.uniform2f(center, cx, cy);
@@ -539,12 +639,8 @@
         gl.uniform1f(heightScale, reliefScale);
         gl.uniform1f(edgeDropUniform, edgeDrop / cy);
         gl.uniform1i(waterReadyUniform, hasWater);
-        gl.uniform1f(waterTime, waterPhase);
-        gl.uniform1f(waterDetail, fade(zoom - 1.25, 3.25));
-        gl.uniform1f(waterTilt, sin);
-        gl.uniform2f(worldToSource, zoom / rect.width, zoom / rect.height);
         if (reliefScale) gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
-        else gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, count * 2);
+        else gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, quadOffset);
         return true;
       }
     };
