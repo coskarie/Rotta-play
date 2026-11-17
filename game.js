@@ -388,7 +388,7 @@ function mountChartAnnotations(){
  route.replaceChildren(path);
  overlay.append(route,$('#seaClickTarget'),$('#seaPorts'),NAV_RENDER.ship);
  NAV_RENDER.annotations=overlay;
- NAV_RENDER.scenery=window.ROTTA_LISBON_SCENERY?.mount(overlay,projectChartPosition);
+ NAV_RENDER.scenery=window.ROTTA_LISBON_SCENERY?.mount(overlay,(x,y)=>projectChartPosition(x,y,true,true));
 }
 function positionCoastalScenery(){
  NAV_RENDER.scenery?.update(state.shipX,state.shipY,state.zoom,NAV_RENDER.width,NAV_RENDER.height);
@@ -793,11 +793,14 @@ function canTiltChart(){
 function flatChartPosition(x,y){
  return NAV_RENDER.projection?.invert(x,y)??{x,y};
 }
-function projectChartPosition(worldX,worldY,onLand=false){
+function projectChartPosition(worldX,worldY,onLand=false,withDepth=false){
  const x=NAV_RENDER.lastTx+worldX*state.zoom,y=NAV_RENDER.lastTy+worldY*state.zoom;
- if(!NAV_RENDER.projection)return {x,y};
- const height=onLand?(NAV_RENDER.coastRenderer?.heightAt(worldX,worldY)??0)*state.zoom:0;
- return NAV_RENDER.projection.apply(x,y,height);
+ const projection=NAV_RENDER.projection;
+ if(!projection)return withDepth?{x,y,depth:worldY}:{x,y};
+ const landHeight=onLand?(NAV_RENDER.coastRenderer?.heightAt(worldX,worldY)??0):0;
+ const position=projection.apply(x,y,landHeight*state.zoom);
+ if(withDepth)position.depth=worldY*projection.sin+landHeight*projection.cos;
+ return position;
 }
 function updateCamera(){
  const w=NAV_RENDER.width,h=NAV_RENDER.height;if(!w)return;
