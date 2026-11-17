@@ -297,9 +297,9 @@
 .chart-mode-choice a[aria-current="true"]{border-color:#5a3b1d;font-weight:bold}
 
 .chart-annotations{position:absolute;inset:0;pointer-events:none;z-index:6;--inverse-zoom:1;--route-width:1.25px}
-/* Settlement textures project from their ground footprint beneath map controls. */
+/* Upright scenery is anchored by its base beneath route and port controls. */
 .coastal-scenery{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-.coastal-scenery img{position:absolute;top:0;left:0;max-width:none;pointer-events:none;transform-origin:0 0}
+.coastal-scenery img{position:absolute;top:0;left:0;height:auto;max-width:none;pointer-events:none;transform-origin:50% 97%}
 .coastal-scenery img[hidden]{display:none}
 .chart-annotations .route-svg{width:100%;height:100%;overflow:hidden}
 .chart-annotations .sea-port{pointer-events:auto}
