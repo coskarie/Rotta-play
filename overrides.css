@@ -301,6 +301,12 @@
 .coastal-scenery{position:absolute;inset:0;pointer-events:none;overflow:hidden;isolation:isolate}
 .coastal-scenery img{position:absolute;top:0;left:0;height:auto;max-width:none;pointer-events:none;transform-origin:50% 97%}
 .coastal-scenery [hidden]{display:none}
+.settlement-ground{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.settlement-ground :is(.settlement-road-edge,.settlement-road,.settlement-court){fill:none;stroke-linecap:round;stroke-linejoin:round}
+.settlement-road-edge{stroke:#75654d;stroke-opacity:.38}
+.settlement-road{stroke:#c8b38a;stroke-opacity:.67}
+.settlement-court{stroke:#b5a27e;stroke-opacity:.76}
+.settlement-contact{fill:#3f3b29;fill-opacity:.27}
 .chart-annotations .route-svg{width:100%;height:100%;overflow:hidden}
 .chart-annotations .sea-port{pointer-events:auto}
 .chart-annotations .ship[hidden]{display:none}
