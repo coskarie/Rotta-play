@@ -773,7 +773,7 @@ function positionSailingShip(){
  ship.hidden=!visible;
  if(!visible)return;
  const speed=(state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity)/MANUAL_SAIL.maxSpeed;
- const model3d=!!(EUROPE&&window.ROTTA_SHIP_3D?.drawShip(ship,MANUAL_SAIL.heading,NAV_RENDER.projection?.degrees||0,state.zoom,speed));
+ const model3d=!!(EUROPE&&window.ROTTA_SHIP_3D?.drawShip(ship,MANUAL_SAIL.heading,NAV_RENDER.projection?.degrees||0,state.zoom,speed,undefined,{x:state.shipX,y:state.shipY,project:projectChartPosition}));
  if(ship.classList.contains('has-3d-model')!==model3d)ship.classList.toggle('has-3d-model',model3d);
  let heading=model3d?0:MANUAL_SAIL.heading;
  if(!model3d&&NAV_RENDER.projection){
