@@ -783,8 +783,29 @@ function positionSailingShip(){
  if(transform!==NAV_RENDER.lastShip){ship.style.transform=transform;NAV_RENDER.lastShip=transform}
 }
 function updateShip(forceNearby=false){if(COAST.ready&&$('#sailingView').classList.contains('active'))updateDockingState(forceNearby);positionSailingShip();const moving=state.traveling||MANUAL_SAIL.velocity>.001;if(moving!==NAV_RENDER.moving){document.body.classList.toggle('sailing-moving',moving);NAV_RENDER.moving=moving}if(forceNearby||performance.now()-NAV_RENDER.uiAt>=120){NAV_RENDER.uiAt=performance.now();document.documentElement.dataset.shipHeading=MANUAL_SAIL.heading.toFixed(1);document.documentElement.dataset.shipVelocity=(state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity).toFixed(3)}const now=performance.now();if(forceNearby||now-NAV_RENDER.nearAt>250){for(const {el,p} of NAV_RENDER.portNodes){const dx=(p.navX??p.x)-state.shipX,dy=(p.navY??p.y)-state.shipY;const near=dx*dx+dy*dy<(EUROPE?625:6724);if(el.classList.contains('near')!==near)el.classList.toggle('near',near)}NAV_RENDER.nearAt=now}const region=state.atPort?`${PORTS[state.current].name} 근해`:'대양 항해 중';if(region!==NAV_RENDER.lastRegion){$('#seaRegion').textContent=region;NAV_RENDER.lastRegion=region}}
-function setZoom(value,anchor=null,departureFrame=false){if(!departureFrame)stopDepartureZoom(false);if(CAMERA_VIEW.autoFollow||CAMERA_VIEW.recenterFrame)stopAutoCamera();const next=Math.max(departureFrame?.5:1,Math.min(10,Number(value)||6.5)),old=state.zoom,w=NAV_RENDER.width,h=NAV_RENDER.height,active=$('#sailingView').classList.contains('active');let worldX=state.shipX,worldY=state.shipY,ax=w/2,ay=h/2;if(active&&w&&old&&!departureFrame){if(anchor){ax=anchor.x;ay=anchor.y}worldX=(ax-NAV_RENDER.lastTx)/old;worldY=(ay-NAV_RENDER.lastTy)/old}state.zoom=next;window.ROTTA_CLOUDS?.sync(NAV_RENDER.viewport,state.zoom);if(active&&w){state.camX=ax-w/2-(worldX-state.shipX)*next;state.camY=ay-h/2-(worldY-state.shipY)*next}$('#zoomRange').value=Math.max(1,state.zoom);$('#zoomText').textContent=`${state.zoom.toFixed(1)}×`;const world=NAV_RENDER.world,zoomProgress=Math.max(0,(state.zoom-1)/9),worldOverview=state.zoom<=1.05,portLogoScale=.4+zoomProgress*.44,shipScreenScale=.62+zoomProgress*.73,lowDetail=!EUROPE&&(state.zoom<=2.5||!NAV_RENDER.vectorReady),wasLow=world.classList.contains('low-detail');world.style.setProperty('--inverse-zoom',1/state.zoom);world.style.setProperty('--ship-scale',shipScreenScale/state.zoom);world.style.setProperty('--port-logo-scale',portLogoScale);world.style.setProperty('--land-edge-width',`${Math.max(.42,1.35/state.zoom).toFixed(2)}px`);world.style.setProperty('--route-width',`${Math.max(.4,1.9/state.zoom).toFixed(2)}px`);document.documentElement.dataset.shipScreenScale=shipScreenScale.toFixed(3);world.classList.toggle('low-detail',lowDetail);world.classList.toggle('world-overview',worldOverview);if(NAV_RENDER.annotations){const overlay=NAV_RENDER.annotations;overlay.style.setProperty('--ship-scale',shipScreenScale);overlay.style.setProperty('--port-logo-scale',portLogoScale);overlay.classList.toggle('world-overview',worldOverview);}if(wasLow&&!lowDetail){world.classList.add('vector-refresh');requestAnimationFrame(()=>requestAnimationFrame(()=>world.classList.remove('vector-refresh')))}updateCamera()}
-function zoomWheel(e){if(!$('#sailingView').classList.contains('active'))return;e.preventDefault();const rect=NAV_RENDER.viewport.getBoundingClientRect();setZoom(state.zoom+(e.deltaY<0?.5:-.5),flatChartPosition(e.clientX-rect.left,e.clientY-rect.top))}
+function setZoom(value,anchor=null,departureFrame=false){
+ if(!departureFrame)stopDepartureZoom(false);
+ if(CAMERA_VIEW.autoFollow||CAMERA_VIEW.recenterFrame)stopAutoCamera();
+ const next=Math.max(departureFrame?.5:1,Math.min(10,Number(value)||6.5));
+ const {width:w,height:h,projection,lastTx,lastTy}=NAV_RENDER,old=state.zoom;
+ const active=$('#sailingView').classList.contains('active');
+ let worldX=state.shipX,worldY=state.shipY,ax=w/2,ay=h/2;
+ if(active&&w&&old&&!departureFrame){
+  if(anchor){
+   const before=projection?.invert(anchor.x,anchor.y)??anchor;
+   const after=projection&&next!==old
+    ? window.ROTTA_EUROPE_PITCH.project(w,h,projection.degrees,next).invert(anchor.x,anchor.y)
+    : before;
+   worldX=(before.x-lastTx)/old;worldY=(before.y-lastTy)/old;
+   ax=after.x;ay=after.y;
+  }else{
+   worldX=(ax-lastTx)/old;worldY=(ay-lastTy)/old;
+  }
+ }
+ state.zoom=next;window.ROTTA_CLOUDS?.sync(NAV_RENDER.viewport,state.zoom);
+ if(active&&w){state.camX=ax-w/2-(worldX-state.shipX)*next;state.camY=ay-h/2-(worldY-state.shipY)*next}
+ $('#zoomRange').value=Math.max(1,state.zoom);$('#zoomText').textContent=`${state.zoom.toFixed(1)}×`;const world=NAV_RENDER.world,zoomProgress=Math.max(0,(state.zoom-1)/9),worldOverview=state.zoom<=1.05,portLogoScale=.4+zoomProgress*.44,shipScreenScale=.62+zoomProgress*.73,lowDetail=!EUROPE&&(state.zoom<=2.5||!NAV_RENDER.vectorReady),wasLow=world.classList.contains('low-detail');world.style.setProperty('--inverse-zoom',1/state.zoom);world.style.setProperty('--ship-scale',shipScreenScale/state.zoom);world.style.setProperty('--port-logo-scale',portLogoScale);world.style.setProperty('--land-edge-width',`${Math.max(.42,1.35/state.zoom).toFixed(2)}px`);world.style.setProperty('--route-width',`${Math.max(.4,1.9/state.zoom).toFixed(2)}px`);document.documentElement.dataset.shipScreenScale=shipScreenScale.toFixed(3);world.classList.toggle('low-detail',lowDetail);world.classList.toggle('world-overview',worldOverview);if(NAV_RENDER.annotations){const overlay=NAV_RENDER.annotations;overlay.style.setProperty('--ship-scale',shipScreenScale);overlay.style.setProperty('--port-logo-scale',portLogoScale);overlay.classList.toggle('world-overview',worldOverview);}if(wasLow&&!lowDetail){world.classList.add('vector-refresh');requestAnimationFrame(()=>requestAnimationFrame(()=>world.classList.remove('vector-refresh')))}updateCamera()}
+function zoomWheel(e){if(!$('#sailingView').classList.contains('active'))return;e.preventDefault();const rect=NAV_RENDER.viewport.getBoundingClientRect();setZoom(state.zoom+(e.deltaY<0?.5:-.5),{x:e.clientX-rect.left,y:e.clientY-rect.top})}
 function syncViewportMetrics(){NAV_RENDER.width=NAV_RENDER.viewport.clientWidth;NAV_RENDER.height=NAV_RENDER.viewport.clientHeight}
 function clampCamera(){const w=NAV_RENDER.width,h=NAV_RENDER.height;if(!w||DEPARTURE_ZOOM.active)return;const minX=w/2+(state.shipX-WORLD.w)*state.zoom,maxX=state.shipX*state.zoom-w/2,minY=h/2+(state.shipY-WORLD.h)*state.zoom,maxY=state.shipY*state.zoom-h/2;state.camX=Math.max(minX,Math.min(maxX,state.camX));state.camY=Math.max(minY,Math.min(maxY,state.camY))}
 function canTiltChart(){
@@ -815,8 +836,8 @@ function updateCamera(){
  NAV_RENDER.lastCamera=signature;NAV_RENDER.lastTx=tx;NAV_RENDER.lastTy=ty;
  let projection=NAV_RENDER.projection;
  if(!pitch)projection=null;
- else if(projection?.degrees!==pitch||projection.cx!==w/2||projection.cy!==h/2){
-  projection=window.ROTTA_EUROPE_PITCH.project(w,h,pitch);
+ else if(projection?.degrees!==pitch||projection.zoom!==state.zoom||projection.cx!==w/2||projection.cy!==h/2){
+  projection=window.ROTTA_EUROPE_PITCH.project(w,h,pitch,state.zoom);
  }
  NAV_RENDER.projection=projection;
  const transform=projection?.transform(tx,ty)??`translate3d(${tx}px,${ty}px,0)`;

@@ -4,18 +4,22 @@
   const atlasSize = 4096;
   const chartSize = {width: 16384, height: 17192};
   const maxHeight = 32;
+  const heightExaggeration = 2;
   const lisbonMaxHeight = 1020 * .0135;
   const fade = (distance, width) => Math.max(0, Math.min(1, distance / width));
 
-  function project(w, h, degrees) {
+  function project(w, h, degrees, zoom = 1) {
     const radians = degrees * Math.PI / 180;
     const cos = Math.cos(radians), sin = Math.sin(radians);
-    const cx = w / 2, cy = h / 2, focal = Math.max(w, h) * 1.35;
+    const cx = w / 2, cy = h / 2;
     const lift = fade(degrees, 12);
-    const reliefScale = lift * lift * (3 - 2 * lift);
+    const reliefScale = heightExaggeration * lift * lift * (3 - 2 * lift);
+    // Keep the camera above the highest terrain at close zoom on small screens.
+    const highest = maxHeight * zoom * reliefScale;
+    const focal = Math.max(Math.max(w, h) * 1.35, highest / (.9 * cos));
     const matrix = `matrix3d(1,0,0,0,0,${cos},0,${-sin / focal},0,0,1,0,0,0,0,1)`;
     return {
-      degrees, cx, cy, cos, sin, focal, reliefScale,
+      degrees, zoom, cx, cy, cos, sin, focal, reliefScale,
       apply(x, y, height = 0) {
         const v = y - cy, depth = 1 - (v * sin + height * cos) / focal;
         if (depth <= 0) return {x: Infinity, y: Infinity};
