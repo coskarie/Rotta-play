@@ -321,6 +321,7 @@
     }
 
     return {update, setActive,
+      get reliefVisible() { return reliefVisible; },
       heightAt: (x, y) => reliefVisible && view.projection ? view.projection.reliefScale * pitch.sampleHeight(elevations, x, y) : 0,
       stats: () => ({
         cachedTiles: cache.size, decodedBytes, downloads: loading.size,

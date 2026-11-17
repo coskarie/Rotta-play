@@ -277,7 +277,7 @@ async function loadStartupAssets(){
  }catch(error){console.error('[Rotta startup]',error);$('#mapLoaderText').textContent='다운로드 실패';retry.classList.remove('hidden')}
  finally{STARTUP.running=false}
 }
-async function buildVectorMap(imageCoastline=ACTIVE_IMAGE_COASTLINE){if(EUROPE){NAV_RENDER.coastRenderer=EUROPE.mount($('#chartMap'),()=>{updatePortVisibility();positionSeaPortActions();positionCoastalScenery()});NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.remove('low-detail');document.documentElement.dataset.mapCoastSource='gshhg-europe';NAV_RENDER.coastRenderer.setActive($('#sailingView').classList.contains('active'));updateCoastVisibility();return;}const svg=d3.select('#chartMap');svg.selectAll('.generated-map').remove();NAV_RENDER.coastRenderer=null;svg.insert('rect',':first-child').attr('class','map-ocean generated-map').attr('width',WORLD.w).attr('height',WORLD.h);svg.append('rect').attr('class','map-patina generated-map').attr('width',WORLD.w).attr('height',WORLD.h);if(imageCoastline){const scaleX=WORLD.w/imageCoastline.worldWidth,scaleY=WORLD.h/imageCoastline.worldHeight,hasManualTrace=Boolean(imageCoastline.coastChunks?.length||imageCoastline.tracePaths?.length),land=svg.append('g').attr('class',`generated-map image-derived-land${hasManualTrace?' has-manual-trace':''}`).attr('transform',`scale(${scaleX} ${scaleY})`);land.append('path').attr('class','map-land image-derived-coast').attr('d',imageCoastline.paths.join(' ')).attr('fill-rule','evenodd').attr('vector-effect','non-scaling-stroke');if(imageCoastline.coastChunks?.length&&window.ROTTA_COAST_RENDERER){NAV_RENDER.coastRenderer=window.ROTTA_COAST_RENDERER.mount(land.node(),imageCoastline.coastChunks);updateCoastVisibility()}else if(hasManualTrace)land.append('path').attr('class','manual-trace-coast').attr('d',imageCoastline.tracePaths.length?imageCoastline.tracePaths.join(' '):(imageCoastline.coastChunks||[]).map(c=>c.d).join(' ')).attr('vector-effect','non-scaling-stroke');document.documentElement.dataset.mapCoastSource=hasManualTrace?'manual-trace':'image'}else{const world=await d3.json('assets/land-10m.json'),land=topojson.feature(world,world.objects.land),projection=d3.geoMercator().scale(WORLD.w/(2*Math.PI)).translate([WORLD.w/2,WORLD.h/2]),path=d3.geoPath(projection);svg.append('path').datum(land).attr('class','map-land generated-map').attr('d',path).attr('vector-effect','non-scaling-stroke');svg.append('g').attr('class','generated-map charted-islands').selectAll('circle').data([...CHARTED_ISLANDS].map(id=>PORTS[id]).filter(Boolean)).enter().append('circle').attr('class','map-port-island').attr('cx',p=>p.rawX??p.x).attr('cy',p=>p.rawY??p.y).attr('r',2.4);document.documentElement.dataset.mapCoastSource='natural-earth'}svg.append('rect').attr('class','map-frame generated-map').attr('x',9).attr('y',9).attr('width',WORLD.w-18).attr('height',WORLD.h-18);NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.toggle('low-detail',state.zoom<=2.5)}
+async function buildVectorMap(imageCoastline=ACTIVE_IMAGE_COASTLINE){if(EUROPE){NAV_RENDER.coastRenderer=EUROPE.mount($('#chartMap'),positionChartAnnotations);NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.remove('low-detail');document.documentElement.dataset.mapCoastSource='gshhg-europe';NAV_RENDER.coastRenderer.setActive($('#sailingView').classList.contains('active'));updateCoastVisibility();return;}const svg=d3.select('#chartMap');svg.selectAll('.generated-map').remove();NAV_RENDER.coastRenderer=null;svg.insert('rect',':first-child').attr('class','map-ocean generated-map').attr('width',WORLD.w).attr('height',WORLD.h);svg.append('rect').attr('class','map-patina generated-map').attr('width',WORLD.w).attr('height',WORLD.h);if(imageCoastline){const scaleX=WORLD.w/imageCoastline.worldWidth,scaleY=WORLD.h/imageCoastline.worldHeight,hasManualTrace=Boolean(imageCoastline.coastChunks?.length||imageCoastline.tracePaths?.length),land=svg.append('g').attr('class',`generated-map image-derived-land${hasManualTrace?' has-manual-trace':''}`).attr('transform',`scale(${scaleX} ${scaleY})`);land.append('path').attr('class','map-land image-derived-coast').attr('d',imageCoastline.paths.join(' ')).attr('fill-rule','evenodd').attr('vector-effect','non-scaling-stroke');if(imageCoastline.coastChunks?.length&&window.ROTTA_COAST_RENDERER){NAV_RENDER.coastRenderer=window.ROTTA_COAST_RENDERER.mount(land.node(),imageCoastline.coastChunks);updateCoastVisibility()}else if(hasManualTrace)land.append('path').attr('class','manual-trace-coast').attr('d',imageCoastline.tracePaths.length?imageCoastline.tracePaths.join(' '):(imageCoastline.coastChunks||[]).map(c=>c.d).join(' ')).attr('vector-effect','non-scaling-stroke');document.documentElement.dataset.mapCoastSource=hasManualTrace?'manual-trace':'image'}else{const world=await d3.json('assets/land-10m.json'),land=topojson.feature(world,world.objects.land),projection=d3.geoMercator().scale(WORLD.w/(2*Math.PI)).translate([WORLD.w/2,WORLD.h/2]),path=d3.geoPath(projection);svg.append('path').datum(land).attr('class','map-land generated-map').attr('d',path).attr('vector-effect','non-scaling-stroke');svg.append('g').attr('class','generated-map charted-islands').selectAll('circle').data([...CHARTED_ISLANDS].map(id=>PORTS[id]).filter(Boolean)).enter().append('circle').attr('class','map-port-island').attr('cx',p=>p.rawX??p.x).attr('cy',p=>p.rawY??p.y).attr('r',2.4);document.documentElement.dataset.mapCoastSource='natural-earth'}svg.append('rect').attr('class','map-frame generated-map').attr('x',9).attr('y',9).attr('width',WORLD.w-18).attr('height',WORLD.h-18);NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.toggle('low-detail',state.zoom<=2.5)}
 async function buildNavMask(){if(EUROPE){const {meta,nav}=await EUROPE.load(setMapLoadProgress);Object.assign(COAST,{w:WORLD.w,h:WORLD.h,cellX:1,cellY:1,water:nav.packedView,rawWater:nav.packedView,ready:true});NAV.ready=true;ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='GSHHG 2.3.7 Europe';snapAllPorts();await buildVectorMap();const response=await fetch('assets/europe/distances.json?v=2',{cache:'force-cache'});if(!response.ok)throw Error('Europe trade distances: '+response.status);window.ROTTA_SEA_DISTANCES=await response.json();setMapLoadProgress(100);return;}let vectorData=null;try{const nav=maskCandidate(NAV),coast=maskCandidate(COAST),loaded=await Promise.all([loadMaskAsset(nav,'assets/image-nav-mask.bin?v=61'),loadMaskAsset(coast,'assets/image-coast-mask.bin?v=62'),loadImageCoastlineAsset()]);commitMask(NAV,nav);commitMask(COAST,coast);vectorData=loaded[2];ACTIVE_IMAGE_COASTLINE=vectorData;ACTIVE_MAP_DATASET=vectorData.dataset}catch(imageErr){console.warn('[Rotta image-derived coast fallback]',imageErr);try{const nav=maskCandidate(NAV),coast=maskCandidate(COAST);await Promise.all([loadMaskAsset(nav,'assets/nav-mask.bin?v=38'),loadMaskAsset(coast,'assets/coast-mask.bin?v=38')]);commitMask(NAV,nav);commitMask(COAST,coast);ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='Natural Earth 1:10m'}catch(err){console.error(err);toast('저장된 항해 지도를 불러오지 못했습니다.');return}}setMapLoadProgress(96);const audit=snapAllPorts();$('#routeInfo').textContent=audit.ok?`${ACTIVE_MAP_DATASET} · ${PORT_COUNT}개 거점 전수 검증 완료 · 바다를 클릭해 이동`:`지도 판독 경고 · 미해결 거점 ${audit.unresolved.length}곳`;const schedule=window.requestIdleCallback||((fn)=>setTimeout(fn,16));schedule(()=>buildVectorMap(vectorData).catch(async err=>{console.error(err);if(vectorData){ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='Natural Earth 1:10m';try{await buildVectorMap(null)}catch(fallbackErr){console.error(fallbackErr)}}}),{timeout:1200})}
 function maskGridAt(mask,wx,wy){return{x:Math.max(0,Math.min(mask.w-1,Math.floor(wx/mask.cellX))),y:Math.max(0,Math.min(mask.h-1,Math.floor(wy/mask.cellY)))}}
 function maskWorldAt(mask,gx,gy){return{x:(gx+.5)*mask.cellX,y:(gy+.5)*mask.cellY}}
@@ -792,9 +792,10 @@ function setZoom(value,anchor=null,departureFrame=false){
  let worldX=state.shipX,worldY=state.shipY,ax=w/2,ay=h/2;
  if(active&&w&&old&&!departureFrame){
   if(anchor){
-   const before=projection?.invert(anchor.x,anchor.y)??anchor;
+   const curved=chartCurvatureActive();
+   const before=projection?.invert(anchor.x,anchor.y,0,curved)??anchor;
    const after=projection&&next!==old
-    ? window.ROTTA_EUROPE_PITCH.project(w,h,projection.degrees,next).invert(anchor.x,anchor.y)
+    ? window.ROTTA_EUROPE_PITCH.project(w,h,projection.degrees,next).invert(anchor.x,anchor.y,0,curved)
     : before;
    worldX=(before.x-lastTx)/old;worldY=(before.y-lastTy)/old;
    ax=after.x;ay=after.y;
@@ -811,15 +812,18 @@ function clampCamera(){const w=NAV_RENDER.width,h=NAV_RENDER.height;if(!w||DEPAR
 function canTiltChart(){
  return Boolean(EUROPE&&window.ROTTA_EUROPE_PITCH&&!DEPARTURE_ZOOM.active);
 }
+function chartCurvatureActive(){
+ return Boolean(NAV_RENDER.coastRenderer?.reliefVisible);
+}
 function flatChartPosition(x,y){
- return NAV_RENDER.projection?.invert(x,y)??{x,y};
+ return NAV_RENDER.projection?.invert(x,y,0,chartCurvatureActive())??{x,y};
 }
 function projectChartPosition(worldX,worldY,onLand=false,withDepth=false){
  const x=NAV_RENDER.lastTx+worldX*state.zoom,y=NAV_RENDER.lastTy+worldY*state.zoom;
  const projection=NAV_RENDER.projection;
  if(!projection)return withDepth?{x,y,depth:worldY}:{x,y};
  const landHeight=onLand?(NAV_RENDER.coastRenderer?.heightAt(worldX,worldY)??0):0;
- const position=projection.apply(x,y,landHeight*state.zoom);
+ const position=projection.apply(x,y,landHeight*state.zoom,chartCurvatureActive());
  if(withDepth)position.depth=worldY*projection.sin+landHeight*projection.cos;
  return position;
 }
@@ -843,8 +847,15 @@ function updateCamera(){
  const transform=projection?.transform(tx,ty)??`translate3d(${tx}px,${ty}px,0)`;
  NAV_RENDER.world.style.transform=`${transform} scale(${state.zoom})`;
  updateChartScale(ty,h);queueVisibleMapTiles();updateCoastVisibility();
- if(EUROPE){updatePortVisibility();positionSailingShip();positionSeaClickTarget();positionSailingRoute();positionCoastalScenery();}
- else queuePortCulling();
+ if(EUROPE)positionChartAnnotations();
+ else{queuePortCulling();positionSeaPortActions();}
+}
+function positionChartAnnotations(){
+ updatePortVisibility();
+ positionSailingShip();
+ positionSeaClickTarget();
+ positionSailingRoute();
+ positionCoastalScenery();
  positionSeaPortActions();
 }
 function updateChartScale(ty,height){
@@ -1202,17 +1213,40 @@ function drawRoute(path){
  }else $('#routePath').setAttribute('points',path.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
 }
 function positionSailingRoute(){
- const path=NAV_RENDER.route,projection=NAV_RENDER.projection;
- const near=projection?(projection.invert(0,NAV_RENDER.height+90).y-NAV_RENDER.lastTy)/state.zoom:Infinity;
- const clip=(a,b)=>({x:a.x+(b.x-a.x)*(near-a.y)/(b.y-a.y),y:near});
- const coords=p=>{const {x,y}=projectChartPosition(p.x,p.y);return `${x.toFixed(1)},${y.toFixed(1)}`};
+ const {route:path,projection,width,height,lastTx,lastTy}=NAV_RENDER,zoom=state.zoom;
+ const curved=projection?.edgeDrop&&chartCurvatureActive();
+ const near=projection?(projection.invert(projection.cx,height+90,0,false).y-lastTy)/zoom:Infinity;
+ const clipNear=(a,b)=>({x:a.x+(b.x-a.x)*(near-a.y)/(b.y-a.y),y:near});
+ const screenPoint=p=>{
+  const x=lastTx+p.x*zoom,y=lastTy+p.y*zoom;
+  return projection?.apply(x,y,0,false)??{x,y};
+ };
+ const format=(x,y)=>`${x.toFixed(1)},${y.toFixed(1)}`;
+ const padding=Math.min(16,width/2),left=-padding,right=width+padding;
  let data='',connected=false;
  for(let i=1;i<path.length;i++){
   const a=path[i-1],b=path[i],aVisible=a.y<=near,bVisible=b.y<=near;
   if(!aVisible&&!bVisible){connected=false;continue}
-  if(!connected)data+='M'+coords(aVisible?a:clip(a,b));
-  data+='L'+coords(bVisible?b:clip(b,a));
-  connected=bVisible;
+  const start=screenPoint(aVisible?a:clipNear(a,b));
+  const end=screenPoint(bVisible?b:clipNear(b,a));
+  if(!curved){
+   if(!connected)data+='M'+format(start.x,start.y);
+   data+='L'+format(end.x,end.y);
+   connected=bVisible;
+   continue;
+  }
+  if(Math.max(start.x,end.x)<left||Math.min(start.x,end.x)>right){connected=false;continue}
+  // Clip horizontally before bending so distant route points never distort the visible arc.
+  const startX=Math.max(left,Math.min(right,start.x)),endX=Math.max(left,Math.min(right,end.x));
+  const slope=start.x===end.x?0:(end.y-start.y)/(end.x-start.x);
+  const startY=start.y+(startX-start.x)*slope,endY=end.y+(endX-end.x)*slope;
+  const startBend=projection.bend(startX),endBend=projection.bend(endX);
+  if(!connected||startX!==start.x)data+='M'+format(startX,startY+startBend);
+  const midX=(startX+endX)/2;
+  // A straight segment plus the quadratic camera bend is exactly a quadratic Bézier.
+  const controlY=(startY+endY-startBend-endBend)/2+2*projection.bend(midX);
+  data+='Q'+format(midX,controlY)+' '+format(endX,endY+endBend);
+  connected=bVisible&&endX===end.x;
  }
  if(NAV_RENDER.routeData!==data){
   $('#routePath').setAttribute('d',data);

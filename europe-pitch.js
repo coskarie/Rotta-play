@@ -1,6 +1,7 @@
 (() => {
   const region = {x: 4480, y: 13312, span: 768, samples: 385};
   const maxAngle = 48;
+  const maxBendSquared = 4;
   const atlasSize = 4096;
   const chartSize = {width: 16384, height: 17192};
   const maxHeight = 32;
@@ -17,16 +18,21 @@
     // Keep the camera above the highest terrain at close zoom on small screens.
     const highest = maxHeight * zoom * reliefScale;
     const focal = Math.max(Math.max(w, h) * 1.35, highest / (.9 * cos));
+    const bendProgress = fade(degrees - 10, maxAngle - 10);
+    const edgeDrop = Math.min(w, h) * .072 * bendProgress ** 2 * (3 - 2 * bendProgress);
+    const bend = x => edgeDrop * Math.min(((x - cx) / cx) ** 2, maxBendSquared);
     const matrix = `matrix3d(1,0,0,0,0,${cos},0,${-sin / focal},0,0,1,0,0,0,0,1)`;
     return {
-      degrees, zoom, cx, cy, cos, sin, focal, reliefScale,
-      apply(x, y, height = 0) {
+      degrees, zoom, cx, cy, cos, sin, focal, reliefScale, edgeDrop, bend,
+      apply(x, y, height = 0, curved = true) {
         const v = y - cy, depth = 1 - (v * sin + height * cos) / focal;
         if (depth <= 0) return {x: Infinity, y: Infinity};
-        return {x: cx + (x - cx) / depth, y: cy + (v * cos - height * sin) / depth};
+        const screenX = cx + (x - cx) / depth;
+        const screenY = cy + (v * cos - height * sin) / depth;
+        return {x: screenX, y: screenY + (curved ? bend(screenX) : 0)};
       },
-      invert(x, y, height = 0) {
-        const screenY = y - cy;
+      invert(x, y, height = 0, curved = true) {
+        const screenY = y - cy - (curved ? bend(x) : 0);
         const v = (screenY * (1 - height * cos / focal) + height * sin) /
           (cos + screenY * sin / focal);
         const depth = 1 - (v * sin + height * cos) / focal;
@@ -41,9 +47,9 @@
   function sourceRect(projection, zoom) {
     const {cx, cy} = projection;
     const highest = maxHeight * zoom * projection.reliefScale;
-    // Bound both planes so a mountain just beyond the sea-level view still has source tiles.
-    const corners = [projection.invert(0, 0), projection.invert(0, 2 * cy),
-      projection.invert(0, 0, highest), projection.invert(0, 2 * cy, highest)];
+    // The top edge reaches farther at the sides and the bottom reaches farther at the center.
+    const corners = [0, highest].flatMap(height => [0, cx].flatMap(x =>
+      [0, 2 * cy].map(y => projection.invert(x, y, height))));
     const left = Math.floor(Math.min(...corners.map(point => point.x)));
     const right = Math.ceil(2 * cx - left);
     const top = Math.floor(Math.min(...corners.map(point => point.y)));
@@ -117,7 +123,7 @@
     attribute vec2 a_uv;
     uniform vec2 u_sourceSize, u_offset, u_translation, u_center;
     uniform vec3 u_camera;
-    uniform float u_zoom, u_reliefScale;
+    uniform float u_zoom, u_reliefScale, u_edgeDrop;
     varying ${precision} vec2 v_uv, v_chart;
     ${elevationSource}
 
@@ -132,8 +138,11 @@
       }
       vec2 offset = mapPosition - u_center;
       float depth = 1.0 - (offset.y * u_camera.y + height * u_camera.x) / u_camera.z;
-      gl_Position = vec4(offset.x / u_center.x,
-        (height * u_camera.y - offset.y * u_camera.x) / u_center.y, (depth - 1.0) * 0.25, depth);
+      float clipX = offset.x / u_center.x;
+      float screenX = clipX / max(depth, 0.0001);
+      float bend = u_edgeDrop * min(screenX * screenX, ${maxBendSquared}.0);
+      float clipY = (height * u_camera.y - offset.y * u_camera.x) / u_center.y - bend * depth;
+      gl_Position = vec4(clipX, clipY, (depth - 1.0) * 0.25, depth);
       v_uv = a_uv;
       v_chart = chart;
     }`;
@@ -225,6 +234,8 @@
     const sourceSize = uniform('sourceSize'), offset = uniform('offset'), center = uniform('center');
     const translation = uniform('translation'), camera = uniform('camera'), scale = uniform('zoom'), heightScale = uniform('reliefScale');
 
+    const edgeDropUniform = uniform('edgeDrop');
+
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     function uploadHeight(unit, name, size, data) {
       texture(unit);
@@ -246,7 +257,7 @@
       maxTextureSize,
       draw(source, view, rect, ratio, revision) {
         if (gl.isContextLost()) return false;
-        const {projection: {cx, cy, cos, sin, focal, reliefScale}, tx, ty, zoom, w, h} = view;
+        const {projection: {cx, cy, cos, sin, focal, reliefScale, edgeDrop}, tx, ty, zoom, w, h} = view;
         const width = Math.round(w * ratio), height = Math.round(h * ratio);
         if (canvas.width !== width) canvas.width = width;
         if (canvas.height !== height) canvas.height = height;
@@ -266,6 +277,7 @@
         gl.uniform3f(camera, cos, sin, focal);
         gl.uniform1f(scale, zoom);
         gl.uniform1f(heightScale, reliefScale);
+        gl.uniform1f(edgeDropUniform, edgeDrop / cy);
         if (reliefScale) gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
         else gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, count * 2);
         return true;
