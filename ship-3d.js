@@ -164,6 +164,7 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
   let pose=stillPose,lastMotionFrame;
   let wakeCanvas,wakeContext,foamStamp,wakeRatio,lastWakeFrame,wakePaints=0;
   let wakePackets=[],lastWakePosition,lastWakeZoom,lastEmission=-Infinity,emissionIndex=0;
+  let departureWakeStarted;
 
   function sailingPose(seconds,speed){
     const swell=seconds*TAU/3.7,ripple=seconds*TAU/2.15;
@@ -238,12 +239,36 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
     ctx.globalAlpha=1;
   }
 
+  function paintDepartureWake(ctx,age,speed){
+    if(age>=4.5)return;
+    // Hold the departure V for three seconds, then ease it out over 1.5 seconds.
+    const progress=Math.max(0,Math.min(1,(age-3)/1.5));
+    const fade=1-progress*progress*(3-2*progress);
+    const growth=Math.min(1,.35+age*1.5);
+    const length=-22+68*growth;
+    const width=(length+22)*.354;
+    ctx.beginPath();
+    ctx.moveTo(-width,length);
+    ctx.quadraticCurveTo(-width*.4,-1,0,-22);
+    ctx.quadraticCurveTo(width*.4,-1,width,length);
+    ctx.globalAlpha=fade*(.13+.16*speed);
+    ctx.strokeStyle='#153f45';
+    ctx.lineWidth=4;
+    ctx.stroke();
+    ctx.globalAlpha=fade*(.18+.22*speed);
+    ctx.strokeStyle='#dcebe2';
+    ctx.lineWidth=1.45;
+    ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+
   function drawWake(element,heading,pitch,frame,speed,zoom,screenScale,water){
     if(!speed||frame<0){
       if(wakeCanvas&&!wakeCanvas.hidden)wakeCanvas.hidden=true;
       wakePackets.length=0;
       lastWakeFrame=undefined;
       lastWakePosition=undefined;
+      departureWakeStarted=undefined;
       lastEmission=-Infinity;
       return;
     }
@@ -264,6 +289,7 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
       foamStamp=createFoamStamp();
     }
     const seconds=frame/MOTION_FPS;
+    departureWakeStarted??=seconds;
     const angle=heading*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
     // Compatibility with standalone callers that have no chart projection.
     const position=water??{x:s*seconds*speed,y:-c*seconds*speed};
@@ -301,6 +327,17 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
         (WAKE_SIZE/2+(base.x-origin.x)/screenScale)*wakeRatio,
         (WAKE_SIZE/2+(base.y-origin.y)/screenScale)*wakeRatio);
       paintWakePacket(ctx,packet,seconds);
+    }
+    const departureAge=seconds-departureWakeStarted;
+    if(departureAge<4.5){
+      const right=project(position.x+c*units,position.y+s*units);
+      const aft=project(position.x-s*units,position.y+c*units);
+      const ratio=wakeRatio/screenScale;
+      ctx.setTransform(
+        (right.x-origin.x)*ratio,(right.y-origin.y)*ratio,
+        (aft.x-origin.x)*ratio,(aft.y-origin.y)*ratio,
+        WAKE_SIZE/2*wakeRatio,WAKE_SIZE/2*wakeRatio);
+      paintDepartureWake(ctx,departureAge,speed);
     }
     if(wakeCanvas.hidden)wakeCanvas.hidden=false;
     lastWakeFrame=frame;
