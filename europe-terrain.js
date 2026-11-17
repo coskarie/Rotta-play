@@ -40,6 +40,7 @@
     let pitchCanvas, relief, elevationLoad, elevations, view;
     let nextElevationRetry = 0;
     let reliefVisible = false;
+    let flatRevision = -1;
     const cache = new Map();
     const loading = new Map();
     const failures = new Map();
@@ -145,7 +146,7 @@
       present();
     }
 
-    function prepareRelief() {
+    function prepareElevation() {
       if (elevationLoad || performance.now() < nextElevationRetry) return;
       elevationLoad = pitch.loadHeights().then(heights => {
         elevations = heights;
@@ -158,14 +159,15 @@
         pitchCanvas.addEventListener('webglcontextlost', event => {
           event.preventDefault();
           relief = null;
+          flatRevision = -1;
           if (active && camera) present();
         });
         pitchCanvas.addEventListener('webglcontextrestored', () => {
           relief = pitch.renderer(pitchCanvas, heights);
-          if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+          refreshView();
         });
         viewport.insertBefore(pitchCanvas, world);
-        if (active && view.projection) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+        refreshView();
       }).catch(error => {
         console.warn(error);
         nextElevationRetry = performance.now() + retryDelay;
@@ -177,16 +179,30 @@
       const left = view.tx - camera.tx;
       const top = view.ty - camera.ty;
       const rect = {left, top, width: camera.w, height: camera.h};
-      const rendered = Boolean(view.projection && relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
+      let rendered = false;
+      if (view.projection) {
+        flatRevision = -1;
+        rendered = Boolean(relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
+      } else if (relief && view.showColors) {
+        // Recolor the padded map only when its tiles change. Panning reuses this frame.
+        if (flatRevision !== paintCount) {
+          const projection = pitch.project(camera.w, camera.h, 0);
+          const flat = {...camera, projection};
+          const source = {left: 0, top: 0, width: camera.w, height: camera.h};
+          if (relief.draw(canvas, flat, source, camera.ratio, paintCount)) flatRevision = paintCount;
+        }
+        rendered = flatRevision === paintCount;
+      }
       if (pitchCanvas) pitchCanvas.hidden = !rendered;
       canvas.style.visibility = rendered ? 'hidden' : '';
-      if (!rendered) {
-        canvas.style.transform = view.projection?.transform(left, top) ?? 'translate3d(' + left + 'px,' + top + 'px,0)';
-      }
-      const mode = rendered ? 'relief' : view.projection ? 'flat' : '';
+      const transform = 'translate3d(' + left + 'px,' + top + 'px,0)';
+      if (rendered) pitchCanvas.style.transform = view.projection ? '' : transform;
+      else canvas.style.transform = view.projection?.transform(left, top) ?? transform;
+      const pitchedRelief = rendered && Boolean(view.projection);
+      const mode = pitchedRelief ? 'relief' : view.projection ? 'flat' : '';
       if (viewport.dataset.terrainPitch !== mode) viewport.dataset.terrainPitch = mode;
-      if (reliefVisible !== rendered) {
-        reliefVisible = rendered;
+      if (reliefVisible !== pitchedRelief) {
+        reliefVisible = pitchedRelief;
         onReliefChange?.();
       }
     }
@@ -230,19 +246,27 @@
       }
     }
 
-    function update(tx, ty, zoom, w, h, projection = null) {
+    function refreshView() {
+      if (!active || !view) return;
+      const {tx, ty, zoom, w, h, projection, showColors} = view;
+      update(tx, ty, zoom, w, h, projection, showColors);
+    }
+
+    function update(tx, ty, zoom, w, h, projection = null, showColors = true) {
       if (w < 1 || h < 1) return;
-      view = {tx, ty, zoom, w, h, projection};
+      view = {tx, ty, zoom, w, h, projection, showColors};
       if (!active) return;
       const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
       const required = projection
         ? pitch.sourceRect(projection, zoom)
         : {left: 0, top: 0, width: w, height: h};
-      if (view.projection) prepareRelief();
-      const textureLimit = view.projection ? (relief?.maxTextureSize ?? 4096) : 4096;
+      prepareElevation();
+      const textureLimit = relief?.maxTextureSize ?? (projection ? 4096 : Infinity);
+      const sourceRatio = (width, height) => Math.min(displayRatio, textureLimit / Math.max(width, height));
       if (camera && camera.zoom === zoom && camera.viewWidth === w && camera.viewHeight === h &&
           camera.displayRatio === displayRatio &&
-          (projection ? Math.max(canvas.width, canvas.height) <= textureLimit : camera.ratio === displayRatio)) {
+          Math.max(canvas.width, canvas.height) <= textureLimit &&
+          (projection || camera.ratio === sourceRatio(camera.w, camera.h))) {
         const left = tx - camera.tx, top = ty - camera.ty;
         if (left <= required.left && top <= required.top &&
             left + camera.w >= required.left + required.width &&
@@ -254,7 +278,7 @@
       const pad = Math.min(128, Math.ceil(Math.min(w, h) * .12));
       const left = required.left - pad, top = required.top - pad;
       const width = required.width + 2 * pad, height = required.height + 2 * pad;
-      const ratio = projection ? Math.min(displayRatio, textureLimit / Math.max(width, height)) : displayRatio;
+      const ratio = sourceRatio(width, height);
       camera = {tx: tx - left, ty: ty - top, zoom, w: width, h: height, ratio, displayRatio, viewWidth: w, viewHeight: h};
       canvas.style.width = width + 'px';
       canvas.style.height = height + 'px';
@@ -278,11 +302,12 @@
       if (active === value) return;
       active = value;
       if (active) {
-        if (view) update(view.tx, view.ty, view.zoom, view.w, view.h, view.projection);
+        refreshView();
         return;
       }
       camera = null;
       reliefVisible = false;
+      flatRevision = -1;
       wanted.clear();
       loadOrder = [];
       for (const controller of loading.values()) controller.abort();

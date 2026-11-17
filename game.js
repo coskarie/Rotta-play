@@ -747,7 +747,7 @@ function startDepartureZoom(){
  const run=DEPARTURE_ZOOM.run,started=performance.now();let lastPaint=-Infinity;
  CAMERA_VIEW.autoFollow=null;CAMERA_VIEW.followShip=true;state.camX=state.camY=0;
  DEPARTURE_ZOOM.active=true;NAV_RENDER.world.classList.remove('recentering');setZoom(.5,null,true);
- if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setZoom(3.5,null,true);DEPARTURE_ZOOM.active=false;clearDepartureBlur();document.documentElement.dataset.departureZoom='complete';return}
+ if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setZoom(3.5,null,true);DEPARTURE_ZOOM.active=false;updateCoastVisibility();clearDepartureBlur();document.documentElement.dataset.departureZoom='complete';return}
  document.documentElement.dataset.departureZoom='running';
  function frame(now){
   if(run!==DEPARTURE_ZOOM.run)return;
@@ -759,7 +759,7 @@ function startDepartureZoom(){
    setZoom(.5+3*eased,null,true);updateDepartureBlur(p);lastPaint=now;
   }
   if(p<1)DEPARTURE_ZOOM.frame=requestAnimationFrame(frame);
-  else{DEPARTURE_ZOOM.active=false;clearDepartureBlur();document.documentElement.dataset.departureZoom='complete'}
+  else{DEPARTURE_ZOOM.active=false;updateCoastVisibility();clearDepartureBlur();document.documentElement.dataset.departureZoom='complete'}
  }
  DEPARTURE_ZOOM.frame=requestAnimationFrame(frame);
 }
@@ -828,7 +828,7 @@ function updateCamera(){
  clampCamera();
  const tx=w/2-state.shipX*state.zoom+state.camX,ty=h/2-state.shipY*state.zoom+state.camY;
  const pitch=canTiltChart()?Number(sailingPitch.toFixed(2)):0;
- const signature=`${tx.toFixed(3)}:${ty.toFixed(3)}:${state.zoom}:${w}:${h}:${pitch}`;
+ const signature=`${tx.toFixed(3)}:${ty.toFixed(3)}:${state.zoom}:${w}:${h}:${pitch}:${DEPARTURE_ZOOM.active}`;
  if(signature===NAV_RENDER.lastCamera){
   positionCoastalScenery();
   return;
@@ -853,7 +853,7 @@ function updateChartScale(ty,height){
  const mark=$('.scale-mark'),label=`약 ${EUROPE?miles.toFixed(miles<1?1:0):Math.max(8,Math.round(miles))}해리`;
  if(mark.textContent!==label)mark.textContent=label;
 }
-function updateCoastVisibility(){if(!NAV_RENDER.coastRenderer||!NAV_RENDER.width||(!EUROPE&&state.zoom<=2.5))return;const z=state.zoom,tx=NAV_RENDER.lastTx,ty=NAV_RENDER.lastTy;if(EUROPE)NAV_RENDER.coastRenderer.update(tx,ty,z,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection);else NAV_RENDER.coastRenderer.update(-tx/z,-ty/z,(NAV_RENDER.width-tx)/z,(NAV_RENDER.height-ty)/z)}
+function updateCoastVisibility(){if(!NAV_RENDER.coastRenderer||!NAV_RENDER.width||(!EUROPE&&state.zoom<=2.5))return;const z=state.zoom,tx=NAV_RENDER.lastTx,ty=NAV_RENDER.lastTy;if(EUROPE)NAV_RENDER.coastRenderer.update(tx,ty,z,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection,!DEPARTURE_ZOOM.active);else NAV_RENDER.coastRenderer.update(-tx/z,-ty/z,(NAV_RENDER.width-tx)/z,(NAV_RENDER.height-ty)/z)}
 function requestCameraUpdate(){if(NAV_RENDER.cameraFrame)return;NAV_RENDER.cameraFrame=requestAnimationFrame(()=>{NAV_RENDER.cameraFrame=0;updateCamera()})}
 function updatePortVisibility(){
  NAV_RENDER.cullTimer=0;

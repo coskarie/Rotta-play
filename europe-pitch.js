@@ -96,47 +96,81 @@
     return europe * (1 - weight) + lisbon * weight;
   }
 
+  const elevationSource = `
+    uniform sampler2D u_europe, u_lisbon;
+
+    vec3 readElevation(vec2 chart) {
+      float inChart = step(0.0, min(chart.x, chart.y)) * step(max(chart.x, chart.y), 1.0);
+      float europe = texture2D(u_europe, chart).r * ${maxHeight}.0 * inChart;
+      vec2 local = (chart * vec2(${chartSize.width}.0, ${chartSize.height}.0)
+        - vec2(${region.x}.0, ${region.y}.0)) / ${region.span}.0;
+      vec2 edge = min(local, 1.0 - local);
+      float weight = smoothstep(0.0, 0.05, min(edge.x, edge.y));
+      vec2 sampleAt = (local * ${region.samples - 1}.0 + 0.5) / ${region.samples}.0;
+      float lisbon = texture2D(u_lisbon, sampleAt).r * ${lisbonMaxHeight};
+      return vec3(europe, lisbon, weight);
+    }
+  `;
+
   const vertexSource = precision => `
     precision highp float;
     attribute vec2 a_uv;
-    uniform sampler2D u_europe, u_lisbon;
-    uniform vec2 u_sourceSize, u_offset, u_center, u_translation;
+    uniform vec2 u_sourceSize, u_offset, u_translation, u_center;
     uniform vec3 u_camera;
     uniform float u_zoom, u_reliefScale;
-    varying ${precision} vec2 v_uv;
+    varying ${precision} vec2 v_uv, v_chart;
+    ${elevationSource}
 
     void main() {
       vec2 mapPosition = a_uv * u_sourceSize + u_offset;
       vec2 world = (mapPosition - u_translation) / u_zoom;
       vec2 chart = world / vec2(${chartSize.width}.0, ${chartSize.height}.0);
-      float inChart = step(0.0, min(chart.x, chart.y)) * step(max(chart.x, chart.y), 1.0);
-      float europe = texture2D(u_europe, chart).r * ${maxHeight}.0 * inChart;
-      vec2 local = (world - vec2(${region.x}.0, ${region.y}.0)) / ${region.span}.0;
-      vec2 edge = min(local, 1.0 - local);
-      float weight = smoothstep(0.0, 0.05, min(edge.x, edge.y));
-      vec2 sampleAt = (local * ${region.samples - 1}.0 + 0.5) / ${region.samples}.0;
-      float lisbon = texture2D(u_lisbon, sampleAt).r * ${lisbonMaxHeight};
-      float height = mix(europe, lisbon, weight) * u_zoom * u_reliefScale;
+      float height = 0.0;
+      if (u_reliefScale > 0.0) {
+        vec3 samples = readElevation(chart);
+        height = mix(samples.x, samples.y, samples.z) * u_zoom * u_reliefScale;
+      }
       vec2 offset = mapPosition - u_center;
       float depth = 1.0 - (offset.y * u_camera.y + height * u_camera.x) / u_camera.z;
       gl_Position = vec4(offset.x / u_center.x,
         (height * u_camera.y - offset.y * u_camera.x) / u_center.y, (depth - 1.0) * 0.25, depth);
       v_uv = a_uv;
+      v_chart = chart;
     }`;
 
   const fragmentSource = precision => `
     precision ${precision} float;
     uniform sampler2D u_color;
-    varying ${precision} vec2 v_uv;
+    varying ${precision} vec2 v_uv, v_chart;
+    ${elevationSource}
+
     void main() {
-      gl_FragColor = texture2D(u_color, v_uv);
+      vec4 terrain = texture2D(u_color, v_uv);
+      vec3 samples = readElevation(v_chart);
+      // Undo the atlas' display compression to place vegetation bands in metres.
+      float europeMetres = samples.x * 2200.0 / (35.2 - samples.x);
+      float metres = mix(europeMetres, samples.y / 0.0135, samples.z);
+      // Northern mountains lose vegetation at lower elevations.
+      float south = smoothstep(0.20, 0.75, v_chart.y);
+      float dryStart = mix(375.0, 900.0, south);
+      float rockStart = mix(840.0, 1720.0, south);
+      float dry = smoothstep(dryStart, dryStart + mix(420.0, 680.0, south), metres);
+      float rock = smoothstep(rockStart, rockStart + mix(680.0, 950.0, south), metres);
+
+      // Tint the existing texture while keeping its shadows and fine detail.
+      float light = dot(terrain.rgb, vec3(0.27, 0.60, 0.13));
+      vec3 dryGrass = light * vec3(1.20, 1.04, 0.78);
+      vec3 stone = (light * 0.89 + 0.075) * vec3(1.045, 1.015, 0.99);
+      vec3 color = mix(terrain.rgb, dryGrass, dry * 0.86);
+      gl_FragColor = vec4(mix(color, stone, rock * 0.96), terrain.a);
     }`;
 
   function createMesh(gl, position) {
     const divisions = 192;
     const rowSize = divisions + 1;
     const coordinates = new Float32Array(rowSize ** 2 * 2);
-    const indices = new Uint16Array(divisions ** 2 * 6);
+    const count = divisions ** 2 * 6;
+    const indices = new Uint16Array(count + 4);
     for (let y = 0; y < rowSize; y++) {
       for (let x = 0; x < rowSize; x++) {
         const vertex = y * rowSize + x;
@@ -146,13 +180,15 @@
         indices.set([vertex, next, vertex + 1, vertex + 1, next, next + 1], (y * divisions + x) * 6);
       }
     }
+    // Reuse the grid corners for the flat map, which only needs two triangles.
+    indices.set([0, rowSize * divisions, divisions, rowSize ** 2 - 1], count);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, coordinates, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-    return indices.length;
+    return count;
   }
 
   function renderer(canvas, heights) {
@@ -214,6 +250,8 @@
         const width = Math.round(w * ratio), height = Math.round(h * ratio);
         if (canvas.width !== width) canvas.width = width;
         if (canvas.height !== height) canvas.height = height;
+        if (canvas.style.width !== w + 'px') canvas.style.width = w + 'px';
+        if (canvas.style.height !== h + 'px') canvas.style.height = h + 'px';
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         if (uploadedRevision !== revision) {
@@ -228,7 +266,8 @@
         gl.uniform3f(camera, cos, sin, focal);
         gl.uniform1f(scale, zoom);
         gl.uniform1f(heightScale, reliefScale);
-        gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+        if (reliefScale) gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+        else gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, count * 2);
         return true;
       }
     };
