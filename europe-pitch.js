@@ -3,6 +3,7 @@
   const maxAngle = 48;
   const maxBendSquared = 4;
   const atlasSize = 4096;
+  const waveNoiseSize = 128;
   const chartSize = {width: 16384, height: 17192};
   const maxHeight = 32;
   const heightExaggeration = 2;
@@ -57,22 +58,26 @@
     return {left, top, width: right - left, height: bottom - top};
   }
 
-  async function loadHeightAsset(file, expected, compressed = false) {
+  async function loadTerrainBytes(file, expected, compressed = false) {
     const response = await fetch('assets/europe/terrain/' + file, {cache: 'force-cache'});
-    if (!response.ok) throw new Error(`Terrain elevation ${file}: ${response.status}`);
+    if (!response.ok) throw new Error(`Terrain data ${file}: ${response.status}`);
     const bytes = compressed
       ? await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
       : await response.arrayBuffer();
-    if (bytes.byteLength !== expected) throw new Error(`Invalid elevation dimensions: ${file}`);
+    if (bytes.byteLength !== expected) throw new Error(`Invalid terrain data dimensions: ${file}`);
     return new Uint8Array(bytes);
   }
 
   async function loadHeights() {
     const [europe, lisbon] = await Promise.all([
-      loadHeightAsset('europe-elevation-v1.bin.gz', atlasSize ** 2, true),
-      loadHeightAsset('lisbon-elevation.bin?v=1', region.samples ** 2)
+      loadTerrainBytes('europe-elevation-v1.bin.gz', atlasSize ** 2, true),
+      loadTerrainBytes('lisbon-elevation.bin?v=1', region.samples ** 2)
     ]);
     return {europe, lisbon};
+  }
+
+  function loadShore() {
+    return loadTerrainBytes('water-shore-v2.bin.gz', atlasSize ** 2, true);
   }
 
   function bilinear(data, size, column, row) {
@@ -147,14 +152,111 @@
       v_chart = chart;
     }`;
 
+  const waterSource = `
+    uniform sampler2D u_shore, u_waveNoise;
+    uniform bool u_waterReady;
+    uniform float u_waterTime, u_waterDetail;
+    uniform vec2 u_worldToSource;
+
+    float waterTone(vec3 color) {
+      return smoothstep(0.008, 0.085, min(color.b, color.g) - color.r);
+    }
+
+    vec2 wavelet(vec2 grid, vec2 seed) {
+      vec2 cell = floor(grid);
+      vec4 random = texture2D(u_waveNoise, (cell + seed + 0.5) / ${waveNoiseSize}.0);
+      vec2 local = fract(grid) - 0.5;
+      float fadeEdge = 1.0 - smoothstep(0.32, 0.5, max(abs(local.x), abs(local.y)));
+      local -= (random.xy - 0.5) * vec2(0.39, 0.31);
+      float angle = (random.z - 0.5) * 1.37;
+      float halfLength = mix(0.13, 0.46, random.w);
+      float along = (local.x + local.y * angle) / halfLength;
+      float across = local.y - local.x * angle;
+      // Most crests are nearly straight; a few have a stronger signed arc.
+      float curve = (random.y * 2.0 - 1.0) * random.z * random.z * 0.28;
+      float line = curve * along * along + (random.x - 0.5) * 0.06 * along * along * along;
+      float speed = 8.0 + floor(random.x * 9.0);
+      float age = fract(u_waterTime * speed / 6.2831853 + random.w);
+      float life = smoothstep(0.04, 0.27, age) * (1.0 - smoothstep(0.65, 1.0, age));
+      float ridge = across - line - mix(-0.17, 0.20, age);
+      float shape = (1.0 - smoothstep(0.42, 1.0, abs(along))) * fadeEdge * life;
+      float cap = (1.0 - smoothstep(0.012, 0.049 + random.x * 0.045, abs(ridge))) * shape;
+      float body = (1.0 - smoothstep(0.035, 0.14, abs(ridge + 0.035))) * shape;
+      return vec2(cap, body) * mix(0.52, 1.0, random.y);
+    }
+
+    float shorePulse(float distance, vec2 world, float noise) {
+      float phase = distance * 2.0 + u_waterTime * 17.0 + noise * 3.2 + dot(world, vec2(0.08, -0.04));
+      return smoothstep(0.24, 0.96, cos(phase));
+    }
+
+    vec3 coastalWash(vec3 base, float distance, vec2 world, float tone) {
+      float detail = smoothstep(0.10, 0.78, u_waterDetail);
+      if (detail <= 0.0 || abs(distance) > 4.4 || tone > 0.94) return base;
+      float grain = texture2D(u_waveNoise, world * vec2(0.0022, 0.0036)).g;
+      float pulse = shorePulse(distance, world, grain);
+      vec2 reach = u_worldToSource * (0.57 + (0.39 + 0.53 * grain) * pulse);
+      // Read the painted coastline to let the wash cross its edge by only a small amount.
+      float adjacent = max(
+        max(waterTone(texture2D(u_color, v_uv + vec2(reach.x, 0.0)).rgb),
+            waterTone(texture2D(u_color, v_uv - vec2(reach.x, 0.0)).rgb)),
+        max(waterTone(texture2D(u_color, v_uv + vec2(0.0, reach.y)).rgb),
+            waterTone(texture2D(u_color, v_uv - vec2(0.0, reach.y)).rgb)));
+      float damp = smoothstep(0.23, 0.81, adjacent) * (1.0 - tone) * detail;
+      damp *= 1.0 - smoothstep(2.1, 4.4, abs(distance));
+      vec3 wetSand = base * vec3(0.80, 0.88, 0.90);
+      vec3 wash = mix(wetSand, vec3(0.67, 0.77, 0.73), pulse * smoothstep(0.30, 0.79, grain) * 0.27);
+      return mix(base, wash, damp * (0.68 + 0.26 * pulse));
+    }
+
+    vec3 waterSurface(vec3 base, float distance, vec2 world) {
+      float t = u_waterTime;
+      vec2 drift = vec2(cos(t), sin(t)) * 0.012;
+      vec4 sky = texture2D(u_waveNoise, world * vec2(0.00043, 0.00070) + drift);
+      float broad = sky.r - 0.5;
+      vec2 longGrid = vec2(world.x + 0.11 * world.y, world.y) / vec2(18.0, 8.2);
+      vec2 smallGrid = vec2(world.x - 0.32 * world.y, world.y + 0.06 * world.x) / vec2(9.8, 4.9);
+      vec2 longWaves = wavelet(longGrid + sky.gb * 0.27, vec2(0.0));
+      vec2 smallWaves = wavelet(smallGrid + vec2(0.37, 0.63), vec2(37.0, 59.0));
+      float glint = longWaves.x * 0.48 + smallWaves.x * 0.59 * u_waterDetail;
+      float crest = longWaves.y * 0.67 + smallWaves.y * 0.33 * u_waterDetail;
+
+      vec3 sea = base * vec3(0.92, 0.96, 0.99);
+      sea += broad * vec3(0.043, 0.063, 0.069);
+      sea += crest * vec3(0.042, 0.063, 0.075);
+      sea += glint * vec3(0.105, 0.157, 0.176);
+      float shallows = 1.0 - smoothstep(0.0, 15.0, distance);
+      sea += shallows * vec3(0.015, 0.054, 0.046);
+
+      float nearShore = smoothstep(-0.45, 0.84, distance) * (1.0 - smoothstep(1.4, 3.25, distance));
+      float patches = texture2D(u_waveNoise, world * vec2(0.0022, 0.0036)).g;
+      float foam = nearShore * shorePulse(distance, world, patches) * smoothstep(0.29, 0.83, patches);
+      return mix(sea, vec3(0.70, 0.83, 0.80), foam * u_waterDetail * 0.39);
+    }
+  `;
+
   const fragmentSource = precision => `
     precision ${precision} float;
     uniform sampler2D u_color;
     varying ${precision} vec2 v_uv, v_chart;
     ${elevationSource}
+    ${waterSource}
 
     void main() {
       vec4 terrain = texture2D(u_color, v_uv);
+      if (u_waterReady) {
+        float distance = texture2D(u_shore, v_chart).r * 31.875 - 8.0;
+        if (min(v_chart.x, v_chart.y) < 0.0 || max(v_chart.x, v_chart.y) > 1.0) distance = 23.875;
+        vec2 world = v_chart * vec2(${chartSize.width}.0, ${chartSize.height}.0);
+        float tone = waterTone(terrain.rgb);
+        float wet = smoothstep(-1.3, 1.35, distance) * tone;
+        vec3 edge = coastalWash(terrain.rgb, distance, world, tone);
+        if (wet > 0.0) {
+          gl_FragColor = vec4(mix(edge, waterSurface(terrain.rgb, distance, world), wet), terrain.a);
+          return;
+        }
+        terrain.rgb = edge;
+      }
       vec3 samples = readElevation(v_chart);
       // Undo the atlas' display compression to place vegetation bands in metres.
       float europeMetres = samples.x * 2200.0 / (35.2 - samples.x);
@@ -200,6 +302,16 @@
     return count;
   }
 
+  function waveNoise() {
+    const noise = new Uint8Array(waveNoiseSize ** 2 * 4);
+    let seed = 1543;
+    for (let i = 0; i < noise.length; i++) {
+      seed = Math.imul(1664525, seed) + 1013904223;
+      noise[i] = seed >>> 24;
+    }
+    return noise;
+  }
+
   function renderer(canvas, heights) {
     const gl = canvas.getContext('webgl', {alpha: false, antialias: false});
     if (!gl || gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 2 ||
@@ -235,15 +347,21 @@
     const translation = uniform('translation'), camera = uniform('camera'), scale = uniform('zoom'), heightScale = uniform('reliefScale');
 
     const edgeDropUniform = uniform('edgeDrop');
+    const waterReadyUniform = uniform('waterReady'), waterTime = uniform('waterTime'), waterDetail = uniform('waterDetail');
+    const worldToSource = uniform('worldToSource');
 
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    function uploadHeight(unit, name, size, data) {
+    function uploadBytes(unit, name, size, data, format = gl.LUMINANCE) {
       texture(unit);
       gl.uniform1i(uniform(name), unit);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, size, size, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
+      gl.texImage2D(gl.TEXTURE_2D, 0, format, size, size, 0, format, gl.UNSIGNED_BYTE, data);
     }
-    uploadHeight(1, 'europe', atlasSize, heights.europe);
-    uploadHeight(2, 'lisbon', region.samples, heights.lisbon);
+    uploadBytes(1, 'europe', atlasSize, heights.europe);
+    uploadBytes(2, 'lisbon', region.samples, heights.lisbon);
+    uploadBytes(3, 'shore', 1, new Uint8Array(1));
+    uploadBytes(4, 'waveNoise', waveNoiseSize, waveNoise(), gl.RGBA);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     texture(0);
     gl.uniform1i(uniform('color'), 0);
     gl.enable(gl.DEPTH_TEST);
@@ -252,10 +370,18 @@
 
     let uploadedRevision = -1;
     let textureUploads = 0;
+    let hasWater = false;
     return {
+      get hasWater() { return hasWater; },
+      setShore(data) {
+        gl.activeTexture(gl.TEXTURE3);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, atlasSize, atlasSize, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
+        gl.activeTexture(gl.TEXTURE0);
+        hasWater = true;
+      },
       get textureUploads() { return textureUploads; },
       maxTextureSize,
-      draw(source, view, rect, ratio, revision) {
+      draw(source, view, rect, ratio, revision, waterPhase = 0) {
         if (gl.isContextLost()) return false;
         const {projection: {cx, cy, cos, sin, focal, reliefScale, edgeDrop}, tx, ty, zoom, w, h} = view;
         const width = Math.round(w * ratio), height = Math.round(h * ratio);
@@ -278,6 +404,10 @@
         gl.uniform1f(scale, zoom);
         gl.uniform1f(heightScale, reliefScale);
         gl.uniform1f(edgeDropUniform, edgeDrop / cy);
+        gl.uniform1i(waterReadyUniform, hasWater);
+        gl.uniform1f(waterTime, waterPhase);
+        gl.uniform1f(waterDetail, fade(zoom - 1.25, 3.25));
+        gl.uniform2f(worldToSource, zoom / rect.width, zoom / rect.height);
         if (reliefScale) gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
         else gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, count * 2);
         return true;
@@ -285,5 +415,5 @@
     };
   }
 
-  window.ROTTA_EUROPE_PITCH = {project, sourceRect, maxAngle, loadHeights, sampleHeight, renderer};
+  window.ROTTA_EUROPE_PITCH = {project, sourceRect, maxAngle, loadHeights, loadShore, sampleHeight, renderer};
 })();

@@ -4,6 +4,7 @@
   const maxDownloads = 4;
   const maxDecodedBytes = 48 * 1024 * 1024;
   const retryDelay = 15000;
+  const waterInterval = 1000 / 18;
   let assets;
 
   async function fetchAsset(file, signal) {
@@ -41,6 +42,11 @@
     let nextElevationRetry = 0;
     let reliefVisible = false;
     let flatRevision = -1;
+    let flatWaterFrame = 0;
+    let presentedWaterFrame = 0;
+    let shoreLoad, shoreBytes, waterTimer;
+    let nextShoreRetry = 0;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const cache = new Map();
     const loading = new Map();
     const failures = new Map();
@@ -164,6 +170,7 @@
         });
         pitchCanvas.addEventListener('webglcontextrestored', () => {
           relief = pitch.renderer(pitchCanvas, heights);
+          if (shoreBytes) relief?.setShore(shoreBytes);
           refreshView();
         });
         viewport.insertBefore(pitchCanvas, world);
@@ -175,29 +182,87 @@
       });
     }
 
+    function prepareWater() {
+      if (!relief || shoreLoad || performance.now() < nextShoreRetry) return;
+      shoreLoad = pitch.loadShore().then(bytes => {
+        shoreBytes = bytes;
+        relief?.setShore(bytes);
+        flatRevision = -1;
+        if (active && camera) present();
+      }).catch(error => {
+        console.warn(error);
+        nextShoreRetry = performance.now() + retryDelay;
+        shoreLoad = null;
+      });
+    }
+
+    function waterAnimating() {
+      return Boolean(active && relief?.hasWater && view.showColors && !document.hidden && !reducedMotion?.matches);
+    }
+
+    function waterFrameNow() {
+      return Math.floor(performance.now() / waterInterval);
+    }
+
+    function stopWater() {
+      clearTimeout(waterTimer);
+      waterTimer = undefined;
+    }
+
+    function scheduleWater() {
+      if (!waterAnimating()) {
+        stopWater();
+      } else if (waterTimer === undefined) {
+        waterTimer = setTimeout(() => {
+          waterTimer = undefined;
+          if (!waterAnimating() || !camera) return;
+          // A camera update may have drawn this phase already.
+          if (presentedWaterFrame !== waterFrameNow()) present();
+          else scheduleWater();
+        }, waterInterval);
+      }
+    }
+
+    function updateWaterMotion() {
+      if (active && camera && relief?.hasWater) present();
+    }
+
+    document.addEventListener('visibilitychange', updateWaterMotion);
+    reducedMotion?.addEventListener?.('change', updateWaterMotion);
+
     function present() {
+      prepareWater();
+      const waterFrame = waterAnimating() ? waterFrameNow() : 0;
+      const waterPhase = (waterFrame * waterInterval / 8000) % (2 * Math.PI);
       const left = view.tx - camera.tx;
       const top = view.ty - camera.ty;
       const rect = {left, top, width: camera.w, height: camera.h};
       let rendered = false;
       if (view.projection) {
         flatRevision = -1;
-        rendered = Boolean(relief?.draw(canvas, view, rect, camera.displayRatio, paintCount));
+        rendered = Boolean(relief?.draw(canvas, view, rect, camera.displayRatio, paintCount, waterPhase));
       } else if (relief && view.showColors) {
-        // Recolor the padded map only when its tiles change. Panning reuses this frame.
-        if (flatRevision !== paintCount) {
+        // The padded map is reused between water frames, with no tile uploads when only the water moves.
+        if (flatRevision !== paintCount || flatWaterFrame !== waterFrame) {
           const projection = pitch.project(camera.w, camera.h, 0);
           const flat = {...camera, projection};
           const source = {left: 0, top: 0, width: camera.w, height: camera.h};
-          if (relief.draw(canvas, flat, source, camera.ratio, paintCount)) flatRevision = paintCount;
+          if (relief.draw(canvas, flat, source, camera.ratio, paintCount, waterPhase)) {
+            flatRevision = paintCount;
+            flatWaterFrame = waterFrame;
+          }
         }
         rendered = flatRevision === paintCount;
       }
-      if (pitchCanvas) pitchCanvas.hidden = !rendered;
-      canvas.style.visibility = rendered ? 'hidden' : '';
-      const transform = 'translate3d(' + left + 'px,' + top + 'px,0)';
-      if (rendered) pitchCanvas.style.transform = view.projection ? '' : transform;
-      else canvas.style.transform = view.projection?.transform(left, top) ?? transform;
+      if (pitchCanvas && pitchCanvas.hidden === rendered) pitchCanvas.hidden = !rendered;
+      const visibility = rendered ? 'hidden' : '';
+      if (canvas.style.visibility !== visibility) canvas.style.visibility = visibility;
+      const transform = 'translate3d(' + left + 'px, ' + top + 'px, 0px)';
+      const display = rendered ? pitchCanvas : canvas;
+      const nextTransform = view.projection
+        ? (rendered ? '' : view.projection.transform(left, top))
+        : transform;
+      if (display.style.transform !== nextTransform) display.style.transform = nextTransform;
       const pitchedRelief = rendered && Boolean(view.projection);
       const mode = pitchedRelief ? 'relief' : view.projection ? 'flat' : '';
       if (viewport.dataset.terrainPitch !== mode) viewport.dataset.terrainPitch = mode;
@@ -205,6 +270,8 @@
         reliefVisible = pitchedRelief;
         onReliefChange?.();
       }
+      presentedWaterFrame = waterFrame;
+      scheduleWater();
     }
 
     function evict() {
@@ -305,6 +372,7 @@
         refreshView();
         return;
       }
+      stopWater();
       camera = null;
       reliefVisible = false;
       flatRevision = -1;
