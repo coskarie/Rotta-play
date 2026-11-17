@@ -158,11 +158,12 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
     };
   }
   const MOTION_FPS=12;
-  const WAKE_WIDTH=92,WAKE_HEIGHT=114,WAKE_ORIGIN_Y=32;
+  const WAKE_SIZE=272,WAKE_LIFETIME=4.8,MAX_WAKE_PACKETS=20;
   const stillPose={roll:0,hullPitch:0,heave:0};
   let gameRenderer,gameCanvas,motionPreference,failed=false;
   let pose=stillPose,lastMotionFrame;
-  let wakeCanvas,wakeContext,lastWakeFrame,lastWakeHeading,lastWakePitch;
+  let wakeCanvas,wakeContext,foamStamp,wakeRatio,lastWakeFrame,wakePaints=0;
+  let wakePackets=[],lastWakePosition,lastWakeZoom,lastEmission=-Infinity,emissionIndex=0;
 
   function sailingPose(seconds,speed){
     const swell=seconds*TAU/3.7,ripple=seconds*TAU/2.15;
@@ -173,94 +174,142 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
     };
   }
 
-  function paintWake(ctx,seconds,speed){
-    ctx.clearRect(-WAKE_WIDTH/2,-WAKE_ORIGIN_Y,WAKE_WIDTH,WAKE_HEIGHT);
-    const spread=.75+.25*speed;
-    const wash=ctx.createLinearGradient(0,-25,0,50);
-    wash.addColorStop(0,'rgba(230,251,238,.09)');
-    wash.addColorStop(.18,'rgba(230,251,238,.77)');
-    wash.addColorStop(.42,'rgba(197,242,230,.40)');
-    wash.addColorStop(1,'rgba(171,229,220,0)');
-    // The waterline ends near y=-22 at the stem and y=24 at the transom.
+  function createFoamStamp(){
+    const stamp=document.createElement('canvas');
+    stamp.width=stamp.height=32;
+    const ctx=stamp.getContext('2d');
+    if(!ctx)return null;
+    const foam=ctx.createRadialGradient(16,16,0,16,16,16);
+    foam.addColorStop(0,'rgba(220,238,225,.78)');
+    foam.addColorStop(.4,'rgba(196,226,218,.40)');
+    foam.addColorStop(1,'rgba(196,226,218,0)');
+    ctx.fillStyle=foam;
+    ctx.fillRect(0,0,32,32);
+    return stamp;
+  }
+
+  function paintWakePacket(ctx,packet,seconds){
+    const age=seconds-packet.born;
+    const life=age/packet.lifetime;
+    if(life<=0||life>=1)return;
+    const envelope=Math.sin(Math.PI*life)**1.3*(1-life)*packet.speed;
+    const aft=age*(22+packet.speed*4);
+    const halfWidth=2+aft*.354;
+    const curve=2+age*1.6,seed=packet.seed;
+    // A broad, shaded crest catches light on one side and darkens the other.
+    ctx.beginPath();
+    for(let i=0;i<=20;i++){
+      const across=i/10-1;
+      const x=across*halfWidth;
+      const y=aft+(1-across*across)*curve
+        +Math.sin(across*5.3+seed)*(.3+age*.28);
+      if(i===0||i===5+packet.gap||i===14+packet.gap)ctx.moveTo(x,y);
+      else ctx.lineTo(x,y);
+    }
+    ctx.globalAlpha=envelope*.13;
+    ctx.strokeStyle='#123f47';
+    ctx.lineWidth=4.5+life*2;
+    ctx.stroke();
+    ctx.globalAlpha=envelope*.19;
+    ctx.strokeStyle='#c7e4db';
+    ctx.lineWidth=2.1;
+    ctx.stroke();
+
+    // Broken, short edge ripples make the divergent waves visible without a solid V.
     for(const side of [-1,1]){
-      const x=side*spread;
-      const flutter=Math.sin(seconds*3.2+side)*1.1;
-      ctx.globalAlpha=speed*.43;
-      ctx.fillStyle=wash;
+      const edge=side*halfWidth;
+      ctx.globalAlpha=envelope*(.12+.04*Math.sin(seed));
+      ctx.strokeStyle='#e2eee0';
+      ctx.lineWidth=.9;
       ctx.beginPath();
-      ctx.moveTo(0,-25);
-      ctx.bezierCurveTo(9*x,-24,11*x,-5,17*x,8);
-      ctx.quadraticCurveTo((29+flutter)*x,31,32*x,44);
-      ctx.quadraticCurveTo((21+flutter)*x,22,12*x,9);
-      ctx.bezierCurveTo(7*x,-1,5*x,-20,0,-25);
-      ctx.fill();
-
-      ctx.globalAlpha=speed;
-      ctx.strokeStyle=wash;
-      ctx.lineWidth=1.2;
-      ctx.beginPath();
-      ctx.moveTo(1*x,-23);
-      ctx.bezierCurveTo(8*x,-21,9*x,-7,15*x,5);
-      ctx.quadraticCurveTo((20+flutter)*x,15,27*x,26);
+      ctx.moveTo(edge-side*3,aft+1);
+      ctx.quadraticCurveTo(edge+side*1.2,aft-1,edge+side*2.3,aft-4);
       ctx.stroke();
-
-      // Irregular foam streaks stretch out and fade as they slip astern.
-      ctx.strokeStyle='#def4e8';
-      for(let i=0;i<6;i++){
-        const age=(seconds*(.43+.17*speed)+i/6+(side>0?.08:0))%1;
-        const drift=Math.sin(i*2.8+side)*2.25;
-        const y=15+age*(37+27*speed);
-        const edge=x*(6+age*15+drift);
-        const inner=i%3===0?.42:1;
-        ctx.globalAlpha=speed*(.28+.09*Math.sin(i*4))*Math.sin(Math.PI*age);
-        ctx.lineWidth=i%3===0?1.45:.75;
-        ctx.beginPath();
-        ctx.moveTo(edge*inner,y);
-        ctx.quadraticCurveTo((edge+1.6*x)*inner,y+2,(edge+2.2*x)*inner,y+3+i%3);
-        ctx.stroke();
-      }
+    }
+    // Small translucent foam patches break up the ridge into aerated water.
+    for(let i=0;foamStamp&&i<5;i++){
+      const scatter=Math.sin(seed+i*2.7);
+      const x=scatter*halfWidth*.58;
+      const y=aft+3+Math.cos(seed*1.7+i)*3;
+      const radius=1.4+life*2.8+(1+Math.sin(seed+i))*1.1;
+      ctx.globalAlpha=envelope*.42;
+      ctx.drawImage(foamStamp,x-radius,y-radius,radius*2,radius*2);
     }
     ctx.globalAlpha=1;
   }
 
-  function drawWake(element,heading,pitch,frame,speed){
-    if(!speed){
+  function drawWake(element,heading,pitch,frame,speed,zoom,screenScale,water){
+    if(!speed||frame<0){
       if(wakeCanvas&&!wakeCanvas.hidden)wakeCanvas.hidden=true;
+      wakePackets.length=0;
       lastWakeFrame=undefined;
+      lastWakePosition=undefined;
+      lastEmission=-Infinity;
       return;
     }
+    if(frame===lastWakeFrame)return;
     if(!wakeCanvas){
       const canvas=document.createElement('canvas');
-      const ratio=Math.min(1.5,globalThis.devicePixelRatio||1);
-      canvas.width=Math.round(WAKE_WIDTH*ratio);
-      canvas.height=Math.round(WAKE_HEIGHT*ratio);
+      wakeRatio=Math.min(1.25,globalThis.devicePixelRatio||1);
+      canvas.width=canvas.height=Math.round(WAKE_SIZE*wakeRatio);
+      wakeRatio=canvas.width/WAKE_SIZE;
       const ctx=canvas.getContext('2d');
       if(!ctx)return;
-      ctx.scale(canvas.width/WAKE_WIDTH,canvas.height/WAKE_HEIGHT);
-      ctx.translate(WAKE_WIDTH/2,WAKE_ORIGIN_Y);
       ctx.lineCap='round';
       canvas.className='ship-water-wake';
       canvas.setAttribute('aria-hidden','true');
       element.appendChild(canvas);
       wakeCanvas=canvas;
       wakeContext=ctx;
+      foamStamp=createFoamStamp();
+    }
+    const seconds=frame/MOTION_FPS;
+    const angle=heading*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+    // Compatibility with standalone callers that have no chart projection.
+    const position=water??{x:s*seconds*speed,y:-c*seconds*speed};
+    const units=screenScale/zoom;
+    const moved=lastWakePosition?Math.hypot(position.x-lastWakePosition.x,position.y-lastWakePosition.y):0;
+    if(lastWakeFrame!==undefined&&(frame-lastWakeFrame>MOTION_FPS*1.5||
+        Math.abs(zoom/(lastWakeZoom||zoom)-1)>.12||moved>80)){
+      wakePackets.length=0;
+      lastEmission=-Infinity;
+    }
+    wakePackets=wakePackets.filter(packet=>seconds-packet.born<packet.lifetime);
+    if((!lastWakePosition||moved>.00001)&&seconds-lastEmission>=.28){
+      const seed=emissionIndex++*2.39996;
+      wakePackets.push({
+        x:position.x+s*22*units,y:position.y-c*22*units,
+        c,s,units,born:seconds,speed,seed,gap:emissionIndex%3,
+        lifetime:WAKE_LIFETIME-.5*(1+Math.sin(seed))
+      });
+      if(wakePackets.length>MAX_WAKE_PACKETS)wakePackets.shift();
+      lastEmission=seconds;
+    }
+    const project=water?.project??((x,y)=>({x:x*zoom,y:y*zoom*Math.cos(pitch*Math.PI/180)}));
+    const origin=project(position.x,position.y);
+    const ctx=wakeContext;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,wakeCanvas.width,wakeCanvas.height);
+    for(const packet of wakePackets){
+      const base=project(packet.x,packet.y);
+      const right=project(packet.x+packet.c*packet.units,packet.y+packet.s*packet.units);
+      const aft=project(packet.x-packet.s*packet.units,packet.y+packet.c*packet.units);
+      const ratio=wakeRatio/screenScale;
+      ctx.setTransform(
+        (right.x-base.x)*ratio,(right.y-base.y)*ratio,
+        (aft.x-base.x)*ratio,(aft.y-base.y)*ratio,
+        (WAKE_SIZE/2+(base.x-origin.x)/screenScale)*wakeRatio,
+        (WAKE_SIZE/2+(base.y-origin.y)/screenScale)*wakeRatio);
+      paintWakePacket(ctx,packet,seconds);
     }
     if(wakeCanvas.hidden)wakeCanvas.hidden=false;
-    if(heading!==lastWakeHeading||pitch!==lastWakePitch){
-      const angle=heading*Math.PI/180,tilt=Math.cos(pitch*Math.PI/180);
-      const c=Math.cos(angle),s=Math.sin(angle);
-      // Project the flat water with the same heading and pitch as the hull.
-      wakeCanvas.style.transform=`matrix(${c},${s*tilt},${-s},${c*tilt},0,0) translate(${-WAKE_WIDTH/2}px,${-WAKE_ORIGIN_Y}px)`;
-      lastWakeHeading=heading;
-      lastWakePitch=pitch;
-    }
-    if(frame!==lastWakeFrame){
-      paintWake(wakeContext,Math.max(0,frame)/MOTION_FPS,speed);
-      lastWakeFrame=frame;
-    }
+    lastWakeFrame=frame;
+    lastWakePosition={x:position.x,y:position.y};
+    lastWakeZoom=zoom;
+    wakePaints++;
   }
 
-  function drawShip(element,heading,pitch,zoom,speed=0,now=performance.now()){
+  function drawShip(element,heading,pitch,zoom,speed=0,now=performance.now(),water=null){
     if(failed)return false;
     if(!gameRenderer){try{gameCanvas=document.createElement('canvas');gameCanvas.className='ship-model';gameCanvas.setAttribute('aria-label','3D 카락 무역선');gameRenderer=createRenderer(gameCanvas);if(!gameRenderer){failed=true;return false}element.appendChild(gameCanvas)}catch(error){console.warn('Ship 3D unavailable',error);failed=true;return false}}
     motionPreference??=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -274,9 +323,9 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
     // Use the sailing frame loop. Rocking and foam are sampled at 12 Hz.
     const screenScale=.62+Math.max(0,Math.min(1,(zoom-1)/9))*.73;
     const model=gameRenderer.draw({heading,pitch,size:160,scale:4,waterline:0,...pose,ratio:Math.min(2,globalThis.devicePixelRatio||1)*Math.max(1,screenScale)});
-    drawWake(element,heading,pitch,frame,model?speed:0);
+    drawWake(element,heading,pitch,frame,model?speed:0,zoom,screenScale,water);
     return model;
   }
-  const api={buildModel,createRenderer,drawShip,get stats(){return gameRenderer?.stats??null}};
+  const api={buildModel,createRenderer,drawShip,get stats(){return gameRenderer?{...gameRenderer.stats,wakePackets:wakePackets.length,wakePaints}:null}};
   if(typeof module==='object')module.exports=api;else window.ROTTA_SHIP_3D=api;
 })();

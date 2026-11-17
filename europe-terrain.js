@@ -200,8 +200,13 @@
       return Boolean(active && relief?.hasWater && view.showColors && !document.hidden && !reducedMotion?.matches);
     }
 
+    function waterFrameInterval() {
+      return view?.zoom<=1.1?125:waterInterval;
+    }
+
     function waterFrameNow() {
-      return Math.floor(performance.now() / waterInterval);
+      const interval=waterFrameInterval();
+      return Math.floor(performance.now()/interval)*interval;
     }
 
     function stopWater() {
@@ -219,7 +224,7 @@
           // A camera update may have drawn this phase already.
           if (presentedWaterFrame !== waterFrameNow()) present();
           else scheduleWater();
-        }, waterInterval);
+        }, waterFrameInterval());
       }
     }
 
@@ -233,7 +238,7 @@
     function present() {
       prepareWater();
       const waterFrame = waterAnimating() ? waterFrameNow() : 0;
-      const waterPhase = (waterFrame * waterInterval / 8000) % (2 * Math.PI);
+      const waterPhase = (waterFrame / 8000) % (2 * Math.PI);
       const left = view.tx - camera.tx;
       const top = view.ty - camera.ty;
       const rect = {left, top, width: camera.w, height: camera.h};
@@ -245,7 +250,7 @@
         // The padded map is reused between water frames, with no tile uploads when only the water moves.
         if (flatRevision !== paintCount || flatWaterFrame !== waterFrame) {
           const projection = pitch.project(camera.w, camera.h, 0);
-          const flat = {...camera, projection};
+          const flat = {...camera, projection,waterFocus:view.waterFocus};
           const source = {left: 0, top: 0, width: camera.w, height: camera.h};
           if (relief.draw(canvas, flat, source, camera.ratio, paintCount, waterPhase)) {
             flatRevision = paintCount;
@@ -315,13 +320,13 @@
 
     function refreshView() {
       if (!active || !view) return;
-      const {tx, ty, zoom, w, h, projection, showColors} = view;
-      update(tx, ty, zoom, w, h, projection, showColors);
+      const {tx, ty, zoom, w, h, projection, showColors,waterFocus} = view;
+      update(tx, ty, zoom, w, h, projection, showColors,waterFocus);
     }
 
-    function update(tx, ty, zoom, w, h, projection = null, showColors = true) {
+    function update(tx, ty, zoom, w, h, projection = null, showColors = true,waterFocus=null) {
       if (w < 1 || h < 1) return;
-      view = {tx, ty, zoom, w, h, projection, showColors};
+      view = {tx, ty, zoom, w, h, projection, showColors,waterFocus};
       if (!active) return;
       const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
       const required = projection
@@ -389,12 +394,14 @@
     }
 
     return {update, setActive,
+      setWaterFocus(x,y){if(view)view.waterFocus={x,y};},
       get reliefVisible() { return reliefVisible; },
       heightAt: (x, y) => reliefVisible && view.projection ? view.projection.reliefScale * pitch.sampleHeight(elevations, x, y) : 0,
       stats: () => ({
         cachedTiles: cache.size, decodedBytes, downloads: loading.size,
         peakDownloads, paintCount, textureUploads: relief?.textureUploads ?? 0, visibleTiles: wanted.size,
-        waterDraws: relief?.waterDraws ?? 0, waterPixels: relief?.waterPixels ?? 0
+        waterDraws: relief?.waterDraws ?? 0, waterPixels: relief?.waterPixels ?? 0,
+        waterPixelBudget:relief?.waterPixelBudget??0,waterFramesPerSecond:1000/waterFrameInterval()
       })};
   }
 

@@ -767,12 +767,13 @@ function populateDestinations(){const select=$('#destinationSelect'),groups={};f
 function renderSeaPorts(){const layer=$('#seaPorts');if(!layer)return;const symbols=window.ROTTA_PORT_SYMBOLS;layer.innerHTML=Object.entries(PORTS).map(([id,p])=>{const visual=symbols?.classify(id,p)||{kind:'harbor',culture:'western'},emblem=symbols?.markup(id,p)||'<svg class="port-symbol" viewBox="0 0 40 44"><path class="port-sigil-line" d="M20 8V33M12 16H28M8 25Q10 38 20 33Q30 38 32 25"/></svg>';return `<button class="sea-port${p.inland?' inland':''}" data-seaport="${id}" data-port-kind="${visual.kind}" data-port-culture="${visual.culture}" style="left:${p.x}px;top:${p.y}px" title="${p.name} — ${p.region}${p.inland?' · 내륙 교역 거점(가장 가까운 안전 접안점으로 입항)':''}"><span class="port-emblem" aria-hidden="true">${emblem}</span><span class="port-label">${p.name}</span></button>`}).join('');NAV_RENDER.portNodes=[...layer.querySelectorAll('[data-seaport]')].map(el=>({el,p:PORTS[el.dataset.seaport]}));NAV_RENDER.portNodes.forEach(({el})=>el.onclick=e=>{e.stopPropagation();if(!state.nation)return;openSeaPortActions(el.dataset.seaport)});queuePortCulling(true)}
 function positionSailingShip(){
  const ship=NAV_RENDER.ship;
+ if(EUROPE)NAV_RENDER.coastRenderer?.setWaterFocus?.(state.shipX,state.shipY);
  const {x,y}=EUROPE?projectChartPosition(state.shipX,state.shipY):{x:state.shipX,y:state.shipY};
  const visible=Number.isFinite(x)&&Number.isFinite(y);
  ship.hidden=!visible;
  if(!visible)return;
  const speed=(state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity)/MANUAL_SAIL.maxSpeed;
- const model3d=!!(EUROPE&&window.ROTTA_SHIP_3D?.drawShip(ship,MANUAL_SAIL.heading,NAV_RENDER.projection?.degrees||0,state.zoom,speed));
+ const model3d=!!(EUROPE&&window.ROTTA_SHIP_3D?.drawShip(ship,MANUAL_SAIL.heading,NAV_RENDER.projection?.degrees||0,state.zoom,speed,undefined,{x:state.shipX,y:state.shipY,project:projectChartPosition}));
  if(ship.classList.contains('has-3d-model')!==model3d)ship.classList.toggle('has-3d-model',model3d);
  let heading=model3d?0:MANUAL_SAIL.heading;
  if(!model3d&&NAV_RENDER.projection){
@@ -865,7 +866,7 @@ function updateChartScale(ty,height){
  const mark=$('.scale-mark'),label=`약 ${EUROPE?miles.toFixed(miles<1?1:0):Math.max(8,Math.round(miles))}해리`;
  if(mark.textContent!==label)mark.textContent=label;
 }
-function updateCoastVisibility(){if(!NAV_RENDER.coastRenderer||!NAV_RENDER.width||(!EUROPE&&state.zoom<=2.5))return;const z=state.zoom,tx=NAV_RENDER.lastTx,ty=NAV_RENDER.lastTy;if(EUROPE)NAV_RENDER.coastRenderer.update(tx,ty,z,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection,!DEPARTURE_ZOOM.active);else NAV_RENDER.coastRenderer.update(-tx/z,-ty/z,(NAV_RENDER.width-tx)/z,(NAV_RENDER.height-ty)/z)}
+function updateCoastVisibility(){if(!NAV_RENDER.coastRenderer||!NAV_RENDER.width||(!EUROPE&&state.zoom<=2.5))return;const z=state.zoom,tx=NAV_RENDER.lastTx,ty=NAV_RENDER.lastTy;if(EUROPE)NAV_RENDER.coastRenderer.update(tx,ty,z,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection,!DEPARTURE_ZOOM.active,{x:state.shipX,y:state.shipY});else NAV_RENDER.coastRenderer.update(-tx/z,-ty/z,(NAV_RENDER.width-tx)/z,(NAV_RENDER.height-ty)/z)}
 function requestCameraUpdate(){if(NAV_RENDER.cameraFrame)return;NAV_RENDER.cameraFrame=requestAnimationFrame(()=>{NAV_RENDER.cameraFrame=0;updateCamera()})}
 function updatePortVisibility(){
  NAV_RENDER.cullTimer=0;
