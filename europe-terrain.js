@@ -44,8 +44,8 @@
     let flatRevision = -1;
     let flatWaterFrame = 0;
     let presentedWaterFrame = 0;
-    let shoreLoad, shoreBytes, waterTimer;
-    let nextShoreRetry = 0;
+    let waterLoad, waterAssets, waterTimer;
+    let nextWaterRetry = 0;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const cache = new Map();
     const loading = new Map();
@@ -170,7 +170,7 @@
         });
         pitchCanvas.addEventListener('webglcontextrestored', () => {
           relief = pitch.renderer(pitchCanvas, heights);
-          if (shoreBytes) relief?.setShore(shoreBytes);
+          if (waterAssets) relief?.setWater(...waterAssets);
           refreshView();
         });
         viewport.insertBefore(pitchCanvas, world);
@@ -183,16 +183,16 @@
     }
 
     function prepareWater() {
-      if (!relief || shoreLoad || performance.now() < nextShoreRetry) return;
-      shoreLoad = pitch.loadShore().then(bytes => {
-        shoreBytes = bytes;
-        relief?.setShore(bytes);
+      if (!relief || waterLoad || performance.now() < nextWaterRetry) return;
+      waterLoad = pitch.loadWater().then(assets => {
+        waterAssets = assets;
+        relief?.setWater(...assets);
         flatRevision = -1;
         if (active && camera) present();
       }).catch(error => {
         console.warn(error);
-        nextShoreRetry = performance.now() + retryDelay;
-        shoreLoad = null;
+        nextWaterRetry = performance.now() + retryDelay;
+        waterLoad = null;
       });
     }
 

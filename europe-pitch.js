@@ -4,6 +4,7 @@
   const maxBendSquared = 4;
   const atlasSize = 4096;
   const waveNoiseSize = 128;
+  const waveFlowSize = 1024;
   const chartSize = {width: 16384, height: 17192};
   const maxHeight = 32;
   const heightExaggeration = 2;
@@ -76,8 +77,11 @@
     return {europe, lisbon};
   }
 
-  function loadShore() {
-    return loadTerrainBytes('water-shore-v2.bin.gz', atlasSize ** 2, true);
+  function loadWater() {
+    return Promise.all([
+      loadTerrainBytes('water-shore-v2.bin.gz', atlasSize ** 2, true),
+      loadTerrainBytes('wave-flow-v2.bin.gz', waveFlowSize ** 2 * 4, true)
+    ]);
   }
 
   function bilinear(data, size, column, row) {
@@ -162,18 +166,56 @@
       return smoothstep(0.008, 0.085, min(color.b, color.g) - color.r);
     }
 
-    vec2 wavelet(vec2 grid, vec2 seed) {
+    vec3 flowTexel(vec2 uv) {
+      vec4 field = texture2D(u_waveFlow, uv);
+      float offset = dot(field.ba, vec2(16320.0, 63.75)) - 8192.0;
+      return vec3(field.rg * 2.0 - 1.0, offset);
+    }
+
+    vec3 waveFlow(vec2 world, bool inChart) {
+      vec2 prevailing = vec2(0.86, -0.51);
+      float arrival = dot(world, prevailing);
+      if (!inChart) return vec3(prevailing, arrival);
+      const float size = ${waveFlowSize}.0;
+      const vec2 stepUV = vec2(1.0 / size, 0.0);
+      vec2 pixel = clamp(v_chart * size - 0.5, 0.0, size - 1.0);
+      vec2 uv = (floor(pixel) + 0.5) / size;
+      vec2 fraction = fract(pixel);
+      // Unpack before interpolating. Filtering the bytes could round across a high-byte carry.
+      vec3 upper = mix(flowTexel(uv), flowTexel(uv + stepUV.xy), fraction.x);
+      vec3 lower = mix(flowTexel(uv + stepUV.yx), flowTexel(uv + stepUV.xx), fraction.x);
+      vec3 field = mix(upper, lower, fraction.y);
+      return vec3(normalize(field.xy), arrival + field.z);
+    }
+
+    vec3 coastFlow(vec2 direction, float distance) {
+      if (abs(distance) > 10.0) return vec3(direction, 0.0);
+      vec2 stepUV = vec2(1.0 / ${atlasSize}.0, 0.0);
+      vec2 gradient = vec2(
+        texture2D(u_shore, v_chart + stepUV.xy).r - texture2D(u_shore, v_chart - stepUV.xy).r,
+        texture2D(u_shore, v_chart + stepUV.yx).r - texture2D(u_shore, v_chart - stepUV.yx).r
+      ) * vec2(1.0, ${chartSize.width}.0 / ${chartSize.height}.0);
+      if (dot(gradient, gradient) < 0.0001) return vec3(direction, 0.38);
+      vec2 shoreward = -normalize(gradient);
+      float exposure = mix(0.12, 1.0, smoothstep(-0.10, 0.82, dot(direction, shoreward)));
+      float turn = (1.0 - smoothstep(1.0, 10.0, abs(distance))) * exposure * 0.59;
+      return vec3(normalize(mix(direction, shoreward, turn)), exposure);
+    }
+
+    vec2 wavelet(vec2 grid, vec2 seed, vec2 flow) {
       vec2 cell = floor(grid);
       vec4 random = texture2D(u_waveNoise, (cell + seed + 0.5) / ${waveNoiseSize}.0);
       vec2 local = fract(grid) - 0.5;
       float fadeEdge = 1.0 - smoothstep(0.32, 0.5, max(abs(local.x), abs(local.y)));
-      local -= (random.xy - 0.5) * vec2(0.39, 0.31);
-      float angle = (random.z - 0.5) * 1.37;
+      local -= (random.xy - 0.5) * 0.30;
+      vec2 tangent = vec2(flow.y, -flow.x);
+      vec2 aligned = vec2(dot(local, tangent), dot(local, flow));
+      float angle = (random.z - 0.5) * 0.46;
       float halfLength = mix(0.13, 0.46, random.w);
-      float along = (local.x + local.y * angle) / halfLength;
-      float across = local.y - local.x * angle;
+      float along = (aligned.x + aligned.y * angle) / halfLength;
+      float across = aligned.y - aligned.x * angle;
       // Most crests are nearly straight; a few have a stronger signed arc.
-      float curve = (random.y * 2.0 - 1.0) * random.z * random.z * 0.28;
+      float curve = (random.y * 2.0 - 1.0) * random.z * random.z * 0.20;
       float line = curve * along * along + (random.x - 0.5) * 0.06 * along * along * along;
       float speed = 8.0 + floor(random.x * 9.0);
       float age = fract(u_waterTime * speed / 6.2831853 + random.w);
@@ -185,17 +227,18 @@
       return vec2(cap, body) * mix(0.52, 1.0, random.y);
     }
 
-    float shorePulse(float distance, vec2 world, float noise) {
-      float phase = distance * 2.0 + u_waterTime * 17.0 + noise * 3.2 + dot(world, vec2(0.08, -0.04));
-      return smoothstep(0.24, 0.96, cos(phase));
+    float shorePulse(float distance, float swell, float noise, float exposure) {
+      // The advancing crest turns toward the coast in the shallow band.
+      float phase = swell - distance * (0.30 + 0.56 * exposure) + (noise - 0.5) * 0.95;
+      return smoothstep(0.23, 0.96, cos(phase));
     }
 
-    vec3 coastalWash(vec3 base, float distance, vec2 world, float tone) {
+    vec3 coastalWash(vec3 base, float distance, vec2 world, float tone, float phase, float exposure) {
       float detail = smoothstep(0.10, 0.78, u_waterDetail);
       if (detail <= 0.0 || abs(distance) > 4.4 || tone > 0.94) return base;
       float grain = texture2D(u_waveNoise, world * vec2(0.0022, 0.0036)).g;
-      float pulse = shorePulse(distance, world, grain);
-      vec2 reach = u_worldToSource * (0.57 + (0.39 + 0.53 * grain) * pulse);
+      float pulse = shorePulse(distance, phase, grain, exposure);
+      vec2 reach = u_worldToSource * (0.51 + (0.39 + 0.53 * grain) * pulse * exposure);
       // Read the painted coastline to let the wash cross its edge by only a small amount.
       float adjacent = max(
         max(waterTone(texture2D(u_color, v_uv + vec2(reach.x, 0.0)).rgb),
@@ -205,32 +248,44 @@
       float damp = smoothstep(0.23, 0.81, adjacent) * (1.0 - tone) * detail;
       damp *= 1.0 - smoothstep(2.1, 4.4, abs(distance));
       vec3 wetSand = base * vec3(0.80, 0.88, 0.90);
-      vec3 wash = mix(wetSand, vec3(0.67, 0.77, 0.73), pulse * smoothstep(0.30, 0.79, grain) * 0.27);
-      return mix(base, wash, damp * (0.68 + 0.26 * pulse));
+      vec3 wash = mix(wetSand, vec3(0.67, 0.77, 0.73), pulse * smoothstep(0.30, 0.79, grain) * exposure * 0.27);
+      return mix(base, wash, damp * (0.46 + exposure * (0.23 + 0.27 * pulse)));
     }
 
-    vec3 waterSurface(vec3 base, float distance, vec2 world) {
+    vec3 waterSurface(vec3 base, float distance, vec2 world, vec3 localFlow, float phase, float arrival) {
       float t = u_waterTime;
       vec2 drift = vec2(cos(t), sin(t)) * 0.012;
       vec4 sky = texture2D(u_waveNoise, world * vec2(0.00043, 0.00070) + drift);
       float broad = sky.r - 0.5;
-      vec2 longGrid = vec2(world.x + 0.11 * world.y, world.y) / vec2(18.0, 8.2);
-      vec2 smallGrid = vec2(world.x - 0.32 * world.y, world.y + 0.06 * world.x) / vec2(9.8, 4.9);
-      vec2 longWaves = wavelet(longGrid + sky.gb * 0.27, vec2(0.0));
-      vec2 smallWaves = wavelet(smallGrid + vec2(0.37, 0.63), vec2(37.0, 59.0));
-      float glint = longWaves.x * 0.48 + smallWaves.x * 0.59 * u_waterDetail;
-      float crest = longWaves.y * 0.67 + smallWaves.y * 0.33 * u_waterDetail;
+      vec2 longGrid = world / 16.0;
+      vec2 smallGrid = world / 8.7;
+      vec2 longWaves = wavelet(longGrid + sky.gb * 0.31, vec2(0.0), localFlow.xy);
+      vec2 smallWaves = wavelet(smallGrid + vec2(0.37, 0.63), vec2(37.0, 59.0), localFlow.xy);
+      float approach = 1.0 - smoothstep(2.0, 10.0, abs(distance));
+      float bentPhase = phase - distance * approach * localFlow.z * 0.56;
+      float secondary = sin(arrival * 0.27 - t * 11.0 + sky.r);
+      float swell = cos(bentPhase + 0.82 * secondary + (sky.g - 0.5) * 0.90);
+      float crestBand = smoothstep(0.24, 0.95, swell);
+      float patches = mix(0.26, 0.92, smoothstep(0.10, 0.90, sky.b));
+      float glint = (longWaves.x * 0.55 + smallWaves.x * 0.34 * u_waterDetail)
+        * mix(0.38, 1.0, crestBand);
+      float crest = (longWaves.y * 0.58 + smallWaves.y * 0.42 * u_waterDetail)
+        * mix(0.32, 1.0, crestBand);
 
       vec3 sea = base * vec3(0.92, 0.96, 0.99);
-      sea += broad * vec3(0.043, 0.063, 0.069);
-      sea += crest * vec3(0.042, 0.063, 0.075);
-      sea += glint * vec3(0.105, 0.157, 0.176);
+      sea += broad * vec3(0.032, 0.055, 0.062);
+      sea += swell * vec3(0.006, 0.011, 0.014);
+      sea += crestBand * patches * vec3(0.015, 0.029, 0.033);
+      sea += crest * vec3(0.028, 0.048, 0.057);
+      sea += glint * vec3(0.090, 0.143, 0.160);
       float shallows = 1.0 - smoothstep(0.0, 15.0, distance);
       sea += shallows * vec3(0.015, 0.054, 0.046);
 
+      if (distance >= 3.25) return sea;
       float nearShore = smoothstep(-0.45, 0.84, distance) * (1.0 - smoothstep(1.4, 3.25, distance));
-      float patches = texture2D(u_waveNoise, world * vec2(0.0022, 0.0036)).g;
-      float foam = nearShore * shorePulse(distance, world, patches) * smoothstep(0.29, 0.83, patches);
+      float grain = texture2D(u_waveNoise, world * vec2(0.0022, 0.0036)).g;
+      float foam = nearShore * shorePulse(distance, phase, grain, localFlow.z)
+        * smoothstep(0.25, 0.80, grain) * localFlow.z;
       return mix(sea, vec3(0.70, 0.83, 0.80), foam * u_waterDetail * 0.39);
     }
   `;
@@ -238,6 +293,7 @@
   const fragmentSource = precision => `
     precision ${precision} float;
     uniform sampler2D u_color;
+    uniform ${precision} sampler2D u_waveFlow;
     varying ${precision} vec2 v_uv, v_chart;
     ${elevationSource}
     ${waterSource}
@@ -245,17 +301,23 @@
     void main() {
       vec4 terrain = texture2D(u_color, v_uv);
       if (u_waterReady) {
-        float distance = texture2D(u_shore, v_chart).r * 31.875 - 8.0;
-        if (min(v_chart.x, v_chart.y) < 0.0 || max(v_chart.x, v_chart.y) > 1.0) distance = 23.875;
-        vec2 world = v_chart * vec2(${chartSize.width}.0, ${chartSize.height}.0);
+        bool inChart = min(v_chart.x, v_chart.y) >= 0.0 && max(v_chart.x, v_chart.y) <= 1.0;
+        float distance = inChart ? texture2D(u_shore, v_chart).r * 31.875 - 8.0 : 23.875;
         float tone = waterTone(terrain.rgb);
         float wet = smoothstep(-1.3, 1.35, distance) * tone;
-        vec3 edge = coastalWash(terrain.rgb, distance, world, tone);
-        if (wet > 0.0) {
-          gl_FragColor = vec4(mix(edge, waterSurface(terrain.rgb, distance, world), wet), terrain.a);
-          return;
+        if (wet > 0.0 || abs(distance) <= 4.4) {
+          vec2 world = v_chart * vec2(${chartSize.width}.0, ${chartSize.height}.0);
+          vec3 flow = waveFlow(world, inChart);
+          vec3 localFlow = coastFlow(flow.xy, distance);
+          float phase = flow.z * 0.46 - u_waterTime * 18.0;
+          vec3 edge = coastalWash(terrain.rgb, distance, world, tone, phase, localFlow.z);
+          if (wet > 0.0) {
+            vec3 water = waterSurface(terrain.rgb, distance, world, localFlow, phase, flow.z);
+            gl_FragColor = vec4(mix(edge, water, wet), terrain.a);
+            return;
+          }
+          terrain.rgb = edge;
         }
-        terrain.rgb = edge;
       }
       vec3 samples = readElevation(v_chart);
       // Undo the atlas' display compression to place vegetation bands in metres.
@@ -362,6 +424,9 @@
     uploadBytes(4, 'waveNoise', waveNoiseSize, waveNoise(), gl.RGBA);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    uploadBytes(5, 'waveFlow', 1, new Uint8Array([237, 62, 128, 0]), gl.RGBA);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     texture(0);
     gl.uniform1i(uniform('color'), 0);
     gl.enable(gl.DEPTH_TEST);
@@ -373,9 +438,11 @@
     let hasWater = false;
     return {
       get hasWater() { return hasWater; },
-      setShore(data) {
+      setWater(shore, flow) {
         gl.activeTexture(gl.TEXTURE3);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, atlasSize, atlasSize, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, atlasSize, atlasSize, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, shore);
+        gl.activeTexture(gl.TEXTURE5);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, waveFlowSize, waveFlowSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, flow);
         gl.activeTexture(gl.TEXTURE0);
         hasWater = true;
       },
@@ -415,5 +482,5 @@
     };
   }
 
-  window.ROTTA_EUROPE_PITCH = {project, sourceRect, maxAngle, loadHeights, loadShore, sampleHeight, renderer};
+  window.ROTTA_EUROPE_PITCH = {project, sourceRect, maxAngle, loadHeights, loadWater, sampleHeight, renderer};
 })();
