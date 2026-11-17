@@ -97,17 +97,27 @@
   }
   const vertex=`precision highp float;
 attribute vec3 a_position,a_normal,a_color;attribute float a_material;
-uniform vec2 u_size;uniform float u_heading,u_pitch,u_scale,u_center;
+uniform vec2 u_size;uniform float u_heading,u_pitch,u_scale,u_center,u_heave;
+uniform vec4 u_hull_rotation;
 varying vec3 v_position,v_normal,v_color;varying float v_material;
+varying mediump float v_surface_height;
+vec3 rock(vec3 p){
+ float rollCos=u_hull_rotation.x,rollSin=u_hull_rotation.y;
+ float pitchCos=u_hull_rotation.z,pitchSin=u_hull_rotation.w;
+ vec3 rolled=vec3(p.x*rollCos-p.z*rollSin,p.y,p.x*rollSin+p.z*rollCos);
+ return vec3(rolled.x,rolled.y*pitchCos-rolled.z*pitchSin,rolled.y*pitchSin+rolled.z*pitchCos);
+}
 void main(){float c=cos(u_heading),s=sin(u_heading),cp=cos(u_pitch),sp=sin(u_pitch);
-vec3 p=a_position;float x=p.x*c+p.y*s,y=p.x*s-p.y*c,z=p.z-u_center;
+vec3 p=rock(a_position);p.z+=u_heave;
+float x=p.x*c+p.y*s,y=p.x*s-p.y*c,z=p.z-u_center;
 float vertical=y*cp-z*sp,depth=y*sp+z*cp;
 gl_Position=vec4(x*u_scale*2.0/u_size.x,-vertical*u_scale*2.0/u_size.y,-depth/60.0,1.0);
-v_position=p;v_normal=a_normal;v_color=a_color;v_material=a_material;}`;
+v_position=a_position;v_normal=rock(a_normal);v_color=a_color;v_material=a_material;v_surface_height=p.z;}`;
   const fragment=`precision mediump float;
 varying vec3 v_position,v_normal,v_color;varying float v_material;uniform float u_waterline;
+varying mediump float v_surface_height;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-void main(){if(v_position.z<u_waterline)discard;vec3 n=normalize(v_normal);if(!gl_FrontFacing)n=-n;
+void main(){if(v_surface_height<u_waterline)discard;vec3 n=normalize(v_normal);if(!gl_FrontFacing)n=-n;
 float sun=max(0.0,dot(n,normalize(vec3(-.6,.35,1.0))));float fill=abs(n.z)*.08;
 vec3 color=v_color;vec3 p=v_position;
 if(v_material>.5&&v_material<2.5){
@@ -126,7 +136,7 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
       program=gl.createProgram();const vs=shader(gl.VERTEX_SHADER,vertex),fs=shader(gl.FRAGMENT_SHADER,fragment);gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);gl.deleteShader(vs);gl.deleteShader(fs);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);
       buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,buildModel().vertices,gl.STATIC_DRAW);
       for(const [name,size,offset] of [['position',3,0],['normal',3,12],['color',3,24],['material',1,36]]){const a=gl.getAttribLocation(program,'a_'+name);gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,size,gl.FLOAT,false,40,offset)}
-      locations=Object.fromEntries(['size','heading','pitch','scale','center','waterline'].map(n=>[n,gl.getUniformLocation(program,'u_'+n)]));
+      locations=Object.fromEntries(['size','heading','pitch','scale','center','waterline','heave','hull_rotation'].map(n=>[n,gl.getUniformLocation(program,'u_'+n)]));
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.clearColor(0,0,0,0);last='';
     }
     initialize();
@@ -135,22 +145,137 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
     canvas.addEventListener('webglcontextlost',lost);canvas.addEventListener('webglcontextrestored',restored);
     return {
       get stats(){return {triangles:buildModel().triangles,draws,drawCallsPerFrame:1,bufferBytes:buildModel().vertices.byteLength}},
-      draw({heading=0,pitch=0,size=160,scale=4,center=0,waterline=-10,ratio=Math.min(2,globalThis.devicePixelRatio||1)}={}){
+      draw({heading=0,pitch=0,size=160,scale=4,center=0,waterline=-10,roll=0,hullPitch=0,heave=0,ratio=Math.min(2,globalThis.devicePixelRatio||1)}={}){
         if(disposed||gl.isContextLost())return false;
-        const key=[heading,pitch,size,scale,center,waterline,ratio].join(':');if(key===last)return true;last=key;
+        const key=[heading,pitch,size,scale,center,waterline,roll,hullPitch,heave,ratio].join(':');if(key===last)return true;last=key;
         const pixels=Math.round(size*ratio);if(canvas.width!==pixels||canvas.height!==pixels){canvas.width=pixels;canvas.height=pixels}gl.viewport(0,0,pixels,pixels);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-        gl.uniform2f(locations.size,size,size);gl.uniform1f(locations.heading,heading*Math.PI/180);gl.uniform1f(locations.pitch,pitch*Math.PI/180);gl.uniform1f(locations.scale,scale);gl.uniform1f(locations.center,center);gl.uniform1f(locations.waterline,waterline);gl.drawArrays(gl.TRIANGLES,0,buildModel().vertices.length/10);draws++;return true;
+        gl.uniform2f(locations.size,size,size);gl.uniform1f(locations.heading,heading*Math.PI/180);gl.uniform1f(locations.pitch,pitch*Math.PI/180);gl.uniform1f(locations.scale,scale);gl.uniform1f(locations.center,center);gl.uniform1f(locations.waterline,waterline);
+        gl.uniform1f(locations.heave,heave);
+        gl.uniform4f(locations.hull_rotation,Math.cos(roll),Math.sin(roll),Math.cos(hullPitch),Math.sin(hullPitch));
+        gl.drawArrays(gl.TRIANGLES,0,buildModel().vertices.length/10);draws++;return true;
       },
       dispose(){disposed=true;canvas.removeEventListener('webglcontextlost',lost);canvas.removeEventListener('webglcontextrestored',restored);gl.deleteBuffer(buffer);gl.deleteProgram(program)}
     };
   }
-  let gameRenderer,gameCanvas,failed=false;
-  function drawShip(element,heading,pitch,zoom){
+  const MOTION_FPS=12;
+  const WAKE_WIDTH=92,WAKE_HEIGHT=114,WAKE_ORIGIN_Y=32;
+  const stillPose={roll:0,hullPitch:0,heave:0};
+  let gameRenderer,gameCanvas,motionPreference,failed=false;
+  let pose=stillPose,lastMotionFrame;
+  let wakeCanvas,wakeContext,lastWakeFrame,lastWakeHeading,lastWakePitch;
+
+  function sailingPose(seconds,speed){
+    const swell=seconds*TAU/3.7,ripple=seconds*TAU/2.15;
+    return {
+      roll:speed*(.029*Math.sin(swell)+.009*Math.sin(ripple+.9)),
+      hullPitch:speed*(.015*Math.sin(swell+1.6)+.006*Math.sin(ripple)),
+      heave:speed*(.14*Math.sin(swell-.65)+.045*Math.sin(ripple+1.8))
+    };
+  }
+
+  function paintWake(ctx,seconds,speed){
+    ctx.clearRect(-WAKE_WIDTH/2,-WAKE_ORIGIN_Y,WAKE_WIDTH,WAKE_HEIGHT);
+    const spread=.75+.25*speed;
+    const wash=ctx.createLinearGradient(0,-25,0,50);
+    wash.addColorStop(0,'rgba(230,251,238,.09)');
+    wash.addColorStop(.18,'rgba(230,251,238,.77)');
+    wash.addColorStop(.42,'rgba(197,242,230,.40)');
+    wash.addColorStop(1,'rgba(171,229,220,0)');
+    // The waterline ends near y=-22 at the stem and y=24 at the transom.
+    for(const side of [-1,1]){
+      const x=side*spread;
+      const flutter=Math.sin(seconds*3.2+side)*1.1;
+      ctx.globalAlpha=speed*.43;
+      ctx.fillStyle=wash;
+      ctx.beginPath();
+      ctx.moveTo(0,-25);
+      ctx.bezierCurveTo(9*x,-24,11*x,-5,17*x,8);
+      ctx.quadraticCurveTo((29+flutter)*x,31,32*x,44);
+      ctx.quadraticCurveTo((21+flutter)*x,22,12*x,9);
+      ctx.bezierCurveTo(7*x,-1,5*x,-20,0,-25);
+      ctx.fill();
+
+      ctx.globalAlpha=speed;
+      ctx.strokeStyle=wash;
+      ctx.lineWidth=1.2;
+      ctx.beginPath();
+      ctx.moveTo(1*x,-23);
+      ctx.bezierCurveTo(8*x,-21,9*x,-7,15*x,5);
+      ctx.quadraticCurveTo((20+flutter)*x,15,27*x,26);
+      ctx.stroke();
+
+      // Irregular foam streaks stretch out and fade as they slip astern.
+      ctx.strokeStyle='#def4e8';
+      for(let i=0;i<6;i++){
+        const age=(seconds*(.43+.17*speed)+i/6+(side>0?.08:0))%1;
+        const drift=Math.sin(i*2.8+side)*2.25;
+        const y=15+age*(37+27*speed);
+        const edge=x*(6+age*15+drift);
+        const inner=i%3===0?.42:1;
+        ctx.globalAlpha=speed*(.28+.09*Math.sin(i*4))*Math.sin(Math.PI*age);
+        ctx.lineWidth=i%3===0?1.45:.75;
+        ctx.beginPath();
+        ctx.moveTo(edge*inner,y);
+        ctx.quadraticCurveTo((edge+1.6*x)*inner,y+2,(edge+2.2*x)*inner,y+3+i%3);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha=1;
+  }
+
+  function drawWake(element,heading,pitch,frame,speed){
+    if(!speed){
+      if(wakeCanvas&&!wakeCanvas.hidden)wakeCanvas.hidden=true;
+      lastWakeFrame=undefined;
+      return;
+    }
+    if(!wakeCanvas){
+      const canvas=document.createElement('canvas');
+      const ratio=Math.min(1.5,globalThis.devicePixelRatio||1);
+      canvas.width=Math.round(WAKE_WIDTH*ratio);
+      canvas.height=Math.round(WAKE_HEIGHT*ratio);
+      const ctx=canvas.getContext('2d');
+      if(!ctx)return;
+      ctx.scale(canvas.width/WAKE_WIDTH,canvas.height/WAKE_HEIGHT);
+      ctx.translate(WAKE_WIDTH/2,WAKE_ORIGIN_Y);
+      ctx.lineCap='round';
+      canvas.className='ship-water-wake';
+      canvas.setAttribute('aria-hidden','true');
+      element.appendChild(canvas);
+      wakeCanvas=canvas;
+      wakeContext=ctx;
+    }
+    if(wakeCanvas.hidden)wakeCanvas.hidden=false;
+    if(heading!==lastWakeHeading||pitch!==lastWakePitch){
+      const angle=heading*Math.PI/180,tilt=Math.cos(pitch*Math.PI/180);
+      const c=Math.cos(angle),s=Math.sin(angle);
+      // Project the flat water with the same heading and pitch as the hull.
+      wakeCanvas.style.transform=`matrix(${c},${s*tilt},${-s},${c*tilt},0,0) translate(${-WAKE_WIDTH/2}px,${-WAKE_ORIGIN_Y}px)`;
+      lastWakeHeading=heading;
+      lastWakePitch=pitch;
+    }
+    if(frame!==lastWakeFrame){
+      paintWake(wakeContext,Math.max(0,frame)/MOTION_FPS,speed);
+      lastWakeFrame=frame;
+    }
+  }
+
+  function drawShip(element,heading,pitch,zoom,speed=0,now=performance.now()){
     if(failed)return false;
     if(!gameRenderer){try{gameCanvas=document.createElement('canvas');gameCanvas.className='ship-model';gameCanvas.setAttribute('aria-label','3D 카락 무역선');gameRenderer=createRenderer(gameCanvas);if(!gameRenderer){failed=true;return false}element.appendChild(gameCanvas)}catch(error){console.warn('Ship 3D unavailable',error);failed=true;return false}}
-    // Render at final display resolution; no independently running animation loop.
+    motionPreference??=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
+    speed=speed>.025?Math.min(1,speed):0;
+    const frame=motionPreference?.matches?-1:Math.floor(now*MOTION_FPS/1000);
+    const motionFrame=speed&&frame>=0?frame:undefined;
+    if(motionFrame!==lastMotionFrame){
+      pose=motionFrame===undefined?stillPose:sailingPose(motionFrame/MOTION_FPS,speed);
+      lastMotionFrame=motionFrame;
+    }
+    // Use the sailing frame loop. Rocking and foam are sampled at 12 Hz.
     const screenScale=.62+Math.max(0,Math.min(1,(zoom-1)/9))*.73;
-    return gameRenderer.draw({heading,pitch,size:160,scale:4,waterline:0,ratio:Math.min(2,globalThis.devicePixelRatio||1)*Math.max(1,screenScale)});
+    const model=gameRenderer.draw({heading,pitch,size:160,scale:4,waterline:0,...pose,ratio:Math.min(2,globalThis.devicePixelRatio||1)*Math.max(1,screenScale)});
+    drawWake(element,heading,pitch,frame,model?speed:0);
+    return model;
   }
   const api={buildModel,createRenderer,drawShip,get stats(){return gameRenderer?.stats??null}};
   if(typeof module==='object')module.exports=api;else window.ROTTA_SHIP_3D=api;

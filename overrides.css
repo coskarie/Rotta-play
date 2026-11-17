@@ -314,7 +314,8 @@
 
 /* The ship canvas stays in the annotation plane; only its actual 3D camera tilts. */
 .ship.has-3d-model{width:160px;height:160px;filter:none}
-.ship-model{display:block;width:160px;height:160px;pointer-events:none}
+.ship-model{display:block;position:relative;z-index:1;width:160px;height:160px;pointer-events:none}
+.ship-water-wake{position:absolute;left:50%;top:50%;width:92px;height:114px;z-index:0;transform-origin:0 0;pointer-events:none}
 .ship.has-3d-model .merchant-ship,.ship.has-3d-model .ship-wake{display:none}
 .ship:not(.has-3d-model) .ship-model{display:none}
 .ship-model-link{position:absolute;right:18px;bottom:154px;z-index:12;color:#e8d4a6;background:#30271cdd;border:1px solid #987943;padding:7px 10px;text-decoration:none;font-size:12px;border-radius:3px}
