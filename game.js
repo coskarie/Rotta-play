@@ -773,7 +773,7 @@ function positionSailingShip(){
  ship.hidden=!visible;
  if(!visible)return;
  const speed=(state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity)/MANUAL_SAIL.maxSpeed;
- const model3d=!!(EUROPE&&window.ROTTA_SHIP_3D?.drawShip(ship,MANUAL_SAIL.heading,NAV_RENDER.projection?.degrees||0,state.zoom,speed,undefined,{x:state.shipX,y:state.shipY,project:projectChartPosition}));
+ const model3d=!!(EUROPE&&window.ROTTA_SHIP_3D?.drawShip(ship,MANUAL_SAIL.heading,NAV_RENDER.projection?.degrees||0,state.zoom,speed,undefined,{x:state.shipX,y:state.shipY,project:projectChartPosition,unproject:chartWorldPosition,isWater:EUROPE.nav?.water,screenX:x,screenY:y,viewWidth:NAV_RENDER.width,viewHeight:NAV_RENDER.height}));
  if(ship.classList.contains('has-3d-model')!==model3d)ship.classList.toggle('has-3d-model',model3d);
  let heading=model3d?0:MANUAL_SAIL.heading;
  if(!model3d&&NAV_RENDER.projection){
@@ -819,6 +819,10 @@ function chartCurvatureActive(){
 }
 function flatChartPosition(x,y){
  return NAV_RENDER.projection?.invert(x,y,0,chartCurvatureActive())??{x,y};
+}
+function chartWorldPosition(x,y){
+ const flat=flatChartPosition(x,y);
+ return {x:(flat.x-NAV_RENDER.lastTx)/state.zoom,y:(flat.y-NAV_RENDER.lastTy)/state.zoom};
 }
 function projectChartPosition(worldX,worldY,onLand=false,withDepth=false){
  const x=NAV_RENDER.lastTx+worldX*state.zoom,y=NAV_RENDER.lastTy+worldY*state.zoom;

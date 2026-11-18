@@ -346,6 +346,12 @@
 
     void main() {
       vec4 terrain = texture2D(u_color, v_uv);
+      float seaCoverage=smoothstep(0.008,0.085,min(terrain.g,terrain.b)-terrain.r);
+      if(u_waterReady&&seaCoverage>=0.9999){
+        // Open-water fragments need neither elevation lookups nor vegetation/rock shading.
+        gl_FragColor=vec4(terrain.rgb+texture2D(u_waterEffect,v_uv).rgb-128.0/255.0,terrain.a);
+        return;
+      }
       vec3 samples = readElevation(v_chart);
       // Undo the atlas' display compression to place vegetation bands in metres.
       float europeMetres = samples.x * 2200.0 / (35.2 - samples.x);
@@ -363,7 +369,10 @@
       vec3 stone = (light * 0.89 + 0.075) * vec3(1.045, 1.015, 0.99);
       vec3 color = mix(terrain.rgb, dryGrass, dry * 0.86);
       vec3 painted = mix(color, stone, rock * 0.96);
-      if (u_waterReady) painted += texture2D(u_waterEffect, v_uv).rgb - 128.0 / 255.0;
+      if(u_waterReady&&seaCoverage>0.0){
+        // Clip the upsampled effect with the original full-resolution coastline.
+        painted+=(texture2D(u_waterEffect,v_uv).rgb-128.0/255.0)*seaCoverage;
+      }
       gl_FragColor = vec4(painted, terrain.a);
     }`;
 

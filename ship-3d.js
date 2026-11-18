@@ -165,6 +165,100 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
   let wakeCanvas,wakeContext,foamStamp,wakeRatio,lastWakeFrame,wakePaints=0;
   let wakePackets=[],lastWakePosition,lastWakeZoom,lastEmission=-Infinity,emissionIndex=0;
   let departureWakeStarted;
+  const COAST_TILE_SIZE=64,MAX_COAST_TILES=128;
+  const coastTiles=new Map();
+  let coastWaterSource;
+
+  function coastLandRectangles(column,row,isWater){
+    const key=column+':'+row;
+    const cached=coastTiles.get(key);
+    if(cached)return cached;
+    const rectangles=[];
+    const left=column*COAST_TILE_SIZE,top=row*COAST_TILE_SIZE;
+    let previous=new Map();
+    for(let y=0;y<COAST_TILE_SIZE;y++){
+      const current=new Map();
+      let x=0;
+      while(x<COAST_TILE_SIZE){
+        if(isWater(left+x+.5,top+y+.5)){x++;continue;}
+        const start=x++;
+        while(x<COAST_TILE_SIZE&&!isWater(left+x+.5,top+y+.5))x++;
+        const spanKey=start*(COAST_TILE_SIZE+1)+x;
+        let rectangle=previous.get(spanKey);
+        if(rectangle)rectangle.height++;
+        else{
+          rectangle={x:left+start,y:top+y,width:x-start,height:1};
+          rectangles.push(rectangle);
+        }
+        current.set(spanKey,rectangle);
+      }
+      previous=current;
+    }
+    coastTiles.set(key,rectangles);
+    if(coastTiles.size>MAX_COAST_TILES)coastTiles.delete(coastTiles.keys().next().value);
+    return rectangles;
+  }
+
+  function eraseWakeOnLand(ctx,water,project,origin,zoom,screenScale){
+    if(!water?.isWater||!water.unproject)return;
+    if(coastWaterSource!==water.isWater){
+      coastTiles.clear();
+      coastWaterSource=water.isWater;
+    }
+    const radius=WAKE_SIZE/2*screenScale;
+    const corners=[[-radius,-radius],[radius,-radius],[radius,radius],[-radius,radius]]
+      .map(([x,y])=>water.unproject(origin.x+x,origin.y+y));
+    if(corners.some(point=>!Number.isFinite(point.x)||!Number.isFinite(point.y))){
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,wakeCanvas.width,wakeCanvas.height);
+      return;
+    }
+    const padding=.75/zoom;
+    const left=Math.min(...corners.map(point=>point.x))-padding;
+    const right=Math.max(...corners.map(point=>point.x))+padding;
+    const top=Math.min(...corners.map(point=>point.y))-padding;
+    const bottom=Math.max(...corners.map(point=>point.y))+padding;
+    const factor=wakeRatio/screenScale;
+    const edgeStep=16/zoom;
+    let hasLand=false;
+    ctx.save();
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.beginPath();
+    function vertex(x,y,first=false){
+      const point=project(x,y);
+      const px=WAKE_SIZE/2*wakeRatio+(point.x-origin.x)*factor;
+      const py=WAKE_SIZE/2*wakeRatio+(point.y-origin.y)*factor;
+      if(first)ctx.moveTo(px,py);
+      else ctx.lineTo(px,py);
+    }
+    for(let row=Math.floor(top/COAST_TILE_SIZE);row<=Math.floor(bottom/COAST_TILE_SIZE);row++){
+      for(let column=Math.floor(left/COAST_TILE_SIZE);column<=Math.floor(right/COAST_TILE_SIZE);column++){
+        for(const rectangle of coastLandRectangles(column,row,water.isWater)){
+          const x0=Math.max(left,rectangle.x-padding),x1=Math.min(right,rectangle.x+rectangle.width+padding);
+          const y0=Math.max(top,rectangle.y-padding),y1=Math.min(bottom,rectangle.y+rectangle.height+padding);
+          if(x0>=x1||y0>=y1)continue;
+          hasLand=true;
+          vertex(x0,y0,true);
+          const horizontalSteps=Math.max(1,Math.ceil((x1-x0)/edgeStep));
+          const verticalSteps=Math.max(1,Math.ceil((y1-y0)/edgeStep));
+          for(let step=1;step<=horizontalSteps;step++)vertex(x0+(x1-x0)*step/horizontalSteps,y0);
+          for(let step=1;step<=verticalSteps;step++)vertex(x1,y0+(y1-y0)*step/verticalSteps);
+          for(let step=horizontalSteps-1;step>=0;step--)vertex(x0+(x1-x0)*step/horizontalSteps,y1);
+          for(let step=verticalSteps-1;step>0;step--)vertex(x0,y0+(y1-y0)*step/verticalSteps);
+          ctx.closePath();
+        }
+      }
+    }
+    if(hasLand){
+      // Erase the union of land rectangles. Overlapping margins cannot reopen a land pixel.
+      ctx.globalCompositeOperation='destination-out';
+      ctx.globalAlpha=1;
+      ctx.fillStyle='#000';
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
 
   function sailingPose(seconds,speed){
     const swell=seconds*TAU/3.7,ripple=seconds*TAU/2.15;
@@ -368,6 +462,7 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
         WAKE_SIZE/2*wakeRatio,WAKE_SIZE/2*wakeRatio);
       paintDepartureWash(ctx,seconds,speed,opacity);
     }
+    eraseWakeOnLand(ctx,water,project,origin,zoom,screenScale);
     if(wakeCanvas.hidden)wakeCanvas.hidden=false;
     lastWakeFrame=frame;
     lastWakePosition={x:position.x,y:position.y};
@@ -377,9 +472,24 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
 
   function drawShip(element,heading,pitch,zoom,speed=0,now=performance.now(),water=null){
     if(failed)return false;
+    speed=speed>.025?Math.min(1,speed):0;
+    const screenScale=.62+Math.max(0,Math.min(1,(zoom-1)/9))*.73;
+    const radius=WAKE_SIZE/2*screenScale;
+    const offscreen=water?.viewWidth>0&&water.viewHeight>0&&(
+      water.screenX+radius<0||water.screenY+radius<0||
+      water.screenX-radius>water.viewWidth||water.screenY-radius>water.viewHeight);
+    if(offscreen){
+      if(wakeCanvas&&!wakeCanvas.hidden)wakeCanvas.hidden=true;
+      wakePackets.length=0;
+      lastWakeFrame=undefined;
+      lastWakePosition=undefined;
+      lastEmission=-Infinity;
+      if(speed)departureWakeStarted??=Math.floor(now*MOTION_FPS/1000)/MOTION_FPS;
+      else departureWakeStarted=undefined;
+      return Boolean(gameRenderer);
+    }
     if(!gameRenderer){try{gameCanvas=document.createElement('canvas');gameCanvas.className='ship-model';gameCanvas.setAttribute('aria-label','3D 카락 무역선');gameRenderer=createRenderer(gameCanvas);if(!gameRenderer){failed=true;return false}element.appendChild(gameCanvas)}catch(error){console.warn('Ship 3D unavailable',error);failed=true;return false}}
     motionPreference??=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
-    speed=speed>.025?Math.min(1,speed):0;
     const frame=motionPreference?.matches?-1:Math.floor(now*MOTION_FPS/1000);
     const motionFrame=speed&&frame>=0?frame:undefined;
     if(motionFrame!==lastMotionFrame){
@@ -387,11 +497,10 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
       lastMotionFrame=motionFrame;
     }
     // Use the sailing frame loop. Rocking and foam are sampled at 12 Hz.
-    const screenScale=.62+Math.max(0,Math.min(1,(zoom-1)/9))*.73;
     const model=gameRenderer.draw({heading,pitch,size:160,scale:4,waterline:0,...pose,ratio:Math.min(2,globalThis.devicePixelRatio||1)*Math.max(1,screenScale)});
     drawWake(element,heading,pitch,frame,model?speed:0,zoom,screenScale,water);
     return model;
   }
-  const api={buildModel,createRenderer,drawShip,get stats(){return gameRenderer?{...gameRenderer.stats,wakePackets:wakePackets.length,wakePaints}:null}};
+  const api={buildModel,createRenderer,drawShip,get stats(){return gameRenderer?{...gameRenderer.stats,wakePackets:wakePackets.length,wakePaints,wakeCoastTiles:coastTiles.size}:null}};
   if(typeof module==='object')module.exports=api;else window.ROTTA_SHIP_3D=api;
 })();
