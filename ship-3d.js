@@ -128,13 +128,13 @@ if(v_material>.5&&v_material<2.5){
  color*= (.78+.22*seam)*(.92+.08*ends)*( .92+hash(vec2(row,1.0))*.16+grain);
 }else if(v_material>2.5){float seam=pow(.5+.5*cos(p.x*15.0),28.0);float weave=sin(p.x*165.0)*sin(p.z*165.0)*.012;color*=1.0-seam*.075+weave;sun=.35+.65*abs(dot(n,normalize(vec3(-.6,.35,1.0))));}
 color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
-  function createRenderer(canvas){
+  function createRenderer(canvas,model=buildModel()){
     const gl=canvas.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:true,preserveDrawingBuffer:false});if(!gl)return null;
     let program,buffer,locations,draws=0,last='',disposed=false;
     function initialize(){
       const shader=(type,source)=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s};
       program=gl.createProgram();const vs=shader(gl.VERTEX_SHADER,vertex),fs=shader(gl.FRAGMENT_SHADER,fragment);gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);gl.deleteShader(vs);gl.deleteShader(fs);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);
-      buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,buildModel().vertices,gl.STATIC_DRAW);
+      buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,model.vertices,gl.STATIC_DRAW);
       for(const [name,size,offset] of [['position',3,0],['normal',3,12],['color',3,24],['material',1,36]]){const a=gl.getAttribLocation(program,'a_'+name);gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,size,gl.FLOAT,false,40,offset)}
       locations=Object.fromEntries(['size','heading','pitch','scale','center','waterline','heave','hull_rotation'].map(n=>[n,gl.getUniformLocation(program,'u_'+n)]));
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.clearColor(0,0,0,0);last='';
@@ -144,15 +144,15 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
     function restored(){initialize();canvas.dispatchEvent(new Event('shiprendererchange',{bubbles:true}))}
     canvas.addEventListener('webglcontextlost',lost);canvas.addEventListener('webglcontextrestored',restored);
     return {
-      get stats(){return {triangles:buildModel().triangles,draws,drawCallsPerFrame:1,bufferBytes:buildModel().vertices.byteLength}},
-      draw({heading=0,pitch=0,size=160,scale=4,center=0,waterline=-10,roll=0,hullPitch=0,heave=0,ratio=Math.min(2,globalThis.devicePixelRatio||1)}={}){
+      get stats(){return {triangles:model.triangles,draws,drawCallsPerFrame:1,bufferBytes:model.vertices.byteLength}},
+      draw({heading=0,pitch=0,size=160,scale=4,center=0,waterline=-10,roll=0,hullPitch=0,heave=0,firstVertex=0,vertexCount=model.vertices.length/10,force=false,ratio=Math.min(2,globalThis.devicePixelRatio||1)}={}){
         if(disposed||gl.isContextLost())return false;
-        const key=[heading,pitch,size,scale,center,waterline,roll,hullPitch,heave,ratio].join(':');if(key===last)return true;last=key;
+        const key=[heading,pitch,size,scale,center,waterline,roll,hullPitch,heave,firstVertex,vertexCount,ratio].join(':');if(!force&&key===last)return true;last=key;
         const pixels=Math.round(size*ratio);if(canvas.width!==pixels||canvas.height!==pixels){canvas.width=pixels;canvas.height=pixels}gl.viewport(0,0,pixels,pixels);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         gl.uniform2f(locations.size,size,size);gl.uniform1f(locations.heading,heading*Math.PI/180);gl.uniform1f(locations.pitch,pitch*Math.PI/180);gl.uniform1f(locations.scale,scale);gl.uniform1f(locations.center,center);gl.uniform1f(locations.waterline,waterline);
         gl.uniform1f(locations.heave,heave);
         gl.uniform4f(locations.hull_rotation,Math.cos(roll),Math.sin(roll),Math.cos(hullPitch),Math.sin(hullPitch));
-        gl.drawArrays(gl.TRIANGLES,0,buildModel().vertices.length/10);draws++;return true;
+        gl.drawArrays(gl.TRIANGLES,firstVertex,vertexCount);draws++;return true;
       },
       dispose(){disposed=true;canvas.removeEventListener('webglcontextlost',lost);canvas.removeEventListener('webglcontextrestored',restored);gl.deleteBuffer(buffer);gl.deleteProgram(program)}
     };
