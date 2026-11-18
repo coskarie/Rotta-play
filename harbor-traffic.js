@@ -203,7 +203,8 @@
       layer.hidden=false;
       const now=performance.now();lastPaint=now;
       const seconds=reduced?.matches?0:(now-epoch)/1000;
-      const scale=(.62+Math.max(0,(Math.min(view.zoom,6.5)-1)/9)*.73)*.5;
+      const closeUp=Math.max(0,Math.min(1,(view.zoom-5)/1.5));
+      const scale=(.62+Math.max(0,Math.min(1,(view.zoom-1)/9))*.73)*(.75+.25*closeUp*closeUp*(3-2*closeUp));
       const candidates=[];
       for(const vessel of vessels){
         const distance=vessel.offset+seconds*vessel.speed;
