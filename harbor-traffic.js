@@ -1,4 +1,4 @@
-/* European port traffic uses baked sea-only circuits and a bounded pool of cached ship views. */
+/* European port traffic uses baked sea-only trade itineraries and a bounded pool of cached ship views. */
 (() => {
   'use strict';
   const types=[
@@ -99,29 +99,72 @@
   }
 
   function buildRoutes(ports,data=routeData){
-    const sites=[];
-    for(const [id,points] of Object.entries(data?.ports??{})){
-      if(!ports[id])continue;
-      const segments=[];let length=0;
-      for(let i=0;i<points.length;i++){
-        const [x,y]=points[i],[bx,by]=points[(i+1)%points.length];
-        const distance=Math.hypot(bx-x,by-y);
-        if(!distance)continue;
-        segments.push({x,y,dx:bx-x,dy:by-y,length:distance,start:length});length+=distance;
+    const lanes=new Map(),sites=[];
+    for(const lane of Object.values(data?.routes??{})){
+      if(!ports[lane.from]||!ports[lane.to])continue;
+      const segments=[];let oneWayLength=0;
+      for(let i=1;i<lane.points.length;i++){
+        const [x,y]=lane.points[i-1],[bx,by]=lane.points[i],length=Math.hypot(bx-x,by-y);
+        if(!length)continue;
+        segments.push({x,y,dx:bx-x,dy:by-y,length,start:oneWayLength});oneWayLength+=length;
       }
-      if(!length)continue;
-      sites.push({id,segments,length,count:ports[id].royal?3:1,
+      if(!oneWayLength)continue;
+      let length=oneWayLength;
+      for(const segment of segments.slice().reverse()){
+        segments.push({x:segment.x+segment.dx,y:segment.y+segment.dy,dx:-segment.dx,dy:-segment.dy,length:segment.length,start:length});
+        length+=segment.length;
+      }
+      const points=lane.points;
+      lanes.set(lane.id,{id:lane.id,from:lane.from,to:lane.to,segments,length,oneWayLength,
         bounds:{left:Math.min(...points.map(p=>p[0])),right:Math.max(...points.map(p=>p[0])),
           top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))}});
+    }
+    for(const [id,assignments] of Object.entries(data?.ports??{})){
+      if(!ports[id])continue;
+      const plans=assignments.map(key=>lanes.get(key)).filter(Boolean);
+      if(!plans.length)continue;
+      sites.push({id,plans,count:ports[id].royal?3:1,
+        bounds:{left:Math.min(...plans.map(p=>p.bounds.left)),right:Math.max(...plans.map(p=>p.bounds.right)),
+          top:Math.min(...plans.map(p=>p.bounds.top)),bottom:Math.max(...plans.map(p=>p.bounds.bottom))}});
     }
     return sites;
   }
 
   function sampleRoute(route,distance){
     distance=((distance%route.length)+route.length)%route.length;
-    const segment=route.segments.find(segment=>distance<segment.start+segment.length)??route.segments[route.segments.length-1];
-    const t=(distance-segment.start)/segment.length;
+    // Long coastal itineraries use binary search instead of scanning every waypoint.
+    let lo=0,hi=route.segments.length-1;
+    while(lo<hi){const mid=(lo+hi)>>1;if(distance<route.segments[mid].start+route.segments[mid].length)hi=mid;else lo=mid+1;}
+    const segment=route.segments[lo],t=(distance-segment.start)/segment.length;
     return {x:segment.x+segment.dx*t,y:segment.y+segment.dy*t};
+  }
+
+  function voyageCycle(vessel){return 2*(vessel.route.oneWayLength/vessel.speed+3+vessel.dockSeconds);}
+  function sampleVoyage(vessel,seconds){
+    const route=vessel.route,L=route.oneWayLength,travel=L/vessel.speed+3,wait=vessel.dockSeconds;
+    const cycle=2*(travel+wait),time=((seconds+vessel.phase)%cycle+cycle)%cycle;
+    const homeStart=vessel.port===route.from?0:L;
+    let start,along,ratio,phase,dockAge=0;
+    if(time<wait){start=homeStart;along=start;ratio=0;phase='loading';dockAge=time;}
+    else if(time<wait+travel){start=homeStart;phase='outbound';}
+    else if(time<2*wait+travel){start=(homeStart+L)%route.length;along=start;ratio=0;phase='loading';dockAge=time-wait-travel;}
+    else{start=(homeStart+L)%route.length;phase='inbound';}
+    if(phase!=='loading'){
+      const t=phase==='outbound'?time-wait:time-2*wait-travel;
+      const remaining=travel-t;
+      const distance=t<3?vessel.speed*t*t/6:remaining<3?L-vessel.speed*remaining*remaining/6:vessel.speed*(t-1.5);
+      along=start+distance;ratio=Math.max(0,Math.min(1,t/3,remaining/3));
+    }
+    const bearing=(a,b)=>{const p=sampleRoute(route,a),q=sampleRoute(route,b);return (Math.atan2(q.x-p.x,p.y-q.y)*180/Math.PI+360)%360;};
+    let heading;
+    if(phase==='loading'){
+      const incoming=bearing(start-2,start),outgoing=bearing(start,start+2);
+      const turn=Math.max(0,Math.min(1,(dockAge-(wait-3))/3));
+      heading=incoming+((outgoing-incoming+540)%360-180)*turn*turn*(3-2*turn);
+    }else heading=bearing(Math.max(start,along-1.8),Math.min(start+L,along+1.8));
+    const position=sampleRoute(route,along);
+    const destination=start===0?route.to:route.from;
+    return {position,along,heading:(heading+360)%360,speed:ratio,phase,destination,cycle};
   }
 
   // Reject the entire footprint of a foam mark if any coastline cell touches it.
@@ -132,7 +175,7 @@
     return true;
   }
 
-  function paintWake(ctx,stamp,vessel,position,distance,units,seconds,nav,detail){
+  function paintWake(ctx,stamp,vessel,position,distance,units,seconds,nav,detail,opacity=1){
     ctx.clearRect(0,0,WAKE_SIZE,WAKE_SIZE);
     ctx.lineCap='round';
     const pixel=p=>({x:WAKE_SIZE/2+(p.x-position.x)/units,y:WAKE_SIZE/2+(p.y-position.y)/units});
@@ -148,12 +191,12 @@
       if(!wakeWaterClear(nav,a,b,(width/2+2)*units))return;
       const from=pixel(a),to=pixel(b);
       ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);
-      ctx.strokeStyle='#86bdb7';ctx.lineWidth=width+2;ctx.globalAlpha=alpha*.25;ctx.stroke();
-      ctx.strokeStyle='#d5eee3';ctx.lineWidth=width;ctx.globalAlpha=alpha;ctx.stroke();marks++;
+      ctx.strokeStyle='#86bdb7';ctx.lineWidth=width+2;ctx.globalAlpha=alpha*.25*opacity;ctx.stroke();
+      ctx.strokeStyle='#d5eee3';ctx.lineWidth=width;ctx.globalAlpha=alpha*opacity;ctx.stroke();marks++;
     }
     function foam(point,radius,alpha){
       if(!stamp||!wakeWaterClear(nav,point,point,(radius+1)*units))return;
-      const p=pixel(point);ctx.globalAlpha=alpha;
+      const p=pixel(point);ctx.globalAlpha=alpha*opacity;
       ctx.drawImage(stamp,p.x-radius,p.y-radius,radius*2,radius*2);marks++;
     }
     const phase=(seconds*(.65+vessel.speed*.12)+vessel.offset*.17)%1;
@@ -203,8 +246,10 @@
         const seed=[...site.id].reduce((value,char)=>(value*31+char.charCodeAt(0))>>>0,0);
         site.ships=[];
         for(let slot=0;slot<site.count;slot++){
-          const descriptor={key:site.id+':'+slot,port:site.id,kind:(seed+slot)%types.length,route:site,
-            offset:site.length*(slot/site.count+.09+(seed%31)/200),speed:.85+(seed+slot)%5*.14};
+          const route=site.plans[slot%site.plans.length];
+          const descriptor={key:site.id+':'+slot,port:site.id,kind:(seed+slot)%types.length,route,
+            speed:.85+(seed+slot)%5*.14,dockSeconds:16+seed%9,phase:0,offset:seed%97};
+          descriptor.phase=slot/site.count*voyageCycle(descriptor)+(seed%19);
           site.ships.push(descriptor);catalog.push(descriptor);
         }
       }
@@ -297,14 +342,12 @@
       const closeUp=Math.max(0,Math.min(1,(view.zoom-5)/1.5));
       const scale=(.62+Math.max(0,Math.min(1,(view.zoom-1)/9))*.73)*(.75+.25*closeUp*closeUp*(3-2*closeUp));
       const candidates=[];
-      // Only ships belonging to nearby port circuits are sampled. Distant ships have no canvases or timers.
+      // Only ships belonging to nearby trade corridors are sampled. Distant ships have no canvases or timers.
       for(const site of nearSites)for(const descriptor of site.ships){
-        const along=descriptor.offset+seconds*descriptor.speed;
-        const position=sampleRoute(site,along),screen=project(position.x,position.y);
+        const motion=sampleVoyage(descriptor,seconds),{position,along,heading}=motion;
+        const screen=project(position.x,position.y);
         if(!Number.isFinite(screen.x)||!Number.isFinite(screen.y)||screen.x<=-120||screen.y<=-120||screen.x>=view.width+120||screen.y>=view.height+120)continue;
-        const ahead=sampleRoute(site,along+1.8),behind=sampleRoute(site,along-1.8);
-        const heading=(Math.atan2(ahead.x-behind.x,behind.y-ahead.y)*180/Math.PI+360)%360;
-        candidates.push({descriptor,screen,heading,position,along,distance:Math.hypot(screen.x-view.width/2,screen.y-view.height/2)});
+        candidates.push({descriptor,motion,screen,heading,position,along,distance:Math.hypot(screen.x-view.width/2,screen.y-view.height/2)});
       }
       candidates.sort((a,b)=>a.distance-b.distance);
       const selected=candidates.slice(0,view.zoom<2?16:MAX_VISIBLE),budget={left:2};
@@ -313,10 +356,12 @@
         vessel.descriptor=null;vessel.worldY=undefined;vessel.element.hidden=vessel.wake.hidden=true;bindings.delete(key);
       }
       visibleCount=selected.length;
-      for(const {descriptor,screen,heading,position,along} of selected){
+      for(const {descriptor,motion,screen,heading,position,along} of selected){
         const vessel=bindings.get(descriptor.key)??acquire(descriptor);
         if(!vessel)continue;
-        vessel.element.hidden=false;vessel.wake.hidden=false;
+        vessel.element.hidden=false;vessel.wake.hidden=motion.speed<=.02;
+        if(vessel.element.dataset.destination!==motion.destination)vessel.element.dataset.destination=motion.destination;
+        if(vessel.element.dataset.sailingState!==motion.phase)vessel.element.dataset.sailingState=motion.phase;
         const image=cameraOnly?null:sprite(vessel.kind,heading,view.pitch,budget);
         if(image&&vessel.frame!==image){
           vessel.context.clearRect(0,0,SPRITE_SIZE,SPRITE_SIZE);
@@ -329,13 +374,13 @@
         const depth=Math.round(position.y*100);
         if(vessel.depth!==depth){vessel.element.style.zIndex=depth;vessel.depth=depth;}
         const wakeFrame=Math.floor(seconds*WAKE_FPS);
-        if(!cameraOnly&&vessel.wakeContext&&vessel.wakeFrame!==wakeFrame){
+        if(motion.speed>.02&&!cameraOnly&&vessel.wakeContext&&vessel.wakeFrame!==wakeFrame){
           const units=scale/view.zoom;
-          wakeMarks+=paintWake(vessel.wakeContext,foamStamp,vessel,position,along,units,seconds,navSource,view.zoom>=2);
+          wakeMarks+=paintWake(vessel.wakeContext,foamStamp,vessel,position,along,units,seconds,navSource,view.zoom>=2,motion.speed);
           vessel.wakeOrigin={...position,units};vessel.wakeFrame=wakeFrame;wakePaints++;
         }
         const origin=vessel.wakeOrigin;
-        if(origin){
+        if(origin&&motion.speed>.02){
           const base=project(origin.x,origin.y),right=project(origin.x+origin.units,origin.y),down=project(origin.x,origin.y+origin.units);
           const a=right.x-base.x,b=right.y-base.y,c=down.x-base.x,d=down.y-base.y;
           const transform='matrix('+[a,b,c,d,base.x-WAKE_SIZE/2*(a+c),base.y-WAKE_SIZE/2*(b+d)].map(value=>value.toFixed(5)).join(',')+')';
@@ -371,10 +416,10 @@
         playerY=worldY;
         for(const vessel of vessels)sortVessel(vessel);
       },
-      stats:()=>({vessels:catalog.length,ports:sites.length,allocated:vessels.length,nearPorts:nearSites.length,types:types.length,visible:visibleCount,paintCount,routeBuilds,
+      stats:()=>({vessels:catalog.length,ports:sites.length,allocated:vessels.length,nearPorts:nearSites.length,types:types.length,tradeLanes:new Set(catalog.map(v=>v.route.id)).size,visible:visibleCount,paintCount,routeBuilds,
         spriteCache:sprites.size,meshTriangles:fleetMesh?.triangles??0,gpuDraws:renderer?.stats.draws??0,wakePaints,wakeMarks,active:inRegion()})
     };
   }
-  const api={types,buildFleet,buildRoutes,sampleRoute,wakeWaterClear,paintWake,mount};
+  const api={types,buildFleet,buildRoutes,sampleRoute,voyageCycle,sampleVoyage,wakeWaterClear,paintWake,mount};
   if(typeof module==='object')module.exports=api;else window.ROTTA_HARBOR_TRAFFIC=api;
 })();
