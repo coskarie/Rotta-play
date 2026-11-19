@@ -322,7 +322,9 @@
 .ship-model-link:focus-visible{outline:2px solid #f6db88;outline-offset:3px}
 
 /* Ambient vessels share cached 3D views and pass pointer input through to the chart. */
-.harbor-traffic{position:absolute;inset:0;pointer-events:none;overflow:hidden;isolation:isolate}
+.harbor-traffic{position:absolute;inset:0;pointer-events:none}
+.traffic-wakes,.traffic-rear,.traffic-front{position:absolute;inset:0;pointer-events:none;overflow:hidden;isolation:isolate}
+.traffic-wakes{z-index:0}.traffic-rear{z-index:4}.traffic-front{z-index:6}
 .harbor-traffic .traffic-vessel{position:absolute;left:0;top:0;width:160px;height:160px;pointer-events:none;transform-origin:50% 50%}
 .harbor-traffic .traffic-wake{position:absolute;left:0;top:0;width:256px;height:256px;pointer-events:none;transform-origin:0 0;z-index:0}
 .harbor-traffic[hidden],.traffic-vessel[hidden],.traffic-wake[hidden]{display:none}

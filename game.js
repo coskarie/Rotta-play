@@ -769,6 +769,7 @@ function populateDestinations(){const select=$('#destinationSelect'),groups={};f
 function renderSeaPorts(){const layer=$('#seaPorts');if(!layer)return;const symbols=window.ROTTA_PORT_SYMBOLS;layer.innerHTML=Object.entries(PORTS).map(([id,p])=>{const visual=symbols?.classify(id,p)||{kind:'harbor',culture:'western'},emblem=symbols?.markup(id,p)||'<svg class="port-symbol" viewBox="0 0 40 44"><path class="port-sigil-line" d="M20 8V33M12 16H28M8 25Q10 38 20 33Q30 38 32 25"/></svg>';return `<button class="sea-port${p.inland?' inland':''}" data-seaport="${id}" data-port-kind="${visual.kind}" data-port-culture="${visual.culture}" style="left:${p.x}px;top:${p.y}px" title="${p.name} — ${p.region}${p.inland?' · 내륙 교역 거점(가장 가까운 안전 접안점으로 입항)':''}"><span class="port-emblem" aria-hidden="true">${emblem}</span><span class="port-label">${p.name}</span></button>`}).join('');NAV_RENDER.portNodes=[...layer.querySelectorAll('[data-seaport]')].map(el=>({el,p:PORTS[el.dataset.seaport]}));NAV_RENDER.portNodes.forEach(({el})=>el.onclick=e=>{e.stopPropagation();if(!state.nation)return;openSeaPortActions(el.dataset.seaport)});queuePortCulling(true)}
 function positionSailingShip(){
  const ship=NAV_RENDER.ship;
+ NAV_RENDER.traffic?.setPlayer(state.shipY);
  if(EUROPE)NAV_RENDER.coastRenderer?.setWaterFocus?.(state.shipX,state.shipY);
  const {x,y}=EUROPE?projectChartPosition(state.shipX,state.shipY):{x:state.shipX,y:state.shipY};
  const visible=Number.isFinite(x)&&Number.isFinite(y);

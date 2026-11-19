@@ -199,8 +199,12 @@
     const layer=document.createElement('div');
     layer.className='harbor-traffic';layer.setAttribute('aria-hidden','true');
     container.prepend(layer);
+    // These sibling stacking layers straddle the player's existing z-index of 5.
+    const wakeLayer=document.createElement('div'),rearLayer=document.createElement('div'),frontLayer=document.createElement('div');
+    wakeLayer.className='traffic-wakes';rearLayer.className='traffic-rear';frontLayer.className='traffic-front';
+    for(const child of [wakeLayer,rearLayer,frontLayer])layer.appendChild(child);
     const sprites=new Map(),vessels=[];
-    let view,active=false,timer,renderer,gpuCanvas,navSource,anchor,lastPaint=-Infinity,lastCameraKey,foamStamp;
+    let view,active=false,timer,renderer,gpuCanvas,navSource,anchor,lastPaint=-Infinity,lastCameraKey,foamStamp,playerY;
     let routeBuilds=0,paintCount=0,wakePaints=0,wakeMarks=0,visibleCount=0,failed=false;
     const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const epoch=performance.now();
@@ -209,7 +213,8 @@
       if(navSource===nav)return;
       navSource=nav;anchor={x:port.navX??port.x,y:port.navY??port.y};
       const routes=buildRoutes(nav,anchor);routeBuilds++;
-      layer.replaceChildren();vessels.length=0;
+      for(const child of [wakeLayer,rearLayer,frontLayer])child.replaceChildren();
+      vessels.length=0;
       if(!foamStamp){
         foamStamp=document.createElement('canvas');foamStamp.width=foamStamp.height=32;
         const ctx=foamStamp.getContext('2d');
@@ -226,8 +231,8 @@
         element.className='traffic-vessel';element.dataset.vesselKind=types[kind].id;
         const wake=document.createElement('canvas');wake.width=wake.height=WAKE_SIZE;
         wake.className='traffic-wake';wake.hidden=true;
-        layer.appendChild(wake);
-        layer.appendChild(element);
+        wakeLayer.appendChild(wake);
+        rearLayer.appendChild(element);
         vessels.push({element,context:element.getContext('2d'),wake,wakeContext:wake.getContext('2d'),kind,route,
           offset:route.length*(slot/3+.075*index),speed:.85+(index*3+slot)%5*.14,frame:null,transform:''});
       }
@@ -259,6 +264,17 @@
     }
 
     function stop(){if(timer!==undefined)clearTimeout(timer);timer=undefined;}
+    function sortVessel(vessel){
+      if(!Number.isFinite(vessel.worldY)||!Number.isFinite(playerY))return;
+      const delta=vessel.worldY-playerY;
+      // Use water anchors, never sprite bobbing or camera-dependent screen coordinates.
+      const front=delta>.08?true:delta<-.08?false:(vessel.front??false);
+      if(front!==vessel.front){
+        const target=front?frontLayer:rearLayer;
+        if(vessel.element.parentNode!==target)target.appendChild(vessel.element);
+        vessel.front=front;
+      }
+    }
     function inRegion(){
       if(!active||document.hidden||!view||view.width<=0||view.height<=0||!anchor)return false;
       const point=project(anchor.x-45,anchor.y+10),margin=220*view.zoom+160;
@@ -297,7 +313,8 @@
         const bob=reduced?.matches?0:Math.sin(seconds*1.4+vessel.offset)*.35;
         const transform='translate3d('+screen.x.toFixed(2)+'px,'+(screen.y+bob).toFixed(2)+'px,0) translate(-50%,-50%) scale('+scale.toFixed(4)+')';
         if(transform!==vessel.transform){vessel.element.style.transform=transform;vessel.transform=transform;}
-        const depth=Math.round(screen.y+1000);
+        vessel.worldY=position.y;sortVessel(vessel);
+        const depth=Math.round(position.y*100);
         if(vessel.depth!==depth){vessel.element.style.zIndex=depth;vessel.depth=depth;}
         const wakeFrame=Math.floor(seconds*WAKE_FPS);
         if(!cameraOnly&&vessel.wakeContext&&vessel.wakeFrame!==wakeFrame){
@@ -335,6 +352,11 @@
         refresh(cameraChanged);
       },
       setActive(value){active=value;refresh();},
+      setPlayer(worldY){
+        if(playerY===worldY)return;
+        playerY=worldY;
+        for(const vessel of vessels)sortVessel(vessel);
+      },
       stats:()=>({vessels:vessels.length,types:types.length,visible:visibleCount,paintCount,routeBuilds,
         spriteCache:sprites.size,meshTriangles:fleetMesh?.triangles??0,gpuDraws:renderer?.stats.draws??0,wakePaints,wakeMarks,active:inRegion()})
     };
