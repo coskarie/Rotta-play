@@ -140,6 +140,15 @@
   }
 
   function voyageCycle(vessel){return 2*(vessel.route.oneWayLength/vessel.speed+3+vessel.dockSeconds);}
+  function randomVoyagePhase(vessel,random=Math.random){
+    const L=vessel.route.oneWayLength,travel=L/vessel.speed+3;
+    const inbound=random()<.5;
+    // Begin in the middle of an existing voyage, with distance distributed along the sea lane.
+    const distance=L*(.1+.8*random());
+    const elapsed=distance<1.5*vessel.speed?Math.sqrt(6*distance/vessel.speed):
+      L-distance<1.5*vessel.speed?travel-Math.sqrt(6*(L-distance)/vessel.speed):distance/vessel.speed+1.5;
+    return (inbound?2*vessel.dockSeconds+travel:vessel.dockSeconds)+elapsed;
+  }
   function sampleVoyage(vessel,seconds){
     const route=vessel.route,L=route.oneWayLength,travel=L/vessel.speed+3,wait=vessel.dockSeconds;
     const cycle=2*(travel+wait),time=((seconds+vessel.phase)%cycle+cycle)%cycle;
@@ -222,7 +231,7 @@
     return marks;
   }
 
-  function mount(container,project){
+  function mount(container,project,random=Math.random){
     const layer=document.createElement('div');
     layer.className='harbor-traffic';layer.setAttribute('aria-hidden','true');
     container.prepend(layer);
@@ -249,7 +258,8 @@
           const route=site.plans[slot%site.plans.length];
           const descriptor={key:site.id+':'+slot,port:site.id,kind:(seed+slot)%types.length,route,
             speed:.85+(seed+slot)%5*.14,dockSeconds:16+seed%9,phase:0,offset:seed%97};
-          descriptor.phase=slot/site.count*voyageCycle(descriptor)+(seed%19);
+          // Sample once per world initialization; camera culling and canvas reuse never respawn a ship.
+          descriptor.phase=randomVoyagePhase(descriptor,random);
           site.ships.push(descriptor);catalog.push(descriptor);
         }
       }
@@ -420,6 +430,6 @@
         spriteCache:sprites.size,meshTriangles:fleetMesh?.triangles??0,gpuDraws:renderer?.stats.draws??0,wakePaints,wakeMarks,active:inRegion()})
     };
   }
-  const api={types,buildFleet,buildRoutes,sampleRoute,voyageCycle,sampleVoyage,wakeWaterClear,paintWake,mount};
+  const api={types,buildFleet,buildRoutes,sampleRoute,voyageCycle,randomVoyagePhase,sampleVoyage,wakeWaterClear,paintWake,mount};
   if(typeof module==='object')module.exports=api;else window.ROTTA_HARBOR_TRAFFIC=api;
 })();
