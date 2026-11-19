@@ -208,8 +208,10 @@ const CAMERA_DRAG={active:false,moved:false,startX:0,startY:0,lastX:0,lastY:0,po
 const CAMERA_VIEW={followShip:true,autoFollow:null,recenterFrame:0};
 let sailingPitch=0;
 const DEPARTURE_ZOOM={frame:0,run:0,active:false};
+// Temporary European sailing speed for playtesting; set to 1 to restore normal speed.
+const SAILING_TEST_SPEED=EUROPE?3:1;
 const AUTO_SAIL={velocity:0,rampSeconds:1.2,route:null};
-const MANUAL_SAIL={keys:new Set(),frame:0,last:0,velocity:0,maxSpeed:EUROPE?1.6:4.2,acceleration:EUROPE?.8:2.1,brake:EUROPE?1:2.8,turnRate:48,heading:0,guide:null,guideIndex:1};
+const MANUAL_SAIL={keys:new Set(),frame:0,last:0,velocity:0,maxSpeed:(EUROPE?1.6:4.2)*SAILING_TEST_SPEED,acceleration:(EUROPE?.8:2.1)*SAILING_TEST_SPEED,brake:(EUROPE?1:2.8)*SAILING_TEST_SPEED,turnRate:48,heading:0,guide:null,guideIndex:1};
 const NAV_RENDER={viewport:null,world:null,ship:null,width:0,height:0,portNodes:[],nearAt:0,cameraFrame:0,cullTimer:0,lastRegion:'',lastTx:0,lastTy:0,vectorReady:false,coastRenderer:null,uiAt:0,dockAt:0,dockId:undefined,moving:false,lastCamera:'',lastShip:'',projection:null,annotations:null,scenery:null,traffic:null,route:[],routeData:'',target:null};
 const NAV={w:256,h:171,water:null,rawWater:null,ready:false,cellX:WORLD.w/256,cellY:WORLD.h/171};
 const COAST={w:1536,h:1024,water:null,rawWater:null,ready:false,cellX:WORLD.w/1536,cellY:WORLD.h/1024};
@@ -469,7 +471,7 @@ function mountVoyageSupplies(){
   openWarehouse:()=>window.ROTTA_PLAYER_MENU?.open(),
   rate:sailingFoodRate,carry:()=>DAY_CLOCK.food,use:useSupply,goodArt});
 }
-function syncShipStats(){const api=window.ROTTA_SHIPYARD;if(!api)return;api.setGoods(GOODS);api.ensure(state);const stats=api.stats(state);state.capacity=stats.capacity;MANUAL_SAIL.maxSpeed=(EUROPE?1.6:4.2)*stats.speed;MANUAL_SAIL.turnRate=48*stats.turn}
+function syncShipStats(){const api=window.ROTTA_SHIPYARD;if(!api)return;api.setGoods(GOODS);api.ensure(state);const stats=api.stats(state);state.capacity=stats.capacity;MANUAL_SAIL.maxSpeed=(EUROPE?1.6:4.2)*SAILING_TEST_SPEED*stats.speed;MANUAL_SAIL.turnRate=48*stats.turn}
 function renderShipyardSide(){const api=window.ROTTA_SHIPYARD;if(!api)return;$('#cargoPanelTitle').textContent='선박';$('#cargoPanelSummary').textContent='';$('#tradeQuickRow').hidden=true;$('#cargoPanelAction').hidden=true;$('#cargoPanelBack').hidden=true;$('#cargoPanelList').classList.remove('basket-grid');api.renderSide($('#cargoPanelList'),state,{onAction:shipyardAction});$('#cargoPanelTotalLabel').textContent='골드';$('#cargoPanelGold').textContent=fmt(state.gold)+' G'}
 function renderShipyard(){window.ROTTA_SHIPYARD?.renderYard($('#facilityContent'),{state,onAction:shipyardAction,goods:GOODS});renderShipyardSide()}
 function shipyardAction(action,id){if(!playerMenuAvailable()||!state.atPort||!$('#portView').classList.contains('active')||!$('#portView').classList.contains('shipyard-mode'))return false;const result=window.ROTTA_SHIPYARD?.transact(state,action,id,{consume:removeCargoLots,sync:syncShipStats});if(!result)return false;toast(result.message);if(result.ok){updateStats();renderShipyard();($('#facilityContent [data-yard-tab][aria-pressed=\"true\"]'))?.focus({preventScroll:true})}return result.ok}
