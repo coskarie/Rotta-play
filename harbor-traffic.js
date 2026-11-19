@@ -1,4 +1,4 @@
-/* Ambient Lisbon traffic uses sea-only circuits and cached views of four small 3D meshes. */
+/* European port traffic uses baked sea-only circuits and a bounded pool of cached ship views. */
 (() => {
   'use strict';
   const types=[
@@ -8,12 +8,8 @@
     {id:'galley',name:'갤리형',beam:1.3,wood:[.22,.29,.36],cloth:[.84,.79,.67]}
   ];
   const FPS=24,WAKE_FPS=12,WAKE_SIZE=256,SPRITE_SIZE=160,MAX_SPRITES=96;
-  const circuits=[
-    [[-7,4],[-43,16],[-69,7],[-36,-3]],
-    [[-30,12],[-94,44],[-111,14],[-61,-14]],
-    [[13,-2],[-22,11],[-57,30],[-16,19]],
-    [[-55,-20],[-110,-42],[-128,54],[-62,38]]
-  ];
+  const MAX_VISIBLE=24;
+  const routeData=typeof require==='function'?require('./harbor-traffic-routes.js'):window.ROTTA_TRAFFIC_ROUTES;
   let fleetMesh;
 
   function buildFleet(){
@@ -102,35 +98,23 @@
     return fleetMesh;
   }
 
-  function nearestSea(nav,x,y){
-    for(let radius=0;radius<=12;radius++)for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
-      if(radius&&Math.max(Math.abs(dx),Math.abs(dy))!==radius)continue;
-      const point={x:x+dx,y:y+dy};
-      if(nav.water(point.x,point.y)&&[[-2,0],[2,0],[0,-2],[0,2]].every(([a,b])=>nav.water(point.x+a,point.y+b)))return point;
-    }
-    return null;
-  }
-
-  function buildRoutes(nav,anchor){
-    const routes=[];
-    for(const circuit of circuits){
-      const points=circuit.map(([x,y])=>nearestSea(nav,anchor.x+x,anchor.y+y));
-      if(points.some(point=>!point))continue;
-      const segments=[];
-      let length=0,valid=true;
+  function buildRoutes(ports,data=routeData){
+    const sites=[];
+    for(const [id,points] of Object.entries(data?.ports??{})){
+      if(!ports[id])continue;
+      const segments=[];let length=0;
       for(let i=0;i<points.length;i++){
-        const path=nav.route(points[i],points[(i+1)%points.length]);
-        if(!path||path.length<2){valid=false;break;}
-        for(let j=1;j<path.length;j++){
-          const a=path[j-1],b=path[j],distance=Math.hypot(b.x-a.x,b.y-a.y);
-          if(!distance||!nav.lineClear(a,b)){valid=false;break;}
-          segments.push({x:a.x,y:a.y,dx:b.x-a.x,dy:b.y-a.y,length:distance,start:length});
-          length+=distance;
-        }
+        const [x,y]=points[i],[bx,by]=points[(i+1)%points.length];
+        const distance=Math.hypot(bx-x,by-y);
+        if(!distance)continue;
+        segments.push({x,y,dx:bx-x,dy:by-y,length:distance,start:length});length+=distance;
       }
-      if(valid&&length>0)routes.push({segments,length});
+      if(!length)continue;
+      sites.push({id,segments,length,count:ports[id].royal?3:1,
+        bounds:{left:Math.min(...points.map(p=>p[0])),right:Math.max(...points.map(p=>p[0])),
+          top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))}});
     }
-    return routes;
+    return sites;
   }
 
   function sampleRoute(route,distance){
@@ -203,39 +187,60 @@
     const wakeLayer=document.createElement('div'),rearLayer=document.createElement('div'),frontLayer=document.createElement('div');
     wakeLayer.className='traffic-wakes';rearLayer.className='traffic-rear';frontLayer.className='traffic-front';
     for(const child of [wakeLayer,rearLayer,frontLayer])layer.appendChild(child);
-    const sprites=new Map(),vessels=[];
-    let view,active=false,timer,renderer,gpuCanvas,navSource,anchor,lastPaint=-Infinity,lastCameraKey,foamStamp,playerY;
+    const sprites=new Map(),vessels=[],bindings=new Map();
+    let sites=[],nearSites=[],catalog=[],portsSource;
+    let view,active=false,timer,renderer,gpuCanvas,navSource,lastPaint=-Infinity,lastCameraKey,foamStamp,playerY;
     let routeBuilds=0,paintCount=0,wakePaints=0,wakeMarks=0,visibleCount=0,failed=false;
     const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const epoch=performance.now();
 
-    function initialize(nav,port){
-      if(navSource===nav)return;
-      navSource=nav;anchor={x:port.navX??port.x,y:port.navY??port.y};
-      const routes=buildRoutes(nav,anchor);routeBuilds++;
-      for(const child of [wakeLayer,rearLayer,frontLayer])child.replaceChildren();
-      vessels.length=0;
+    function initialize(nav,ports){
+      navSource=nav;portsSource=ports;
+      sites=buildRoutes(ports);routeBuilds++;
+      catalog=[];bindings.clear();
+      for(const vessel of vessels){vessel.descriptor=null;vessel.worldY=undefined;vessel.element.hidden=vessel.wake.hidden=true;}
+      for(const site of sites){
+        const seed=[...site.id].reduce((value,char)=>(value*31+char.charCodeAt(0))>>>0,0);
+        site.ships=[];
+        for(let slot=0;slot<site.count;slot++){
+          const descriptor={key:site.id+':'+slot,port:site.id,kind:(seed+slot)%types.length,route:site,
+            offset:site.length*(slot/site.count+.09+(seed%31)/200),speed:.85+(seed+slot)%5*.14};
+          site.ships.push(descriptor);catalog.push(descriptor);
+        }
+      }
+    }
+
+    function acquire(descriptor){
+      let vessel=vessels.find(item=>!item.descriptor);
+      if(!vessel){
+        if(vessels.length>=MAX_VISIBLE)return null;
+        const element=document.createElement('canvas');element.width=element.height=SPRITE_SIZE;
+        element.className='traffic-vessel';
+        const wake=document.createElement('canvas');wake.width=wake.height=WAKE_SIZE;wake.className='traffic-wake';
+        wakeLayer.appendChild(wake);rearLayer.appendChild(element);
+        vessel={element,context:element.getContext('2d'),wake,wakeContext:wake.getContext('2d')};vessels.push(vessel);
+      }
+      Object.assign(vessel,descriptor,{descriptor,frame:null,worldY:undefined,front:undefined,wakeFrame:undefined,wakeOrigin:null});
+      vessel.context.clearRect(0,0,SPRITE_SIZE,SPRITE_SIZE);vessel.wakeContext?.clearRect(0,0,WAKE_SIZE,WAKE_SIZE);
+      vessel.element.dataset.vesselId=descriptor.key;vessel.element.dataset.vesselKind=types[descriptor.kind].id;vessel.element.dataset.port=descriptor.port;
+      bindings.set(descriptor.key,vessel);
       if(!foamStamp){
         foamStamp=document.createElement('canvas');foamStamp.width=foamStamp.height=32;
-        const ctx=foamStamp.getContext('2d');
-        const gradient=ctx.createRadialGradient(16,16,0,16,16,16);
-        gradient.addColorStop(0,'rgba(224,244,234,.85)');
-        gradient.addColorStop(.4,'rgba(185,224,214,.46)');
-        gradient.addColorStop(1,'rgba(170,218,208,0)');
-        ctx.fillStyle=gradient;ctx.fillRect(0,0,32,32);
+        const ctx=foamStamp.getContext('2d'),gradient=ctx.createRadialGradient(16,16,0,16,16,16);
+        gradient.addColorStop(0,'rgba(224,244,234,.85)');gradient.addColorStop(.4,'rgba(185,224,214,.46)');
+        gradient.addColorStop(1,'rgba(170,218,208,0)');ctx.fillStyle=gradient;ctx.fillRect(0,0,32,32);
       }
-      for(const [index,route] of routes.entries())for(let slot=0;slot<3;slot++){
-        const kind=(index+slot)%types.length;
-        const element=document.createElement('canvas');
-        element.width=element.height=SPRITE_SIZE;
-        element.className='traffic-vessel';element.dataset.vesselKind=types[kind].id;
-        const wake=document.createElement('canvas');wake.width=wake.height=WAKE_SIZE;
-        wake.className='traffic-wake';wake.hidden=true;
-        wakeLayer.appendChild(wake);
-        rearLayer.appendChild(element);
-        vessels.push({element,context:element.getContext('2d'),wake,wakeContext:wake.getContext('2d'),kind,route,
-          offset:route.length*(slot/3+.075*index),speed:.85+(index*3+slot)%5*.14,frame:null,transform:''});
-      }
+      return vessel;
+    }
+
+    function locateSites(){
+      nearSites=sites.filter(({bounds:b})=>{
+        const corners=[[b.left,b.top],[b.right,b.top],[b.right,b.bottom],[b.left,b.bottom]].map(([x,y])=>project(x,y));
+        const finite=corners.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+        if(!finite.length)return false;
+        return Math.max(...finite.map(p=>p.x))>-160&&Math.min(...finite.map(p=>p.x))<view.width+160&&
+          Math.max(...finite.map(p=>p.y))>-160&&Math.min(...finite.map(p=>p.y))<view.height+160;
+      });
     }
 
     function sprite(kind,heading,pitch,budget){
@@ -275,36 +280,43 @@
         vessel.front=front;
       }
     }
+    function hideTraffic(){
+      layer.hidden=true;visibleCount=0;bindings.clear();
+      for(const vessel of vessels){vessel.descriptor=null;vessel.worldY=undefined;vessel.element.hidden=vessel.wake.hidden=true;}
+      stop();
+    }
     function inRegion(){
-      if(!active||document.hidden||!view||view.width<=0||view.height<=0||!anchor)return false;
-      const point=project(anchor.x-45,anchor.y+10),margin=220*view.zoom+160;
-      return Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=-margin&&point.y>=-margin&&point.x<=view.width+margin&&point.y<=view.height+margin;
+      return !!(active&&!document.hidden&&view&&view.width>0&&view.height>0&&nearSites.length);
     }
     function paint(cameraOnly=false){
       if(!cameraOnly)timer=undefined;
-      if(!inRegion()){layer.hidden=true;visibleCount=0;stop();return;}
+      if(!inRegion()){hideTraffic();return;}
       layer.hidden=false;
       const now=performance.now();if(!cameraOnly)lastPaint=now;
       const seconds=reduced?.matches?0:(now-epoch)/1000;
       const closeUp=Math.max(0,Math.min(1,(view.zoom-5)/1.5));
       const scale=(.62+Math.max(0,Math.min(1,(view.zoom-1)/9))*.73)*(.75+.25*closeUp*closeUp*(3-2*closeUp));
       const candidates=[];
-      for(const vessel of vessels){
-        const distance=vessel.offset+seconds*vessel.speed;
-        const position=sampleRoute(vessel.route,distance);
-        const screen=project(position.x,position.y);
-        const visible=Number.isFinite(screen.x)&&Number.isFinite(screen.y)&&screen.x>-90&&screen.y>-90&&screen.x<view.width+90&&screen.y<view.height+90;
-        vessel.element.hidden=!visible;vessel.wake.hidden=!visible;
-        if(!visible)continue;
-        const ahead=sampleRoute(vessel.route,distance+1.8),behind=sampleRoute(vessel.route,distance-1.8);
+      // Only ships belonging to nearby port circuits are sampled. Distant ships have no canvases or timers.
+      for(const site of nearSites)for(const descriptor of site.ships){
+        const along=descriptor.offset+seconds*descriptor.speed;
+        const position=sampleRoute(site,along),screen=project(position.x,position.y);
+        if(!Number.isFinite(screen.x)||!Number.isFinite(screen.y)||screen.x<=-120||screen.y<=-120||screen.x>=view.width+120||screen.y>=view.height+120)continue;
+        const ahead=sampleRoute(site,along+1.8),behind=sampleRoute(site,along-1.8);
         const heading=(Math.atan2(ahead.x-behind.x,behind.y-ahead.y)*180/Math.PI+360)%360;
-        candidates.push({vessel,screen,heading,position,along:distance,distance:Math.hypot(screen.x-view.width/2,screen.y-view.height/2)});
+        candidates.push({descriptor,screen,heading,position,along,distance:Math.hypot(screen.x-view.width/2,screen.y-view.height/2)});
       }
       candidates.sort((a,b)=>a.distance-b.distance);
-      const limit=view.zoom<2?8:12,budget={left:2};
-      visibleCount=Math.min(limit,candidates.length);
-      for(const [index,{vessel,screen,heading,position,along}] of candidates.entries()){
-        if(index>=limit){vessel.element.hidden=true;vessel.wake.hidden=true;continue;}
+      const selected=candidates.slice(0,view.zoom<2?16:MAX_VISIBLE),budget={left:2};
+      const selectedKeys=new Set(selected.map(item=>item.descriptor.key));
+      for(const [key,vessel] of bindings)if(!selectedKeys.has(key)){
+        vessel.descriptor=null;vessel.worldY=undefined;vessel.element.hidden=vessel.wake.hidden=true;bindings.delete(key);
+      }
+      visibleCount=selected.length;
+      for(const {descriptor,screen,heading,position,along} of selected){
+        const vessel=bindings.get(descriptor.key)??acquire(descriptor);
+        if(!vessel)continue;
+        vessel.element.hidden=false;vessel.wake.hidden=false;
         const image=cameraOnly?null:sprite(vessel.kind,heading,view.pitch,budget);
         if(image&&vessel.frame!==image){
           vessel.context.clearRect(0,0,SPRITE_SIZE,SPRITE_SIZE);
@@ -336,7 +348,7 @@
       }
     }
     function refresh(cameraChanged=false){
-      if(!inRegion()){layer.hidden=true;visibleCount=0;stop();return;}
+      if(!inRegion()){hideTraffic();return;}
       if(timer===undefined||performance.now()-lastPaint>=1000/FPS){stop();paint();}
       // Camera movement must reposition boats with the chart, without rebaking their images.
       else if(cameraChanged)paint(true);
@@ -344,11 +356,13 @@
     document.addEventListener('visibilitychange',()=>refresh());
     reduced?.addEventListener?.('change',()=>{stop();refresh()});
     return {
-      update(zoom,width,height,pitch,nav,port,cameraKey){
+      update(zoom,width,height,pitch,nav,ports,cameraKey){
         view={zoom,width,height,pitch};
-        if(nav&&port&&navSource!==nav)initialize(nav,port);
-        const cameraChanged=cameraKey===undefined||cameraKey!==lastCameraKey;
+        const changed=!!(nav&&ports&&(navSource!==nav||portsSource!==ports));
+        if(changed)initialize(nav,ports);
+        const cameraChanged=changed||cameraKey===undefined||cameraKey!==lastCameraKey;
         lastCameraKey=cameraKey;
+        if(cameraChanged)locateSites();
         refresh(cameraChanged);
       },
       setActive(value){active=value;refresh();},
@@ -357,7 +371,7 @@
         playerY=worldY;
         for(const vessel of vessels)sortVessel(vessel);
       },
-      stats:()=>({vessels:vessels.length,types:types.length,visible:visibleCount,paintCount,routeBuilds,
+      stats:()=>({vessels:catalog.length,ports:sites.length,allocated:vessels.length,nearPorts:nearSites.length,types:types.length,visible:visibleCount,paintCount,routeBuilds,
         spriteCache:sprites.size,meshTriangles:fleetMesh?.triangles??0,gpuDraws:renderer?.stats.draws??0,wakePaints,wakeMarks,active:inRegion()})
     };
   }
