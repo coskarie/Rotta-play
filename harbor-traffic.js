@@ -145,7 +145,7 @@
     layer.className='harbor-traffic';layer.setAttribute('aria-hidden','true');
     container.prepend(layer);
     const sprites=new Map(),vessels=[];
-    let view,active=false,timer,renderer,gpuCanvas,navSource,anchor,lastPaint=-Infinity;
+    let view,active=false,timer,renderer,gpuCanvas,navSource,anchor,lastPaint=-Infinity,lastCameraKey;
     let routeBuilds=0,paintCount=0,visibleCount=0,failed=false;
     const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const epoch=performance.now();
@@ -197,11 +197,11 @@
       const point=project(anchor.x-45,anchor.y+10),margin=220*view.zoom+160;
       return Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=-margin&&point.y>=-margin&&point.x<=view.width+margin&&point.y<=view.height+margin;
     }
-    function paint(){
-      timer=undefined;
+    function paint(cameraOnly=false){
+      if(!cameraOnly)timer=undefined;
       if(!inRegion()){layer.hidden=true;visibleCount=0;stop();return;}
       layer.hidden=false;
-      const now=performance.now();lastPaint=now;
+      const now=performance.now();if(!cameraOnly)lastPaint=now;
       const seconds=reduced?.matches?0:(now-epoch)/1000;
       const closeUp=Math.max(0,Math.min(1,(view.zoom-5)/1.5));
       const scale=(.62+Math.max(0,Math.min(1,(view.zoom-1)/9))*.73)*(.75+.25*closeUp*closeUp*(3-2*closeUp));
@@ -222,7 +222,7 @@
       visibleCount=Math.min(limit,candidates.length);
       for(const [index,{vessel,screen,heading}] of candidates.entries()){
         if(index>=limit){vessel.element.hidden=true;continue;}
-        const image=sprite(vessel.kind,heading,view.pitch,budget);
+        const image=cameraOnly?null:sprite(vessel.kind,heading,view.pitch,budget);
         if(image&&vessel.frame!==image){
           vessel.context.clearRect(0,0,SPRITE_SIZE,SPRITE_SIZE);
           vessel.context.drawImage(image,0,0);vessel.frame=image;
@@ -233,20 +233,26 @@
         const depth=Math.round(screen.y+1000);
         if(vessel.depth!==depth){vessel.element.style.zIndex=depth;vessel.depth=depth;}
       }
-      paintCount++;
-      if(!reduced?.matches)timer=setTimeout(paint,visibleCount?1000/FPS:1000);
+      if(!cameraOnly){
+        paintCount++;
+        if(!reduced?.matches)timer=setTimeout(paint,visibleCount?1000/FPS:1000);
+      }
     }
-    function refresh(){
+    function refresh(cameraChanged=false){
       if(!inRegion()){layer.hidden=true;visibleCount=0;stop();return;}
       if(timer===undefined||performance.now()-lastPaint>=1000/FPS){stop();paint();}
+      // Camera movement must reposition boats with the chart, without rebaking their images.
+      else if(cameraChanged)paint(true);
     }
-    document.addEventListener('visibilitychange',refresh);
+    document.addEventListener('visibilitychange',()=>refresh());
     reduced?.addEventListener?.('change',()=>{stop();refresh()});
     return {
-      update(zoom,width,height,pitch,nav,port){
+      update(zoom,width,height,pitch,nav,port,cameraKey){
         view={zoom,width,height,pitch};
         if(nav&&port&&navSource!==nav)initialize(nav,port);
-        refresh();
+        const cameraChanged=cameraKey===undefined||cameraKey!==lastCameraKey;
+        lastCameraKey=cameraKey;
+        refresh(cameraChanged);
       },
       setActive(value){active=value;refresh();},
       stats:()=>({vessels:vessels.length,types:types.length,visible:visibleCount,paintCount,routeBuilds,
