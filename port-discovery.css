@@ -1,0 +1,25 @@
+/* Static shared question-mark artwork; only a newly discovered marker animates. */
+.europe-chart .sea-port.is-undiscovered .port-emblem{opacity:0}
+.port-unknown,.port-discovery-flash{position:absolute;inset:0;width:40px;height:44px;pointer-events:none;transform:scale(calc(var(--port-logo-scale,.67) * var(--port-emphasis,1) * 2));transform-origin:50% var(--port-anchor)}
+.port-unknown{pointer-events:auto}
+.port-unknown img{display:block;width:100%;height:100%;object-fit:contain}
+.sea-port.is-known .port-unknown{opacity:0;visibility:hidden}
+.port-discovery-flash{opacity:0}
+.port-discovery-flash::before,.port-discovery-flash::after{content:"";position:absolute;left:50%;top:48%;opacity:0;pointer-events:none}
+.port-discovery-flash::before{width:46px;height:46px;background:radial-gradient(ellipse,#fffde8 0%,#fff2b2 12%,#ffdb68a6 32%,#f7bf3138 53%,#f7bf3100 74%);border-radius:50%}
+.port-discovery-flash::after{width:30px;height:30px;background:#fff7ce;clip-path:polygon(50% 0,59% 39%,100% 50%,59% 59%,50% 100%,41% 59%,0 50%,41% 41%)}
+.europe-chart .sea-port:is(.is-known,.is-undiscovered) .port-label{display:block!important}
+.sea-port.is-undiscovered .port-label{color:#ffe7a0;letter-spacing:.12em}
+.sea-port.is-revealing{z-index:7}
+.sea-port.is-revealing .port-discovery-flash{opacity:1}
+.sea-port.is-revealing .port-discovery-flash::before{animation:portDiscoveryFlash .75s ease-out both}
+.sea-port.is-revealing .port-discovery-flash::after{animation:portDiscoverySpark .65s ease-out both}
+.sea-port.is-revealing .port-emblem{animation:portDiscoveryHarbor .22s ease-out .12s both}
+.sea-port.is-revealing .port-unknown{visibility:visible;animation:portDiscoveryQuestion .22s ease-in .12s both}
+.sea-port.is-revealing .port-label{animation:portDiscoveryName .16s ease-out .34s both}
+@keyframes portDiscoveryFlash{0%{opacity:0;transform:translate(-50%,-50%) scale(.45)}18%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}38%{opacity:.95;transform:translate(-50%,-50%) scale(2.3)}70%{opacity:.28;transform:translate(-50%,-50%) scale(3)}100%{opacity:0;transform:translate(-50%,-50%) scale(3.5)}}
+@keyframes portDiscoverySpark{0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(-12deg)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.3) rotate(0deg)}100%{opacity:0;transform:translate(-50%,-50%) scale(2.4) rotate(12deg)}}
+@keyframes portDiscoveryHarbor{from{opacity:0}to{opacity:1}}
+@keyframes portDiscoveryQuestion{from{opacity:1}to{opacity:0}}
+@keyframes portDiscoveryName{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.sea-port.is-revealing :is(.port-emblem,.port-unknown,.port-label),.sea-port.is-revealing .port-discovery-flash::before,.sea-port.is-revealing .port-discovery-flash::after{animation:none!important}.sea-port.is-revealing .port-discovery-flash{opacity:0}.sea-port.is-known .port-unknown{opacity:0;visibility:hidden}}

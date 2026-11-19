@@ -123,9 +123,9 @@
    if(e.stock>1.3&&e.price<1)return '과잉';
    return e.price>1.1?'수요 증가':e.price<.9?'시세 하락':'';
   }
-  function news(id){return [...active].sort((a,b)=>{
+  function news(id,{portName=key=>ports[key].name}={}){return [...active].sort((a,b)=>{
    const near=new Set([id,...(neighbours.get(id)||[])]);return Number(near.has(b.portId))-Number(near.has(a.portId))||b.start-a.start;
-  }).slice(0,8).map(e=>`${ports[e.portId].name} · ${e.name} · ${e.keys.map(k=>goods[k].name).slice(0,2).join(', ')}`)}
+  }).slice(0,8).map(e=>`${portName(e.portId)} · ${e.name} · ${e.keys.map(k=>goods[k].name).slice(0,2).join(', ')}`)}
   prices?.recordDay();if(warmup)while(day<0)nextDay();
   return{nextDay,start,effects,status,news,climate,eligible,prices,openingProtected:protectedNow,date:()=>dateAt(day),day:()=>day,
    at:id=>active.filter(e=>e.portId===id).map(e=>({...e,remaining:e.end-day})),
