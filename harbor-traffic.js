@@ -7,7 +7,7 @@
     {id:'coaster',name:'쌍돛 연안선',beam:1.85,wood:[.18,.29,.25],cloth:[.80,.67,.43]},
     {id:'galley',name:'갤리형',beam:1.3,wood:[.22,.29,.36],cloth:[.84,.79,.67]}
   ];
-  const FPS=24,SPRITE_SIZE=160,MAX_SPRITES=96;
+  const FPS=24,WAKE_FPS=12,WAKE_SIZE=256,SPRITE_SIZE=160,MAX_SPRITES=96;
   const circuits=[
     [[-7,4],[-43,16],[-69,7],[-36,-3]],
     [[-30,12],[-94,44],[-111,14],[-61,-14]],
@@ -140,13 +140,68 @@
     return {x:segment.x+segment.dx*t,y:segment.y+segment.dy*t};
   }
 
+  // Reject the entire footprint of a foam mark if any coastline cell touches it.
+  function wakeWaterClear(nav,a,b,radius){
+    const left=Math.floor(Math.min(a.x,b.x)-radius),right=Math.floor(Math.max(a.x,b.x)+radius);
+    const top=Math.floor(Math.min(a.y,b.y)-radius),bottom=Math.floor(Math.max(a.y,b.y)+radius);
+    for(let y=top;y<=bottom;y++)for(let x=left;x<=right;x++)if(!nav.water(x+.5,y+.5))return false;
+    return true;
+  }
+
+  function paintWake(ctx,stamp,vessel,position,distance,units,seconds,nav,detail){
+    ctx.clearRect(0,0,WAKE_SIZE,WAKE_SIZE);
+    ctx.lineCap='round';
+    const pixel=p=>({x:WAKE_SIZE/2+(p.x-position.x)/units,y:WAKE_SIZE/2+(p.y-position.y)/units});
+    const at=(aft,side=0)=>{
+      const along=distance-aft*units;
+      const center=sampleRoute(vessel.route,along);
+      const a=sampleRoute(vessel.route,along-.4),b=sampleRoute(vessel.route,along+.4);
+      const length=Math.hypot(b.x-a.x,b.y-a.y)||1;
+      return {x:center.x-(b.y-a.y)/length*side*units,y:center.y+(b.x-a.x)/length*side*units};
+    };
+    let marks=0;
+    function streak(a,b,width,alpha){
+      if(!wakeWaterClear(nav,a,b,(width/2+2)*units))return;
+      const from=pixel(a),to=pixel(b);
+      ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);
+      ctx.strokeStyle='#86bdb7';ctx.lineWidth=width+2;ctx.globalAlpha=alpha*.25;ctx.stroke();
+      ctx.strokeStyle='#d5eee3';ctx.lineWidth=width;ctx.globalAlpha=alpha;ctx.stroke();marks++;
+    }
+    function foam(point,radius,alpha){
+      if(!stamp||!wakeWaterClear(nav,point,point,(radius+1)*units))return;
+      const p=pixel(point);ctx.globalAlpha=alpha;
+      ctx.drawImage(stamp,p.x-radius,p.y-radius,radius*2,radius*2);marks++;
+    }
+    const phase=(seconds*(.65+vessel.speed*.12)+vessel.offset*.17)%1;
+    const count=detail?8:4;
+    for(let i=0;i<count;i++){
+      const t=(i+phase)/count,fade=(1-t)**1.5;
+      const aft=24+t*78;
+      foam(at(aft,Math.sin(i*2.4+vessel.offset)*(.7+t*1.4)),2.8+t*3.7,.62*fade);
+      for(const side of [-1,1]){
+        const spread=side*(4+t*19+Math.sin(i*2.8+vessel.offset)*1.4);
+        streak(at(aft,spread),at(aft+3.5+t*3,spread+side*1.4),1.0+t*.4,.38*fade);
+        if(detail&&i%2===0)foam(at(aft+3,spread*.72),2.2+t*2.4,.34*fade);
+      }
+    }
+    // Short washes along the bow meet the trail without drawing a solid V.
+    for(const side of [-1,1]){
+      const beam=types[vessel.kind].beam*3.2;
+      streak(at(-22,side*.7),at(-14,side*beam*.75),1.1,.25);
+      streak(at(-14,side*beam*.75),at(-5,side*beam),1.3,.20);
+      foam(at(24,side*beam*.55),3,.38+.08*Math.sin(seconds*3+side+vessel.offset));
+    }
+    ctx.globalAlpha=1;
+    return marks;
+  }
+
   function mount(container,project){
     const layer=document.createElement('div');
     layer.className='harbor-traffic';layer.setAttribute('aria-hidden','true');
     container.prepend(layer);
     const sprites=new Map(),vessels=[];
-    let view,active=false,timer,renderer,gpuCanvas,navSource,anchor,lastPaint=-Infinity,lastCameraKey;
-    let routeBuilds=0,paintCount=0,visibleCount=0,failed=false;
+    let view,active=false,timer,renderer,gpuCanvas,navSource,anchor,lastPaint=-Infinity,lastCameraKey,foamStamp;
+    let routeBuilds=0,paintCount=0,wakePaints=0,wakeMarks=0,visibleCount=0,failed=false;
     const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const epoch=performance.now();
 
@@ -155,13 +210,25 @@
       navSource=nav;anchor={x:port.navX??port.x,y:port.navY??port.y};
       const routes=buildRoutes(nav,anchor);routeBuilds++;
       layer.replaceChildren();vessels.length=0;
+      if(!foamStamp){
+        foamStamp=document.createElement('canvas');foamStamp.width=foamStamp.height=32;
+        const ctx=foamStamp.getContext('2d');
+        const gradient=ctx.createRadialGradient(16,16,0,16,16,16);
+        gradient.addColorStop(0,'rgba(224,244,234,.85)');
+        gradient.addColorStop(.4,'rgba(185,224,214,.46)');
+        gradient.addColorStop(1,'rgba(170,218,208,0)');
+        ctx.fillStyle=gradient;ctx.fillRect(0,0,32,32);
+      }
       for(const [index,route] of routes.entries())for(let slot=0;slot<3;slot++){
         const kind=(index+slot)%types.length;
         const element=document.createElement('canvas');
         element.width=element.height=SPRITE_SIZE;
         element.className='traffic-vessel';element.dataset.vesselKind=types[kind].id;
+        const wake=document.createElement('canvas');wake.width=wake.height=WAKE_SIZE;
+        wake.className='traffic-wake';wake.hidden=true;
+        layer.appendChild(wake);
         layer.appendChild(element);
-        vessels.push({element,context:element.getContext('2d'),kind,route,
+        vessels.push({element,context:element.getContext('2d'),wake,wakeContext:wake.getContext('2d'),kind,route,
           offset:route.length*(slot/3+.075*index),speed:.85+(index*3+slot)%5*.14,frame:null,transform:''});
       }
     }
@@ -211,17 +278,17 @@
         const position=sampleRoute(vessel.route,distance);
         const screen=project(position.x,position.y);
         const visible=Number.isFinite(screen.x)&&Number.isFinite(screen.y)&&screen.x>-90&&screen.y>-90&&screen.x<view.width+90&&screen.y<view.height+90;
-        vessel.element.hidden=!visible;
+        vessel.element.hidden=!visible;vessel.wake.hidden=!visible;
         if(!visible)continue;
         const ahead=sampleRoute(vessel.route,distance+1.8),behind=sampleRoute(vessel.route,distance-1.8);
         const heading=(Math.atan2(ahead.x-behind.x,behind.y-ahead.y)*180/Math.PI+360)%360;
-        candidates.push({vessel,screen,heading,distance:Math.hypot(screen.x-view.width/2,screen.y-view.height/2)});
+        candidates.push({vessel,screen,heading,position,along:distance,distance:Math.hypot(screen.x-view.width/2,screen.y-view.height/2)});
       }
       candidates.sort((a,b)=>a.distance-b.distance);
       const limit=view.zoom<2?8:12,budget={left:2};
       visibleCount=Math.min(limit,candidates.length);
-      for(const [index,{vessel,screen,heading}] of candidates.entries()){
-        if(index>=limit){vessel.element.hidden=true;continue;}
+      for(const [index,{vessel,screen,heading,position,along}] of candidates.entries()){
+        if(index>=limit){vessel.element.hidden=true;vessel.wake.hidden=true;continue;}
         const image=cameraOnly?null:sprite(vessel.kind,heading,view.pitch,budget);
         if(image&&vessel.frame!==image){
           vessel.context.clearRect(0,0,SPRITE_SIZE,SPRITE_SIZE);
@@ -232,6 +299,19 @@
         if(transform!==vessel.transform){vessel.element.style.transform=transform;vessel.transform=transform;}
         const depth=Math.round(screen.y+1000);
         if(vessel.depth!==depth){vessel.element.style.zIndex=depth;vessel.depth=depth;}
+        const wakeFrame=Math.floor(seconds*WAKE_FPS);
+        if(!cameraOnly&&vessel.wakeContext&&vessel.wakeFrame!==wakeFrame){
+          const units=scale/view.zoom;
+          wakeMarks+=paintWake(vessel.wakeContext,foamStamp,vessel,position,along,units,seconds,navSource,view.zoom>=2);
+          vessel.wakeOrigin={...position,units};vessel.wakeFrame=wakeFrame;wakePaints++;
+        }
+        const origin=vessel.wakeOrigin;
+        if(origin){
+          const base=project(origin.x,origin.y),right=project(origin.x+origin.units,origin.y),down=project(origin.x,origin.y+origin.units);
+          const a=right.x-base.x,b=right.y-base.y,c=down.x-base.x,d=down.y-base.y;
+          const transform='matrix('+[a,b,c,d,base.x-WAKE_SIZE/2*(a+c),base.y-WAKE_SIZE/2*(b+d)].map(value=>value.toFixed(5)).join(',')+')';
+          if(vessel.wakeTransform!==transform){vessel.wake.style.transform=transform;vessel.wakeTransform=transform;}
+        }else vessel.wake.hidden=true;
       }
       if(!cameraOnly){
         paintCount++;
@@ -256,9 +336,9 @@
       },
       setActive(value){active=value;refresh();},
       stats:()=>({vessels:vessels.length,types:types.length,visible:visibleCount,paintCount,routeBuilds,
-        spriteCache:sprites.size,meshTriangles:fleetMesh?.triangles??0,gpuDraws:renderer?.stats.draws??0,active:inRegion()})
+        spriteCache:sprites.size,meshTriangles:fleetMesh?.triangles??0,gpuDraws:renderer?.stats.draws??0,wakePaints,wakeMarks,active:inRegion()})
     };
   }
-  const api={types,buildFleet,buildRoutes,sampleRoute,mount};
+  const api={types,buildFleet,buildRoutes,sampleRoute,wakeWaterClear,paintWake,mount};
   if(typeof module==='object')module.exports=api;else window.ROTTA_HARBOR_TRAFFIC=api;
 })();
