@@ -632,7 +632,7 @@
       gl.uniform2f(waterOrigin, (left-tx) / (zoom*chartSize.width), (top-ty) / (zoom*chartSize.height));
       gl.uniform2f(waterSpan, width / (zoom*chartSize.width), height / (zoom*chartSize.height));
       gl.uniform2f(worldToSource, zoom / width, zoom / height);
-      const radius=Math.min(240,(view.viewHeight??view.h)*.38)/zoom;
+      const radius=2*Math.min(240,(view.viewHeight??view.h)*.38)/zoom;
       gl.uniform4f(waterFocus,focusX,focusY,radius*.43,radius);
       gl.uniform1f(waterOverview,overview);
       gl.uniform1f(waterTime, phase);
