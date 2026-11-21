@@ -175,7 +175,6 @@
         });
         viewport.insertBefore(pitchCanvas, world);
         refreshView();
-        onReliefChange?.();
       }).catch(error => {
         console.warn(error);
         nextElevationRetry = performance.now() + retryDelay;
@@ -397,7 +396,6 @@
     return {update, setActive,
       setWaterFocus(x,y){if(view)view.waterFocus={x,y};},
       get reliefVisible() { return reliefVisible; },
-      elevationAt: (x, y) => elevations ? pitch.sampleHeight(elevations, x, y) : null,
       heightAt: (x, y) => reliefVisible && view.projection ? view.projection.reliefScale * pitch.sampleHeight(elevations, x, y) : 0,
       stats: () => ({
         cachedTiles: cache.size, decodedBytes, downloads: loading.size,
