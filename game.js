@@ -212,7 +212,7 @@ const DEPARTURE_ZOOM={frame:0,run:0,active:false};
 const SAILING_TEST_SPEED=EUROPE?3:1;
 const AUTO_SAIL={velocity:0,rampSeconds:1.2,route:null};
 const MANUAL_SAIL={keys:new Set(),frame:0,last:0,velocity:0,maxSpeed:(EUROPE?1.6:4.2)*SAILING_TEST_SPEED,acceleration:(EUROPE?.8:2.1)*SAILING_TEST_SPEED,brake:(EUROPE?1:2.8)*SAILING_TEST_SPEED,turnRate:48,heading:0,guide:null,guideIndex:1};
-const NAV_RENDER={viewport:null,world:null,ship:null,width:0,height:0,portNodes:[],nearAt:0,cameraFrame:0,cullTimer:0,lastRegion:'',lastTx:0,lastTy:0,vectorReady:false,coastRenderer:null,uiAt:0,dockAt:0,dockId:undefined,moving:false,lastCamera:'',lastShip:'',projection:null,annotations:null,scenery:null,traffic:null,route:[],routeData:'',target:null};
+const NAV_RENDER={viewport:null,world:null,ship:null,width:0,height:0,portNodes:[],nearAt:0,cameraFrame:0,cullTimer:0,lastRegion:'',lastTx:0,lastTy:0,vectorReady:false,coastRenderer:null,uiAt:0,dockAt:0,dockId:undefined,moving:false,lastCamera:'',lastShip:'',projection:null,annotations:null,scenery:null,landScenery:null,traffic:null,route:[],routeData:'',target:null};
 const NAV={w:256,h:171,water:null,rawWater:null,ready:false,cellX:WORLD.w/256,cellY:WORLD.h/171};
 const COAST={w:1536,h:1024,water:null,rawWater:null,ready:false,cellX:WORLD.w/1536,cellY:WORLD.h/1024};
 const MAP_ART_FALLBACK='assets/chart-low.webp?v=38';
@@ -260,6 +260,7 @@ async function loadStartupAssets(){
   await Promise.all([
    window.ROTTA_PORT_TRANSITIONS?.preload(),
    CHART_DISCOVERY?.preload(),
+   EUROPE?window.ROTTA_LAND_SCENERY?.preload():undefined,
    window.ROTTA_MANSION_DIALOGUE?.preload(),
    harbors.preload((loaded,total)=>{
     STARTUP.harbors=total?loaded/total*100:100;
@@ -394,9 +395,14 @@ function mountChartAnnotations(){
  overlay.append(route,$('#seaClickTarget'),$('#seaPorts'),NAV_RENDER.ship);
  NAV_RENDER.annotations=overlay;
  NAV_RENDER.scenery=window.ROTTA_LISBON_SCENERY?.mount(overlay,(x,y)=>projectChartPosition(x,y,true,true));
+ NAV_RENDER.landScenery=window.ROTTA_LAND_SCENERY?.mount(overlay,{world:EUROPE,
+  project:(x,y)=>projectChartPosition(x,y,true,true),unproject:chartWorldPosition,
+  elevation:(x,y)=>NAV_RENDER.coastRenderer?.elevationAt?.(x,y)??null,
+  exclusions:()=>[...Object.values(PORTS).map(port=>({x:port.x,y:port.y,radius:8})),...(window.ROTTA_LISBON_SCENERY?.exclusions||[])]});
  NAV_RENDER.traffic=window.ROTTA_HARBOR_TRAFFIC?.mount(overlay,projectChartPosition,undefined,chartWorldPosition);
 }
 function positionCoastalScenery(){
+ NAV_RENDER.landScenery?.update({zoom:state.zoom,width:NAV_RENDER.width,height:NAV_RENDER.height,nav:EUROPE?.nav,cameraKey:NAV_RENDER.lastCamera+':'+chartCurvatureActive()});
  NAV_RENDER.scenery?.update(state.shipX,state.shipY,state.zoom,NAV_RENDER.width,NAV_RENDER.height);
  NAV_RENDER.traffic?.update(state.zoom,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection?.degrees||0,EUROPE.nav,PORTS,NAV_RENDER.lastCamera+':'+chartCurvatureActive());
 }
@@ -1320,7 +1326,7 @@ function advance(days){
  if(SEA_PORT_UI.quoteId)renderSeaMarket();
 }
 function showEvent(ev){if(window.ROTTA_PORT_TRANSITIONS?.active||openingEventsProtected())return false;if(!$('#eventModal').classList.contains('hidden'))return false;ev=window.ROTTA_SUPPLIES?.resolveEvent(state,ev)||ev;ev=window.ROTTA_SHIPYARD?.mitigate(state,ev)||ev;window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(ev.marketTemplate)MARKET_SIM?.start(ev.marketTemplate,state.current);for(const [k,v] of Object.entries(ev.effects))state[k]=Math.max(0,(state[k]||0)+v);$('#eventIcon').textContent=ev.icon;$('#eventType').textContent=ev.type;$('#eventTitle').textContent=ev.title;$('#eventBody').textContent=ev.body;$('#eventEffects').innerHTML=ev.labels.map(x=>`<span>${x}</span>`).join('');$('#eventModal').classList.remove('hidden');updateStats()}
-function switchView(which){window.ROTTA_VOYAGE_SUPPLIES?.close(false);window.ROTTA_TRADE_INSIGHTS?.close(false);window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(which!=='sailing'){cancelCameraRecenter();stopDepartureZoom();}$('#portView').classList.toggle('active',which==='port');$('#sailingView').classList.toggle('active',which==='sailing');document.body.classList.toggle('sailing-mode',which==='sailing');NAV_RENDER.coastRenderer?.setActive?.(which==='sailing');NAV_RENDER.traffic?.setActive(which==='sailing');window.ROTTA_VOYAGE_SUPPLIES?.refresh()}
+function switchView(which){window.ROTTA_VOYAGE_SUPPLIES?.close(false);window.ROTTA_TRADE_INSIGHTS?.close(false);window.ROTTA_PLAYER_MENU?.close(false);window.ROTTA_SHIPYARD?.close(false);if(which!=='sailing'){cancelCameraRecenter();stopDepartureZoom();}$('#portView').classList.toggle('active',which==='port');$('#sailingView').classList.toggle('active',which==='sailing');document.body.classList.toggle('sailing-mode',which==='sailing');NAV_RENDER.coastRenderer?.setActive?.(which==='sailing');NAV_RENDER.traffic?.setActive(which==='sailing');NAV_RENDER.landScenery?.setActive(which==='sailing');window.ROTTA_VOYAGE_SUPPLIES?.refresh()}
 function updateStats(){if(!state.nation)return;const n=NATIONS[state.nation];$('#nationFlag').textContent=n.flag;$('#nationName').textContent=n.name;$('#nationTrait').textContent=n.trait;$('#goldStat').textContent=fmt(state.gold);$('#fameStat').textContent=fmt(state.fame);$('#crewStat').textContent=`${fmt(state.crew)}명`;$('#hullStat').textContent=`${fmt(state.hull)}%`;$('#foodStat').textContent=`${fmt(state.food)}%`;$('#cargoStat').textContent=`${cargoTotal()}/${cargoLimit()}`;$('#cargoStat').title=cargoCapacityTitle();$('#dateText').textContent=`${state.year}년 ${state.month}월 ${state.day||1}일`;$('#seaDateText').textContent=$('#dateText').textContent;renderFleetStatus();window.ROTTA_PLAYER_MENU?.refresh();window.ROTTA_SHIPYARD?.refresh();window.ROTTA_VOYAGE_SUPPLIES?.refresh()}
 let toastTimer;function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2300)}
 init();

@@ -233,5 +233,5 @@
     };
   }
 
-  window.ROTTA_LISBON_SCENERY = {mount};
+  window.ROTTA_LISBON_SCENERY = {mount,exclusions:layout.map(({x,y})=>({x,y,radius:9}))};
 })();
