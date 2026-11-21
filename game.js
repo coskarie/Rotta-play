@@ -394,7 +394,7 @@ function mountChartAnnotations(){
  overlay.append(route,$('#seaClickTarget'),$('#seaPorts'),NAV_RENDER.ship);
  NAV_RENDER.annotations=overlay;
  NAV_RENDER.scenery=window.ROTTA_LISBON_SCENERY?.mount(overlay,(x,y)=>projectChartPosition(x,y,true,true));
- NAV_RENDER.traffic=window.ROTTA_HARBOR_TRAFFIC?.mount(overlay,projectChartPosition);
+ NAV_RENDER.traffic=window.ROTTA_HARBOR_TRAFFIC?.mount(overlay,projectChartPosition,undefined,chartWorldPosition);
 }
 function positionCoastalScenery(){
  NAV_RENDER.scenery?.update(state.shipX,state.shipY,state.zoom,NAV_RENDER.width,NAV_RENDER.height);

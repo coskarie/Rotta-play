@@ -231,7 +231,7 @@
     return marks;
   }
 
-  function mount(container,project,random=Math.random){
+  function mount(container,project,random=Math.random,unproject=null){
     const layer=document.createElement('div');
     layer.className='harbor-traffic';layer.setAttribute('aria-hidden','true');
     container.prepend(layer);
@@ -289,6 +289,19 @@
     }
 
     function locateSites(){
+      if(unproject){
+        // Cull in chart space. Projecting a long route's corners loses the near
+        // half when those corners pass behind the tilted camera (Infinity).
+        // Side and center samples include the curved horizon's extremal reach.
+        const points=[-160,view.width/2,view.width+160].flatMap(x=>
+          [-160,view.height+160].map(y=>unproject(x,y)));
+        if(points.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))){
+          const left=Math.min(...points.map(p=>p.x)),right=Math.max(...points.map(p=>p.x));
+          const top=Math.min(...points.map(p=>p.y)),bottom=Math.max(...points.map(p=>p.y));
+          nearSites=sites.filter(({bounds:b})=>b.right>=left&&b.left<=right&&b.bottom>=top&&b.top<=bottom);
+          return;
+        }
+      }
       nearSites=sites.filter(({bounds:b})=>{
         const corners=[[b.left,b.top],[b.right,b.top],[b.right,b.bottom],[b.left,b.bottom]].map(([x,y])=>project(x,y));
         const finite=corners.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
