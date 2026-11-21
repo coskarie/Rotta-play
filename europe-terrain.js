@@ -30,6 +30,14 @@
     });
   }
 
+  // Retain full water detail while reducing oversampling of the 1x overview.
+  // Fade back to the existing close-up resolution before detailed zoom levels.
+  function renderRatio(zoom,deviceRatio=1){
+    const progress=Math.max(0,Math.min(1,(zoom-1.1)/1.4));
+    const cap=1.25+.25*progress*progress*(3-2*progress);
+    return Math.min(deviceRatio,cap);
+  }
+
   function mount(viewport, world, terrain, onReliefChange) {
     const {width, height, gutter, levels, overview} = terrain;
     const canvas = document.createElement('canvas');
@@ -328,7 +336,7 @@
       if (w < 1 || h < 1) return;
       view = {tx, ty, zoom, w, h, projection, showColors};
       if (!active) return;
-      const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      const displayRatio = renderRatio(zoom,window.devicePixelRatio || 1);
       const required = projection
         ? pitch.sourceRect(projection, zoom)
         : {left: 0, top: 0, width: w, height: h};
@@ -398,11 +406,12 @@
       heightAt: (x, y) => reliefVisible && view.projection ? view.projection.reliefScale * pitch.sampleHeight(elevations, x, y) : 0,
       stats: () => ({
         cachedTiles: cache.size, decodedBytes, downloads: loading.size,
+        terrainPixelRatio:camera?.displayRatio??0,
         peakDownloads, paintCount, textureUploads: relief?.textureUploads ?? 0, visibleTiles: wanted.size,
         waterDraws: relief?.waterDraws ?? 0, waterPixels: relief?.waterPixels ?? 0,
         waterPixelBudget:relief?.waterPixelBudget??0,waterFramesPerSecond:1000/waterFrameInterval()
       })};
   }
 
-  window.ROTTA_EUROPE_TERRAIN = {preload, mount};
+  window.ROTTA_EUROPE_TERRAIN = {preload, mount,renderRatio};
 })();
