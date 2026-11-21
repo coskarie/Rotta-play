@@ -318,8 +318,6 @@
 .ship-water-wake{position:absolute;left:50%;top:50%;width:272px;height:272px;z-index:0;transform:translate(-50%,-50%);pointer-events:none}
 .ship.has-3d-model .merchant-ship,.ship.has-3d-model .ship-wake{display:none}
 .ship:not(.has-3d-model) .ship-model{display:none}
-.ship-model-link{position:absolute;right:18px;bottom:154px;z-index:12;color:#e8d4a6;background:#30271cdd;border:1px solid #987943;padding:7px 10px;text-decoration:none;font-size:12px;border-radius:3px}
-.ship-model-link:focus-visible{outline:2px solid #f6db88;outline-offset:3px}
 
 /* Ambient vessels share cached 3D views and pass pointer input through to the chart. */
 .harbor-traffic{position:absolute;inset:0;pointer-events:none}

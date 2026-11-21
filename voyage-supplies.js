@@ -77,8 +77,10 @@
  }
  function handleKey(event){
   if(!nodes||event.ctrlKey||event.metaKey||event.altKey||event.isComposing)return false;
-  // Native activation must not leak Space to the camera or repeat-consume a focused item.
-  if(nodes.root.contains(event.target)&&['Enter',' '].includes(event.key)){if(event.repeat)event.preventDefault();return true}
+  // Space always reaches the sailing camera, even while the supply trigger or checkbox is focused.
+  if(event.code==='Space'||event.key===' ')return false;
+  // Enter retains native activation, without repeat-consuming a focused item.
+  if(nodes.root.contains(event.target)&&event.key==='Enter'){if(event.repeat)event.preventDefault();return true}
   if(!opened||event.key!=='Escape')return false;
   if(!config.canOpen()){close(false);return false}
   event.preventDefault();if(!event.repeat)close();return true;
