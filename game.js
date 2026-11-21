@@ -815,7 +815,6 @@ function updatePortDiscoveries(force=false){
 function positionSailingShip(){
  const ship=NAV_RENDER.ship;
  NAV_RENDER.traffic?.setPlayer(state.shipY);
- if(EUROPE)NAV_RENDER.coastRenderer?.setWaterFocus?.(state.shipX,state.shipY);
  const {x,y}=EUROPE?projectChartPosition(state.shipX,state.shipY):{x:state.shipX,y:state.shipY};
  const visible=Number.isFinite(x)&&Number.isFinite(y);
  ship.hidden=!visible;
@@ -918,7 +917,7 @@ function updateChartScale(ty,height){
  const mark=$('.scale-mark'),label=`약 ${EUROPE?miles.toFixed(miles<1?1:0):Math.max(8,Math.round(miles))}해리`;
  if(mark.textContent!==label)mark.textContent=label;
 }
-function updateCoastVisibility(){if(!NAV_RENDER.coastRenderer||!NAV_RENDER.width||(!EUROPE&&state.zoom<=2.5))return;const z=state.zoom,tx=NAV_RENDER.lastTx,ty=NAV_RENDER.lastTy;if(EUROPE)NAV_RENDER.coastRenderer.update(tx,ty,z,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection,!DEPARTURE_ZOOM.active,{x:state.shipX,y:state.shipY});else NAV_RENDER.coastRenderer.update(-tx/z,-ty/z,(NAV_RENDER.width-tx)/z,(NAV_RENDER.height-ty)/z)}
+function updateCoastVisibility(){if(!NAV_RENDER.coastRenderer||!NAV_RENDER.width||(!EUROPE&&state.zoom<=2.5))return;const z=state.zoom,tx=NAV_RENDER.lastTx,ty=NAV_RENDER.lastTy;if(EUROPE)NAV_RENDER.coastRenderer.update(tx,ty,z,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection,!DEPARTURE_ZOOM.active);else NAV_RENDER.coastRenderer.update(-tx/z,-ty/z,(NAV_RENDER.width-tx)/z,(NAV_RENDER.height-ty)/z)}
 function requestCameraUpdate(){if(NAV_RENDER.cameraFrame)return;NAV_RENDER.cameraFrame=requestAnimationFrame(()=>{NAV_RENDER.cameraFrame=0;updateCamera()})}
 function updatePortVisibility(){
  NAV_RENDER.cullTimer=0;

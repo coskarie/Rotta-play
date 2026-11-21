@@ -163,8 +163,6 @@
     uniform bool u_waterReady;
     uniform float u_waterTime, u_waterDetail, u_waterTilt;
     uniform vec2 u_worldToSource;
-    uniform vec4 u_waterFocus;
-    uniform float u_waterOverview;
 
     float waterTone(vec3 color) {
       return smoothstep(0.008, 0.085, min(color.b, color.g) - color.r);
@@ -282,17 +280,6 @@
       return mix(base, wash, damp * (0.46 + exposure * (0.23 + 0.27 * pulse)));
     }
 
-    vec3 distantWater(vec3 base,float distance,vec2 world) {
-      // Overview water uses one broad sample instead of the local flow, normals and foam.
-      vec2 drift=vec2(cos(u_waterTime),sin(u_waterTime))*.007;
-      vec3 patches=texture2D(u_waveNoise,world*vec2(.00073,.00108)+drift).rgb;
-      float swell=sin(world.x*.026-world.y*.018-u_waterTime*4.0);
-      vec3 sea=mix(base*vec3(.93,.97,.99),vec3(.115,.245,.275),.58);
-      sea+=(patches.r-.5)*vec3(.022,.036,.043)+swell*vec3(.002,.004,.005);
-      sea+=(1.0-smoothstep(0.0,15.0,distance))*vec3(.015,.052,.045);
-      return sea;
-    }
-
     vec3 waterSurface(vec3 base, float distance, vec2 world, vec3 localFlow, vec3 phase, vec2 coordinates) {
       vec2 drift = vec2(cos(u_waterTime), sin(u_waterTime)) * 0.012;
       vec4 gusts = texture2D(u_waveNoise, world * vec2(0.00029, 0.00037) - drift*0.6);
@@ -387,8 +374,7 @@
       gl_Position = vec4(a_uv * 2.0 - 1.0, 0.0, 1.0);
     }`;
 
-  const waterFragmentSource = (precision,overview) => `
-    #define WATER_OVERVIEW ${overview?1:0}
+  const waterFragmentSource = precision => `
     precision ${precision} float;
     uniform sampler2D u_color;
     uniform ${precision} sampler2D u_waveFlow, u_waveCross;
@@ -404,28 +390,6 @@
       float wet = smoothstep(-1.3, 1.35, distance) * tone;
       if (wet > 0.0 || abs(distance) <= 4.4) {
         vec2 world = v_chart * vec2(${chartSize.width}.0, ${chartSize.height}.0);
-        #if WATER_OVERVIEW
-        float reach=length(world-u_waterFocus.xy);
-        float localDetail=1.0-u_waterOverview*smoothstep(u_waterFocus.z,u_waterFocus.w,reach);
-        if(localDetail<1.0){
-          vec3 simpleWater=distantWater(terrain,distance,world);
-          vec3 simpleCoast=mix(terrain,terrain*vec3(.88,.94,.95),
-            (1.0-smoothstep(.5,4.4,abs(distance)))*(1.0-tone)*.25);
-          color=mix(simpleCoast,simpleWater,wet);
-        }
-        // The distant branch avoids the eight packed flow reads and surface-normal samples.
-        if(localDetail>0.0){
-          vec4 flow=waveFlow(world,inChart);
-          vec3 localFlow=coastFlow(flow.xy,distance);
-          vec3 phase=swellPhase(flow.zw);
-          vec3 edge=coastalWash(terrain,distance,world,tone,phase,localFlow.z);
-          if(wet>0.0){
-            vec3 water=waterSurface(terrain,distance,world,localFlow,phase,flow.zw);
-            edge=mix(edge,water,wet);
-          }
-          color=mix(color,edge,localDetail);
-        }
-        #else
         vec4 flow=waveFlow(world,inChart);
         vec3 localFlow=coastFlow(flow.xy,distance);
         vec3 phase=swellPhase(flow.zw);
@@ -435,7 +399,6 @@
           edge=mix(edge,water,wet);
         }
         color=edge;
-        #endif
       }
       // Center the color difference on an exact byte so untouched land stays unchanged.
       gl_FragColor = vec4(color - terrain + 128.0 / 255.0, 1.0);
@@ -540,13 +503,11 @@
       return program;
     }
     const program = link(vertexSource, fragmentSource);
-    // Compile overview work out of the close-up shader so zoomed-in water pays no LOD branch cost.
-    const waterPrograms=[false,true].map(overview=>{
-      const program=link(waterVertexSource,precision=>waterFragmentSource(precision,overview));
-      const names=['waterOrigin','waterSpan','waterTime','waterDetail','worldToSource','waterTilt',
-        'waterFocus','waterOverview','color','shore','waveNoise','waveFlow','waveCross','surfaceNormals'];
-      return {program,uniforms:Object.fromEntries(names.map(name=>[name,gl.getUniformLocation(program,'u_'+name)]))};
-    });
+    // One viewport water pass; detail no longer depends on the player's location.
+    const waterProgram=link(waterVertexSource,waterFragmentSource);
+    const waterNames=['waterOrigin','waterSpan','waterTime','waterDetail','worldToSource','waterTilt',
+      'color','shore','waveNoise','waveFlow','waveCross','surfaceNormals'];
+    const waterPass={program:waterProgram,uniforms:Object.fromEntries(waterNames.map(name=>[name,gl.getUniformLocation(waterProgram,'u_'+name)]))};
     gl.useProgram(program);
     const count = createMesh(gl, 0);
     const quadOffset = count * Uint16Array.BYTES_PER_ELEMENT;
@@ -568,11 +529,9 @@
     uploadBytes(1, atlasSize, heights.europe);
     uploadBytes(2, region.samples, heights.lisbon);
     const rawColor = uploadBytes(0, 1, new Uint8Array([45,85,87,255]), gl.RGBA);
-    for(const {program,uniforms} of waterPrograms){
-      gl.useProgram(program);
-      for(const [name,unit] of [['color',0],['shore',3],['waveNoise',4],['waveFlow',5],['waveCross',6],['surfaceNormals',7]]){
-        gl.uniform1i(uniforms[name],unit);
-      }
+    gl.useProgram(waterPass.program);
+    for(const [name,unit] of [['color',0],['shore',3],['waveNoise',4],['waveFlow',5],['waveCross',6],['surfaceNormals',7]]){
+      gl.uniform1i(waterPass.uniforms[name],unit);
     }
     uploadBytes(3, 1, new Uint8Array(1));
     const noiseTexture = uploadBytes(4, waveNoiseSize, waveNoise(), gl.RGBA);
@@ -599,18 +558,16 @@
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
     let waterWidth = 1, waterHeight = 1, waterRevision = -1, waterPassPhase, waterPassTilt;
-    let waterPassFocus,waterPixelBudget=360000;
+    let waterPixelBudget=360000;
     let waterDraws = 0, waterPixels = 0;
     function renderWater(view, rect, revision, phase) {
       const tilt = Math.round(view.projection.sin * 20) / 20;
       const {width,height,left,top}=rect;
       const {zoom,tx,ty}=view;
       const overview=1-fade(zoom-1.1,2.4);
-      const focus=view.waterFocus??{x:(view.w/2-tx)/zoom,y:(view.h/2-ty)/zoom};
-      const focusX=Math.round(focus.x*zoom/8)*8/zoom;
-      const focusY=Math.round(focus.y*zoom/8)*8/zoom;
-      const focusKey=overview?focusX+':'+focusY:'full';
-      if(waterRevision===revision&&waterPassPhase===phase&&waterPassTilt===tilt&&waterPassFocus===focusKey)return;
+      // Reuse this phase while dragging inside the padded chart. Camera movement
+      // alone must not turn the capped water animation into a new pass every frame.
+      if(waterRevision===revision&&waterPassPhase===phase&&waterPassTilt===tilt)return;
       waterPixelBudget=Math.round(360000-overview*200000);
       const ratio=Math.min(.70-overview*.15,Math.sqrt(waterPixelBudget/(width*height)));
       const w = Math.max(1, Math.round(width * ratio));
@@ -624,17 +581,14 @@
       }
       gl.bindTexture(gl.TEXTURE_2D, noiseTexture);
       gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
-      const pass=waterPrograms[overview>0?1:0];
-      const {waterOrigin,waterSpan,waterTime,waterDetail,worldToSource,waterTilt,waterFocus,waterOverview}=pass.uniforms;
+      const pass=waterPass;
+      const {waterOrigin,waterSpan,waterTime,waterDetail,worldToSource,waterTilt}=pass.uniforms;
       gl.useProgram(pass.program);
       gl.disable(gl.DEPTH_TEST);
       gl.viewport(0, 0, w, h);
       gl.uniform2f(waterOrigin, (left-tx) / (zoom*chartSize.width), (top-ty) / (zoom*chartSize.height));
       gl.uniform2f(waterSpan, width / (zoom*chartSize.width), height / (zoom*chartSize.height));
       gl.uniform2f(worldToSource, zoom / width, zoom / height);
-      const radius=2*Math.min(240,(view.viewHeight??view.h)*.38)/zoom;
-      gl.uniform4f(waterFocus,focusX,focusY,radius*.43,radius);
-      gl.uniform1f(waterOverview,overview);
       gl.uniform1f(waterTime, phase);
       gl.uniform1f(waterDetail, fade(zoom - 1.25, 3.25));
       gl.uniform1f(waterTilt, tilt);
@@ -644,7 +598,6 @@
       waterRevision = revision;
       waterPassPhase = phase;
       waterPassTilt = tilt;
-      waterPassFocus=focusKey;
       waterDraws++;
       waterPixels += w*h;
     }

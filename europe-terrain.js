@@ -250,7 +250,7 @@
         // The padded map is reused between water frames, with no tile uploads when only the water moves.
         if (flatRevision !== paintCount || flatWaterFrame !== waterFrame) {
           const projection = pitch.project(camera.w, camera.h, 0);
-          const flat = {...camera, projection,waterFocus:view.waterFocus};
+          const flat = {...camera, projection};
           const source = {left: 0, top: 0, width: camera.w, height: camera.h};
           if (relief.draw(canvas, flat, source, camera.ratio, paintCount, waterPhase)) {
             flatRevision = paintCount;
@@ -320,13 +320,13 @@
 
     function refreshView() {
       if (!active || !view) return;
-      const {tx, ty, zoom, w, h, projection, showColors,waterFocus} = view;
-      update(tx, ty, zoom, w, h, projection, showColors,waterFocus);
+      const {tx, ty, zoom, w, h, projection, showColors} = view;
+      update(tx, ty, zoom, w, h, projection, showColors);
     }
 
-    function update(tx, ty, zoom, w, h, projection = null, showColors = true,waterFocus=null) {
+    function update(tx, ty, zoom, w, h, projection = null, showColors = true) {
       if (w < 1 || h < 1) return;
-      view = {tx, ty, zoom, w, h, projection, showColors,waterFocus};
+      view = {tx, ty, zoom, w, h, projection, showColors};
       if (!active) return;
       const displayRatio = Math.min(window.devicePixelRatio || 1, 1.5);
       const required = projection
@@ -394,7 +394,6 @@
     }
 
     return {update, setActive,
-      setWaterFocus(x,y){if(view)view.waterFocus={x,y};},
       get reliefVisible() { return reliefVisible; },
       heightAt: (x, y) => reliefVisible && view.projection ? view.projection.reliefScale * pitch.sampleHeight(elevations, x, y) : 0,
       stats: () => ({
