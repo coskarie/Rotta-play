@@ -326,3 +326,15 @@
 .harbor-traffic .traffic-vessel{position:absolute;left:0;top:0;width:160px;height:160px;pointer-events:none;transform-origin:50% 50%}
 .harbor-traffic .traffic-wake{position:absolute;left:0;top:0;width:256px;height:256px;pointer-events:none;transform-origin:0 0;z-index:0}
 .harbor-traffic[hidden],.traffic-vessel[hidden],.traffic-wake[hidden]{display:none}
+
+/* The world chart fades into uncharted darkness at its geographic edges. */
+.sea-viewport{background:#000}
+.ocean-world:before{
+  content:"";position:absolute;inset:0;z-index:40;pointer-events:none;
+  --edge-stops:#000 0%,#000000f5 12.5%,#000000d7 25%,#000000ae 37.5%,#0008 50%,#00000051 62.5%,#00000028 75%,#0000000b 87.5%,#0000 100%;
+  background-image:linear-gradient(to right,var(--edge-stops)),linear-gradient(to left,var(--edge-stops)),linear-gradient(to bottom,var(--edge-stops)),linear-gradient(to top,var(--edge-stops));
+  background-size:72px 100%,72px 100%,100% 72px,100% 72px;
+  background-position:left top,right top,left top,left bottom;background-repeat:no-repeat;
+}
+.map-frame{display:none}
+.europe-chart .ocean-world:before{display:none}

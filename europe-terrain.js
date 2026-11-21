@@ -120,7 +120,7 @@
       if (canvas.height !== deviceHeight) canvas.height = deviceHeight;
       const xAt = x => Math.round((tx + x * zoom) * ratio);
       const yAt = y => Math.round((ty + y * zoom) * ratio);
-      context.fillStyle = '#2d5557';
+      context.fillStyle = '#000';
       context.fillRect(0, 0, deviceWidth, deviceHeight);
       paintCount++;
       const originX = xAt(0), originY = yAt(0);
@@ -156,6 +156,25 @@
         context.drawImage(entry.image, gutter, gutter, pixels, pixels,
           left, top, xAt(x + worldSize) - left, yAt(y + worldSize) - top);
       }
+      // The non-WebGL fallback uses the same map-anchored smooth fade.
+      if (!relief || !view.showColors) {
+        const band = 384 * zoom * ratio;
+        for (const [x0, y0, x1, y1, x, y, w, h] of [
+          [originX, 0, originX + band, 0, originX, originY, band, endY - originY],
+          [endX, 0, endX - band, 0, endX - band, originY, band, endY - originY],
+          [0, originY, 0, originY + band, originX, originY, endX - originX, band],
+          [0, endY, 0, endY - band, originX, endY - band, endX - originX, band]
+        ]) {
+          if (x >= deviceWidth || y >= deviceHeight || x + w <= 0 || y + h <= 0) continue;
+          const gradient = context.createLinearGradient(x0, y0, x1, y1);
+          for (let i = 0; i <= 8; i++) {
+            const t = i / 8;
+            gradient.addColorStop(t, `rgba(0,0,0,${1 - t * t * (3 - 2 * t)})`);
+          }
+          context.fillStyle = gradient;
+          context.fillRect(x, y, w, h);
+        }
+      }
       context.restore();
       present();
     }
@@ -174,7 +193,7 @@
           event.preventDefault();
           relief = null;
           flatRevision = -1;
-          if (active && camera) present();
+          if (active && camera) refreshView();
         });
         pitchCanvas.addEventListener('webglcontextrestored', () => {
           relief = pitch.renderer(pitchCanvas, heights);

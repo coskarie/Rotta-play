@@ -332,11 +332,20 @@
     ${elevationSource}
 
     void main() {
+      // Map-space distance follows pan, zoom, terrain relief and camera curvature.
+      // Fade after water/height coloring so foam and rock cannot brighten the boundary.
+      vec2 edgeDistance = min(v_chart, 1.0 - v_chart) * vec2(${chartSize.width}.0, ${chartSize.height}.0);
+      vec2 edgeBlend = smoothstep(vec2(0.0), vec2(384.0), edgeDistance);
+      float mapVisibility = edgeBlend.x * edgeBlend.y;
+      if (mapVisibility <= 0.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+      }
       vec4 terrain = texture2D(u_color, v_uv);
       float seaCoverage=smoothstep(0.008,0.085,min(terrain.g,terrain.b)-terrain.r);
       if(u_waterReady&&seaCoverage>=0.9999){
         // Open-water fragments need neither elevation lookups nor vegetation/rock shading.
-        gl_FragColor=vec4(terrain.rgb+texture2D(u_waterEffect,v_uv).rgb-128.0/255.0,terrain.a);
+        gl_FragColor=vec4((terrain.rgb+texture2D(u_waterEffect,v_uv).rgb-128.0/255.0)*mapVisibility,terrain.a);
         return;
       }
       vec3 samples = readElevation(v_chart);
@@ -360,7 +369,7 @@
         // Clip the upsampled effect with the original full-resolution coastline.
         painted+=(texture2D(u_waterEffect,v_uv).rgb-128.0/255.0)*seaCoverage;
       }
-      gl_FragColor = vec4(painted, terrain.a);
+      gl_FragColor = vec4(painted * mapVisibility, terrain.a);
     }`;
 
   const waterVertexSource = precision => `
@@ -554,7 +563,7 @@
     gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, waterEffect, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.clearColor(45 / 255, 85 / 255, 87 / 255, 1);
+    gl.clearColor(0, 0, 0, 1);
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
     let waterWidth = 1, waterHeight = 1, waterRevision = -1, waterPassPhase, waterPassTilt;
