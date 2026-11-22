@@ -162,24 +162,47 @@ function priceAt(portId,key,side='buy'){return side==='sell'&&(state.cargo[key]|
 const MARKET_UI={port:null,key:null,month:null,stockValues:null};
 const SEA_PORT_UI={actionsId:null,quoteId:null};
 const ARRIVAL_UI={routePortId:null,portId:null,timer:0,deadline:0,token:0};
-function dismissArrivalPrompt(){
- clearTimeout(ARRIVAL_UI.timer);ARRIVAL_UI.timer=0;ARRIVAL_UI.deadline=0;ARRIVAL_UI.portId=null;ARRIVAL_UI.routePortId=null;ARRIVAL_UI.token++;
+const ARRIVAL_APPROACH={departurePortId:null,handled:new Set()};
+function beginPortDeparture(id){
+ ARRIVAL_APPROACH.departurePortId=id;ARRIVAL_APPROACH.handled.clear();
+}
+function dismissArrivalPrompt({keepRoute=false}={}){
+ clearTimeout(ARRIVAL_UI.timer);ARRIVAL_UI.timer=0;ARRIVAL_UI.deadline=0;ARRIVAL_UI.portId=null;if(!keepRoute)ARRIVAL_UI.routePortId=null;ARRIVAL_UI.token++;
  const panel=$('#arrivalPrompt');if(panel){panel.hidden=true;panel.classList.remove('counting')}
 }
 function answerArrivalPrompt(accept){
  const id=ARRIVAL_UI.portId;if(!id)return;
  const allowed=(accept||performance.now()>=ARRIVAL_UI.deadline)&&$('#sailingView').classList.contains('active')&&canDockAt(id);
- dismissArrivalPrompt();
+ dismissArrivalPrompt({keepRoute:true});
  if(allowed){DOCK_SELECTION.portId=id;enterPort()}
  else if($('#arrivalPrompt').contains?.(document.activeElement))NAV_RENDER.viewport.focus({preventScroll:true});
 }
 function showArrivalPrompt(id){
- dismissArrivalPrompt();if(!canDockAt(id)||!$('#sailingView').classList.contains('active'))return false;
+ if(!canDockAt(id)||!$('#sailingView').classList.contains('active'))return false;
+ dismissArrivalPrompt({keepRoute:true});ARRIVAL_APPROACH.handled.add(id);
  closeSeaPortUI();ARRIVAL_UI.portId=id;ARRIVAL_UI.deadline=performance.now()+10000;const token=ARRIVAL_UI.token,panel=$('#arrivalPrompt');
  $('#arrivalQuestion').textContent=`${PORTS[id].name} · 입항하시겠습니까?`;
  $('#arrivalYes').onclick=()=>answerArrivalPrompt(true);$('#arrivalNo').onclick=()=>answerArrivalPrompt(false);
  panel.hidden=false;void panel.offsetWidth;panel.classList.add('counting');panel.focus({preventScroll:true});
  ARRIVAL_UI.timer=setTimeout(()=>{if(token===ARRIVAL_UI.token)answerArrivalPrompt(true)},10000);return true;
+}
+// Reuse the existing 100 ms docking check; camera movement adds no proximity work.
+function updateArrivalApproach(nearest){
+ const away=id=>{const p=PORTS[id];return !p||Math.hypot((p.navX??p.x)-state.shipX,(p.navY??p.y)-state.shipY)>=DOCKING_RADIUS*1.5};
+ for(const id of ARRIVAL_APPROACH.handled)if(away(id))ARRIVAL_APPROACH.handled.delete(id);
+ if(ARRIVAL_APPROACH.departurePortId&&away(ARRIVAL_APPROACH.departurePortId))ARRIVAL_APPROACH.departurePortId=null;
+ if(ARRIVAL_UI.portId&&!canDockAt(ARRIVAL_UI.portId))dismissArrivalPrompt({keepRoute:true});
+ if(ARRIVAL_UI.portId||!nearest||!state.nation||!$('#sailingView').classList.contains('active')||window.ROTTA_PORT_TRANSITIONS?.active)return;
+ const available=id=>id!==ARRIVAL_APPROACH.departurePortId&&!ARRIVAL_APPROACH.handled.has(id);
+ if(available(nearest)){showArrivalPrompt(nearest);return;}
+ // A recently departed/declined harbour must not hide a second overlapping harbour.
+ let other=null,best=DOCKING_RADIUS**2;
+ for(const [id,p] of Object.entries(PORTS)){
+  if(id===nearest||!available(id))continue;
+  const distance=((p.navX??p.x)-state.shipX)**2+((p.navY??p.y)-state.shipY)**2;
+  if(distance<best&&canDockAt(id)){other=id;best=distance;}
+ }
+ if(other)showArrivalPrompt(other);
 }
 function handleArrivalPromptKey(e){
  if(!ARRIVAL_UI.portId)return false;
@@ -725,7 +748,7 @@ function openSailing(){
   $('#placeType').textContent='항해 중';$('#placeName').textContent=`${PORTS[state.current].name} 근해`;
   state.atPort=true;state.camX=state.camY=0;sailingPitch=0;CAMERA_VIEW.followShip=true;
   clearManualKeys();setSeaClickTarget(null);setDepartureHeading(PORTS[state.current]);
-  syncViewportMetrics();populateDestinations();updateShip(true);
+  beginPortDeparture(state.current);syncViewportMetrics();populateDestinations();updateShip(true);
   DEPARTURE_ZOOM.active=true;NAV_RENDER.world.classList.remove('recentering');setZoom(.5,null,true);
   NAV_RENDER.viewport.focus();if(!NAV.ready)$('#routeInfo').textContent='해수와 육지를 판독하고 있습니다…';
   committed=true;
@@ -1121,6 +1144,11 @@ function selectSeaPort(id,{confirmArrival=false}={}){
  if(state.traveling)cancelAutoSail();clearManualKeys();DOCK_SELECTION.portId=id;
  updateDockingState(true);updateShip(true);dismissArrivalPrompt();if(confirmArrival)showArrivalPrompt(id);return true;
 }
+function requestPortEntry(id){
+ if(!PORTS[id]||!state.nation||!$('#sailingView').classList.contains('active'))return;
+ if(canDockAt(id)){DOCK_SELECTION.portId=id;return enterPort();}
+ return selectSeaPort(id,{confirmArrival:true});
+}
 function facilitySymbolMarkup(id){
  const icon=FACILITIES[id]?.icon||'';
  return `<i class="facility-medallion" aria-hidden="true"><span class="facility-symbol">${icon}</span></i>`;
@@ -1144,11 +1172,11 @@ function openSeaPortActions(id){
  if(!state.nation||!PORTS[id])return;updatePortDiscoveries();if(!isChartedPort(id)){closeSeaPortUI();plotCourse(id,null,{confirmArrival:true});return;}if(SEA_PORT_UI.actionsId===id)return closeSeaPortActions();
  closeSeaPortActions();SEA_PORT_UI.actionsId=id;
  if(canDockAt(id)){DOCK_SELECTION.portId=id;updateDockingState(true)}
- const menu=$('#seaPortActions');menu.innerHTML=`<svg class="port-action-arc" viewBox="0 0 160 124" aria-hidden="true"><path class="orbit-trace orbit-brass" pathLength="1" d="M29.088 61.088A72 72 0 0 1 130.912 61.088"/></svg><button class="port-orbit-button" data-port-market="${id}" aria-label="${PORTS[id].name} 교역소" title="교역소" disabled>${portActionIcon('market')}</button><button class="port-orbit-button" data-port-move="${id}" aria-label="${PORTS[id].name} 이동" title="항구로 이동" disabled>${portActionIcon('move')}</button>`;menu.hidden=false;
+ const menu=$('#seaPortActions');menu.innerHTML=`<svg class="port-action-arc" viewBox="0 0 160 124" aria-hidden="true"><path class="orbit-trace orbit-brass" pathLength="1" d="M29.088 61.088A72 72 0 0 1 130.912 61.088"/></svg><button class="port-orbit-button" data-port-market="${id}" aria-label="${PORTS[id].name} 교역소" title="교역소" disabled>${portActionIcon('market')}</button><button class="port-orbit-button" data-port-move="${id}" aria-label="${PORTS[id].name} ${canDockAt(id)?'입항':'이동'}" title="${canDockAt(id)?'입항':'항구로 이동'}" disabled>${portActionIcon('move')}</button>`;menu.hidden=false;
  const market=menu.querySelector('[data-port-market]'),move=menu.querySelector('[data-port-move]');
  for(const button of [market,move])button.onanimationend=e=>{if(e.animationName==='portActionGlide')button.disabled=false};
  market.onclick=e=>{e.stopPropagation();openSeaMarket(id)};
- move.onclick=e=>{e.stopPropagation();closeSeaPortUI();selectSeaPort(id,{confirmArrival:true})};
+ move.onclick=e=>{e.stopPropagation();closeSeaPortUI();requestPortEntry(id)};
  $(`[data-seaport="${id}"]`)?.setAttribute('aria-expanded','true');positionSeaPortActions();
 }
 function openSeaMarket(id){if(!PORTS[id]||!isChartedPort(id))return;closeSeaPortActions();SEA_PORT_UI.quoteId=id;$('#seaMarketPanel').hidden=false;renderSeaMarket()}
@@ -1174,6 +1202,7 @@ function updateDockingState(force=false){
  const label=nearest?`${PORTS[nearest].name} 입항`:'입항';if(enter.textContent!==label)enter.textContent=label;
  if(nearest!==NAV_RENDER.dockId){NAV_RENDER.dockId=nearest;if(!state.traveling){$('#routeTitle').textContent=nearest?`${PORTS[nearest].name} 근해`:'자유 항해';$('#routeInfo').textContent=nearest?'입항할 수 있습니다.':''}}
  const velocity=state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity,speed=`${((EUROPE?6/1.6:.8/4.2)*velocity).toFixed(1)} kn`;if($('#speedText').textContent!==speed)$('#speedText').textContent=speed;
+ updateArrivalApproach(nearest);
 }
 function setSeaClickTarget(point){
  NAV_RENDER.target=point;
@@ -1307,8 +1336,8 @@ function positionSailingRoute(){
  }
 }
 function openingEventsProtected(){return MARKET_SIM?.openingProtected?.()??(state.elapsedDays||0)<(window.ROTTA_MARKET_EVENTS?.OPENING_GRACE_DAYS??30)}
-function finishCourse(id,days){const arrivalId=ARRIVAL_UI.routePortId;ARRIVAL_UI.routePortId=null;if(id&&canDockAt(id))DOCK_SELECTION.portId=id;id=id||nearestDockId();state.traveling=false;AUTO_SAIL.velocity=0;state.atPort=!!id;if(id)state.current=id;$('#speedText').textContent='0.0 kn';$('#routeTitle').textContent=id?`${PORTS[id].name} 도착`:'지정 해역 도착';$('#routeInfo').textContent=id?`${days}일의 항해를 마쳤습니다. 입항하여 항구 시설을 이용하십시오.`:'바다를 다시 클릭하거나 목적항을 선택해 계속 항해하십시오.';$('#returnPortBtn').disabled=!id;$('#destinationSelect').disabled=false;$('#setCourseBtn').disabled=false;drawRoute([]);setSeaClickTarget(null);updateShip(true);updateStats();const prompted=arrivalId===id&&showArrivalPrompt(id);if(!prompted&&days>0&&!openingEventsProtected()&&Math.random()<.55){const run=SEA_ROUTE_RUN;setTimeout(()=>{if(run===SEA_ROUTE_RUN&&!state.traveling&&!ARRIVAL_UI.portId&&$('#sailingView').classList.contains('active'))showEvent(EVENTS[Math.floor(Math.random()*EVENTS.length)])},300)}}
-function enterPort(){EUROPE_ROUTE_REQUEST++;if(window.ROTTA_PORT_TRANSITIONS?.active)return;dismissArrivalPrompt();closeSeaPortUI();stopAutoCamera();const id=nearestDockId();if(!id){updateDockingState(true);return;}if(state.traveling)cancelAutoSail();clearManualKeys();return playPortTransition('arrive',()=>{state.current=id;state.atPort=true;reportFleetAward(window.ROTTA_FLEET?.discover(state,id));const p=PORTS[id];setSailingPosition(p.navX??p.x,p.navY??p.y);$('#destinationSelect').disabled=false;renderPort();updateStats()})}
+function finishCourse(id,days){const arrivalId=ARRIVAL_UI.routePortId;ARRIVAL_UI.routePortId=null;if(id&&canDockAt(id))DOCK_SELECTION.portId=id;id=id||nearestDockId();state.traveling=false;AUTO_SAIL.velocity=0;state.atPort=!!id;if(id)state.current=id;$('#speedText').textContent='0.0 kn';$('#routeTitle').textContent=id?`${PORTS[id].name} 도착`:'지정 해역 도착';$('#routeInfo').textContent=id?`${days}일의 항해를 마쳤습니다. 입항하여 항구 시설을 이용하십시오.`:'바다를 다시 클릭하거나 목적항을 선택해 계속 항해하십시오.';$('#returnPortBtn').disabled=!id;$('#destinationSelect').disabled=false;$('#setCourseBtn').disabled=false;drawRoute([]);setSeaClickTarget(null);updateShip(true);updateStats();const prompted=arrivalId===id?(ARRIVAL_UI.portId===id||(!ARRIVAL_APPROACH.handled.has(id)&&showArrivalPrompt(id))):!!ARRIVAL_UI.portId;if(!prompted&&days>0&&!openingEventsProtected()&&Math.random()<.55){const run=SEA_ROUTE_RUN;setTimeout(()=>{if(run===SEA_ROUTE_RUN&&!state.traveling&&!ARRIVAL_UI.portId&&$('#sailingView').classList.contains('active'))showEvent(EVENTS[Math.floor(Math.random()*EVENTS.length)])},300)}}
+function enterPort(){EUROPE_ROUTE_REQUEST++;if(window.ROTTA_PORT_TRANSITIONS?.active)return;dismissArrivalPrompt();closeSeaPortUI();stopAutoCamera();const id=nearestDockId();if(!id){updateDockingState(true);return;}if(state.traveling)cancelAutoSail();clearManualKeys();dismissArrivalPrompt();return playPortTransition('arrive',()=>{state.current=id;state.atPort=true;reportFleetAward(window.ROTTA_FLEET?.discover(state,id));const p=PORTS[id];setSailingPosition(p.navX??p.x,p.navY??p.y);$('#destinationSelect').disabled=false;renderPort();updateStats()})}
 function advance(days){
  const count=Math.max(0,Math.floor(Number(days)||0));if(!Number.isFinite(count)||!count)return;
  let latest=null,provisions=0;
