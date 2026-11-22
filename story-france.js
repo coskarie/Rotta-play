@@ -1,23 +1,27 @@
-/* A short, self-contained opening; assets are loaded only after choosing France. */
+/* French opening; story, image assets and animations are loaded only when needed. */
 (() => {
   'use strict';
   const assets = {
     background: 'assets/story/france-v1/home-exterior.png',
+    sky: 'assets/story/france-v1/sky-upward-v1.png',
+    script: 'assets/story/france-v1/opening-script.json?v=1',
     character: 'assets/story/france-v1/colette.png'
   };
-  const lines = [
-    {speaker: '', text: '평화로운 나날이 지속되었다.', character: false},
-    {speaker: '콜레트', text: '또 바다를 보고 있었어? 아침부터 네가 안 보여서 찾았잖아.', character: true},
-    {speaker: '나', text: '언젠가는 내 무역선을 갖고 싶어. 저 수평선 너머의 항구들을 돌아다니는 거야.', character: true},
-    {speaker: '콜레트', text: '그 말, 어릴 때부터 했지. 그렇다면 마르세유에 가 보는 건 어때?', character: true},
-    {speaker: '나', text: '맞아. 항구에서 일부터 배워 볼게. 내 배를 갖는 첫걸음이 될 테니까.', character: true},
-    {speaker: '콜레트', text: '좋아. 네 배가 생기면, 가장 먼저 나를 태워 주기야.', character: true},
-    {speaker: '', text: '작은 꿈 하나를 품고, 나는 마르세유로 향하기로 했다.', character: false}
-  ];
-  let root, background, character, speaker, line, accessibleLine, next, panel;
+  let lines = [], script, scriptTask;
+  function loadScript() {
+    return scriptTask ??= fetch(assets.script, {cache: 'force-cache'}).then(async response => {
+      if (!response.ok) throw Error('France story: ' + response.status);
+      const data = await response.json();
+      if (!Array.isArray(data.lines) || !data.lines.length || data.lines.some(entry =>
+        typeof entry.text !== 'string' || typeof entry.speaker !== 'string')) throw Error('Invalid France story script');
+      return data;
+    }).catch(error => { scriptTask = null; throw error; });
+  }
+  let root, background, villageBackground, character, speaker, line, accessibleLine, next, panel;
   let active = false, ready = false, closing = false, index = 0;
   let finish, previousFocus, locked = [], closeTimer = 0;
   let writer = 0, writerRun = 0, typing = false, letters = [], cursor = 0;
+  let portraitMode = 'hidden', scene = 'sky', bounceAnimation;
   const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   function mount() {
@@ -30,7 +34,8 @@
     root.setAttribute('aria-modal', 'true');
     root.setAttribute('aria-label', '프랑스 이야기');
     root.tabIndex = -1;
-    root.innerHTML = `<img class="france-story-background" alt="평화로운 프랑스 해안 마을의 작은 집" draggable="false">
+    root.innerHTML = `<img class="france-story-background" alt="나무그늘 아래에서 올려다본 하늘" draggable="false">
+      <img class="france-story-background france-story-village" alt="" aria-hidden="true" draggable="false">
       <div class="france-story-stage" aria-hidden="true"><img class="france-story-character" alt="" draggable="false"></div>
       <div class="france-story-dialogue" role="group" aria-label="대화">
         <div class="france-story-copy" aria-live="polite" aria-atomic="true"><p class="france-story-speaker"></p><p class="france-story-line" aria-hidden="true"></p><span class="france-story-accessible-line"></span></div>
@@ -38,6 +43,7 @@
       </div>`;
     document.body.appendChild(root);
     background = root.querySelector('.france-story-background');
+    villageBackground = root.querySelector('.france-story-village');
     character = root.querySelector('.france-story-character');
     speaker = root.querySelector('.france-story-speaker');
     line = root.querySelector('.france-story-line');
@@ -70,16 +76,48 @@
     updateNextLabel();
   }
 
+  function stopBounce() {
+    bounceAnimation?.cancel(); bounceAnimation = undefined;
+  }
+
+  function bounce() {
+    if (reducedMotion() || portraitMode === 'hidden') return;
+    // Independent translate leaves the existing entrance/exit transform untouched.
+    bounceAnimation = character.animate?.([
+      {translate: '0 0', offset: 0},
+      {translate: '0 -3px', offset: .25},
+      {translate: '0 0', offset: .5},
+      {translate: '0 -2px', offset: .75},
+      {translate: '0 0', offset: 1}
+    ], {duration: 720, easing: 'ease-in-out', iterations: 1});
+  }
+
   function render(delay = 0) {
-    stopWriter();
+    stopWriter(); stopBounce();
     const entry = lines[index], run = writerRun;
+    const emphasized = entry.text.includes('<바운스>');
+    const text = entry.text.replaceAll('<바운스>', '');
+    scene = entry.scene ?? scene;
+    portraitMode = entry.character ?? portraitMode;
     root.dataset.line = String(index);
-    root.classList.toggle('has-character', entry.character);
+    root.dataset.scene = scene;
+    root.dataset.character = portraitMode;
+    background.alt = scene === 'sky' ? '나무그늘 아래에서 올려다본 하늘' : '프랑스 해안 마을의 언덕집';
+    if (portraitMode === 'silhouette' && !root.classList.contains('has-character')) {
+      // Set black while still invisible, preventing a flash of the real portrait.
+      character.style.transition = 'none';
+      root.classList.add('is-silhouette');
+      void character.offsetWidth;
+      character.style.transition = '';
+    }
+    root.classList.toggle('is-silhouette', portraitMode === 'silhouette');
+    root.classList.toggle('has-character', portraitMode !== 'hidden');
     root.classList.toggle('is-narration', !entry.speaker);
+    if (emphasized) bounce();
     speaker.textContent = entry.speaker;
     // Announce the complete line once; visual character ticks stay out of live regions.
-    accessibleLine.textContent = entry.text;
-    letters = Array.from(entry.text); cursor = 0; typing = true;
+    accessibleLine.textContent = text;
+    letters = Array.from(text); cursor = 0; typing = true;
     line.textContent = '';
     root.dataset.typing = 'true';
     updateNextLabel();
@@ -99,17 +137,21 @@
     if (active) return false;
     mount();
     active = true; ready = false; closing = false; index = 0; finish = onFinish;
+    portraitMode = 'hidden'; scene = 'sky';
     previousFocus = document.activeElement;
     locked = [...document.querySelectorAll('#game, .topbar')].map(node => [node, node.inert]);
     for (const [node] of locked) node.inert = true;
-    root.classList.remove('is-visible', 'has-character');
+    root.classList.remove('is-visible', 'has-character', 'is-silhouette');
+    root.dataset.scene = scene;
     root.hidden = false;
     root.setAttribute('aria-busy', 'true');
-    background.src = assets.background;
+    background.src = assets.sky;
+    villageBackground.src = assets.background;
     character.src = assets.character;
     root.focus({preventScroll: true});
     try {
-      await Promise.all([background.decode(), character.decode()]);
+      const results = await Promise.all([background.decode(), villageBackground.decode(), character.decode(), loadScript()]);
+      script = results[3]; lines = script.lines;
     } catch (error) {
       console.warn('[Rotta France story]', error);
       complete();
@@ -129,7 +171,7 @@
     if (!active || !ready || closing) return;
     if (typing) { finishTyping(); return; }
     if (index < lines.length - 1) { index++; render(); return; }
-    closing = true; ready = false;
+    closing = true; ready = false; stopBounce();
     root.classList.remove('is-visible', 'has-character');
     if (reducedMotion()) complete();
     else closeTimer = setTimeout(complete, 650);
@@ -138,7 +180,7 @@
   function complete() {
     if (!active) return;
     clearTimeout(closeTimer); closeTimer = 0;
-    stopWriter(); typing = false; letters = []; cursor = 0;
+    stopWriter(); stopBounce(); typing = false; letters = []; cursor = 0;
     delete root.dataset.typing;
     root.hidden = true;
     root.classList.remove('is-visible', 'has-character');
@@ -163,5 +205,5 @@
     }
     return true;
   }
-  window.ROTTA_FRANCE_STORY = {start, handleKey, get active() { return active; }};
+  window.ROTTA_FRANCE_STORY = {start, handleKey, get protagonist() { return script?.protagonist; }, get active() { return active; }};
 })();
