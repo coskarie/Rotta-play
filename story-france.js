@@ -14,9 +14,10 @@
     {speaker: '콜레트', text: '좋아. 네 배가 생기면, 가장 먼저 나를 태워 주기야.', character: true},
     {speaker: '', text: '작은 꿈 하나를 품고, 나는 마르세유로 향하기로 했다.', character: false}
   ];
-  let root, background, character, speaker, line, next, panel;
+  let root, background, character, speaker, line, accessibleLine, next, panel;
   let active = false, ready = false, closing = false, index = 0;
-  let finish, previousFocus, locked = [], closeTimer = 0, lineAnimation;
+  let finish, previousFocus, locked = [], closeTimer = 0;
+  let writer = 0, writerRun = 0, typing = false, letters = [], cursor = 0;
   const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   function mount() {
@@ -32,15 +33,15 @@
     root.innerHTML = `<img class="france-story-background" alt="평화로운 프랑스 해안 마을의 작은 집" draggable="false">
       <div class="france-story-stage" aria-hidden="true"><img class="france-story-character" alt="" draggable="false"></div>
       <div class="france-story-dialogue" role="group" aria-label="대화">
-        <div class="france-story-copy" aria-live="polite" aria-atomic="true"><p class="france-story-speaker"></p><p class="france-story-line"></p></div>
+        <div class="france-story-copy" aria-live="polite" aria-atomic="true"><p class="france-story-speaker"></p><p class="france-story-line" aria-hidden="true"></p><span class="france-story-accessible-line"></span></div>
         <button class="france-story-next" type="button" aria-label="다음 대화" title="다음 대화"><svg viewBox="0 0 16 12" aria-hidden="true"><path d="M2 3h12L8 10Z" fill="currentColor"/></svg></button>
-        <span class="france-story-hint" aria-hidden="true">클릭 또는 Enter · Space로 다음 대화</span>
       </div>`;
     document.body.appendChild(root);
     background = root.querySelector('.france-story-background');
     character = root.querySelector('.france-story-character');
     speaker = root.querySelector('.france-story-speaker');
     line = root.querySelector('.france-story-line');
+    accessibleLine = root.querySelector('.france-story-accessible-line');
     next = root.querySelector('.france-story-next');
     panel = root.querySelector('.france-story-dialogue');
     next.onclick = advance;
@@ -50,17 +51,48 @@
     });
   }
 
-  function render() {
-    const entry = lines[index];
+  function stopWriter() {
+    clearTimeout(writer); writer = 0; writerRun++;
+  }
+
+  function updateNextLabel() {
+    const label = typing ? '대사 전체 보기' : index === lines.length - 1 ? '마르세유 항구로' : '다음 대화';
+    next.setAttribute('aria-label', label);
+    next.title = label;
+  }
+
+  function finishTyping() {
+    stopWriter();
+    cursor = letters.length;
+    line.textContent = letters.join('');
+    typing = false;
+    root.dataset.typing = 'false';
+    updateNextLabel();
+  }
+
+  function render(delay = 0) {
+    stopWriter();
+    const entry = lines[index], run = writerRun;
     root.dataset.line = String(index);
     root.classList.toggle('has-character', entry.character);
     root.classList.toggle('is-narration', !entry.speaker);
     speaker.textContent = entry.speaker;
-    line.textContent = entry.text;
-    next.setAttribute('aria-label', index === lines.length - 1 ? '마르세유 항구로' : '다음 대화');
-    next.title = index === lines.length - 1 ? '마르세유 항구로' : '다음 대화';
-    lineAnimation?.cancel();
-    if (!reducedMotion()) lineAnimation = line.animate?.([{opacity: 0}, {opacity: 1}], {duration: 180});
+    // Announce the complete line once; visual character ticks stay out of live regions.
+    accessibleLine.textContent = entry.text;
+    letters = Array.from(entry.text); cursor = 0; typing = true;
+    line.textContent = '';
+    root.dataset.typing = 'true';
+    updateNextLabel();
+    if (reducedMotion()) { finishTyping(); return; }
+    function tick() {
+      if (run !== writerRun || !active || closing || !typing) return;
+      writer = 0;
+      line.textContent = letters.slice(0, ++cursor).join('');
+      if (cursor >= letters.length) { finishTyping(); return; }
+      writer = setTimeout(tick, 32);
+    }
+    if (delay) writer = setTimeout(tick, delay);
+    else tick();
   }
 
   async function start({onFinish = () => {}} = {}) {
@@ -84,7 +116,7 @@
       return false;
     }
     if (!active) return false;
-    render();
+    render(320);
     void root.offsetWidth;
     root.classList.add('is-visible');
     root.setAttribute('aria-busy', 'false');
@@ -95,6 +127,7 @@
 
   function advance() {
     if (!active || !ready || closing) return;
+    if (typing) { finishTyping(); return; }
     if (index < lines.length - 1) { index++; render(); return; }
     closing = true; ready = false;
     root.classList.remove('is-visible', 'has-character');
@@ -105,7 +138,8 @@
   function complete() {
     if (!active) return;
     clearTimeout(closeTimer); closeTimer = 0;
-    lineAnimation?.cancel(); lineAnimation = undefined;
+    stopWriter(); typing = false; letters = []; cursor = 0;
+    delete root.dataset.typing;
     root.hidden = true;
     root.classList.remove('is-visible', 'has-character');
     root.removeAttribute('aria-busy');
