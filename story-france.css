@@ -5,9 +5,9 @@
 .france-story-village,.france-story-seated,.france-story-bread{opacity:0;transition:opacity .7s ease}
 .france-story:is([data-scene="harbor"],[data-scene="seated"],[data-scene="bread"]) .france-story-village,.france-story:is([data-scene="seated"],[data-scene="bread"]) .france-story-seated,.france-story[data-scene="bread"] .france-story-bread{opacity:1}
 .france-story-stage{position:absolute;inset:0;overflow:hidden;pointer-events:none}
-.france-story-character{position:absolute;right:9%;bottom:-4.5vh;height:90vh;width:auto;max-width:none;opacity:0;transform:translateY(8px);filter:brightness(1);transition:opacity .55s ease,transform .55s ease,filter 1s ease;user-select:none}
+.france-story-character{position:absolute;right:9%;bottom:-4.5vh;height:90vh;width:auto;max-width:none;opacity:0;transform:translateX(24px);filter:brightness(1);transition:opacity .55s ease,transform .65s ease,filter 1s ease;user-select:none}
 .france-story.is-silhouette .france-story-character{filter:brightness(0)}
-.france-story.has-character .france-story-character{opacity:1;transform:translateY(0)}
+.france-story.has-character .france-story-character{opacity:1;transform:translateX(0)}
 .france-story-dialogue{position:absolute;bottom:3.6vh;left:50%;transform:translateX(-50%);width:min(1080px,90vw);min-height:174px;padding:32px 64px 54px 76px;cursor:pointer}
 .france-story-dialogue:before{content:"";position:absolute;inset:0;z-index:-1;background:rgba(2,5,8,.9);mask-image:linear-gradient(to right,transparent,#000 4%,#000 96%,transparent),linear-gradient(to bottom,transparent,#000 14%,#000 87%,transparent);mask-composite:intersect;-webkit-mask-composite:source-in;pointer-events:none}
 .france-story-speaker{box-sizing:border-box;font-size:calc(14px + 1pt);font-weight:600;line-height:20px;letter-spacing:.09em;color:#e5d2a2;height:30px;padding:0 0 9px;margin:0 0 14px;border-bottom:1px solid rgba(229,210,162,.3)}

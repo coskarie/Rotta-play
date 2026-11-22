@@ -6,7 +6,7 @@
     sky: 'assets/story/france-v1/sky-upward-v1.png',
     seated: 'assets/story/france-v1/hill-seated-v1.png',
     bread: 'assets/story/france-v1/hill-seated-bread-v2.png',
-    script: 'assets/story/france-v1/opening-script.json?v=4',
+    script: 'assets/story/france-v1/opening-script.json?v=5',
     character: 'assets/story/france-v1/colette.png'
   };
   let lines = [], script, scriptTask;
@@ -24,6 +24,7 @@
   let finish, previousFocus, locked = [], closeTimer = 0;
   let writer = 0, writerRun = 0, typing = false, letters = [], cursor = 0;
   let portraitMode = 'hidden', scene = 'sky', bounceAnimation;
+  let portraitTimer = 0, portraitRun = 0;
   const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   function mount() {
@@ -86,6 +87,11 @@
     bounceAnimation?.cancel(); bounceAnimation = undefined;
   }
 
+  function stopPortraitEntrance() {
+    clearTimeout(portraitTimer); portraitTimer = 0; portraitRun++;
+    delete root.dataset.portraitPending;
+  }
+
   function bounce() {
     if (reducedMotion() || portraitMode === 'hidden') return;
     // Independent translate leaves the existing entrance/exit transform untouched.
@@ -104,12 +110,14 @@
     const emphasized = entry.text.includes('<바운스>');
     const text = entry.text.replaceAll('<바운스>', '');
     scene = entry.scene ?? scene;
-    portraitMode = entry.character ?? portraitMode;
+    const nextPortrait = entry.character ?? portraitMode;
+    if (nextPortrait !== portraitMode) stopPortraitEntrance();
+    portraitMode = nextPortrait;
     root.dataset.line = String(index);
     root.dataset.scene = scene;
     root.dataset.character = portraitMode;
     background.alt = scene === 'sky' ? '나무그늘 아래에서 올려다본 하늘' : scene === 'bread' ? '언덕에서 양손으로 빵을 잡고 베어 물며 웃는 콜레트' : scene === 'seated' ? '나무그늘 아래 언덕에 나란히 앉아 항구를 바라보는 두 사람' : '언덕의 나무그늘 아래에서 내려다본 마르세유 부둣가';
-    if (portraitMode === 'silhouette' && !root.classList.contains('has-character')) {
+    if (entry.character === 'silhouette' && !root.classList.contains('has-character')) {
       // Set black while still invisible, preventing a flash of the real portrait.
       character.style.transition = 'none';
       root.classList.add('is-silhouette');
@@ -117,7 +125,18 @@
       character.style.transition = '';
     }
     root.classList.toggle('is-silhouette', portraitMode === 'silhouette');
-    root.classList.toggle('has-character', portraitMode !== 'hidden');
+    if (entry.characterDelay > 0 && portraitMode !== 'hidden') {
+      stopPortraitEntrance();
+      root.classList.remove('has-character');
+      root.dataset.portraitPending = 'true';
+      const entranceRun = portraitRun;
+      portraitTimer = setTimeout(() => {
+        if (entranceRun !== portraitRun || !active || closing) return;
+        portraitTimer = 0;
+        delete root.dataset.portraitPending;
+        root.classList.add('has-character');
+      }, entry.characterDelay);
+    } else if (!portraitTimer) root.classList.toggle('has-character', portraitMode !== 'hidden');
     root.classList.toggle('is-narration', !entry.speaker);
     if (emphasized) bounce();
     speaker.textContent = entry.speaker;
@@ -142,6 +161,7 @@
   async function start({onFinish = () => {}} = {}) {
     if (active) return false;
     mount();
+    stopPortraitEntrance();
     active = true; ready = false; closing = false; index = 0; finish = onFinish;
     portraitMode = 'hidden'; scene = 'sky';
     previousFocus = document.activeElement;
@@ -179,7 +199,7 @@
     if (!active || !ready || closing) return;
     if (typing) { finishTyping(); return; }
     if (index < lines.length - 1) { index++; render(); return; }
-    closing = true; ready = false; stopBounce();
+    closing = true; ready = false; stopBounce(); stopPortraitEntrance();
     root.classList.remove('is-visible', 'has-character');
     if (reducedMotion()) complete();
     else closeTimer = setTimeout(complete, 650);
@@ -188,7 +208,7 @@
   function complete() {
     if (!active) return;
     clearTimeout(closeTimer); closeTimer = 0;
-    stopWriter(); stopBounce(); typing = false; letters = []; cursor = 0;
+    stopWriter(); stopBounce(); stopPortraitEntrance(); typing = false; letters = []; cursor = 0;
     delete root.dataset.typing;
     root.hidden = true;
     root.classList.remove('is-visible', 'has-character');

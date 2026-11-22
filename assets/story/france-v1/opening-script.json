@@ -37,11 +37,11 @@
     },
     {
       "speaker": "나",
-      "text": "(낮은 톤으로) 응~ 무조건 돌아올게~ 돈 많이 벌어올게~"
+      "text": "응~ 무조건 돌아올게~ 돈 많이 벌어올게~"
     },
     {
       "speaker": "나",
-      "text": "(낮은 톤으로)금방 올게~ 걱정마~"
+      "text": "금방 올게~ 걱정마~"
     },
     {
       "speaker": "나",
@@ -62,16 +62,17 @@
     {
       "speaker": "???",
       "text": "역시 여기 있었네",
-      "character": "silhouette"
+      "character": "silhouette",
+      "characterDelay": 1000
     },
     {
       "speaker": "",
-      "text": "언덕길 아래에서 발소리가 들린다.",
-      "character": "visible"
+      "text": "언덕길 아래에서 발소리가 들린다."
     },
     {
       "speaker": "나",
-      "text": "뭐 하러 여기까지 온거야"
+      "text": "뭐 하러 여기까지 온거야",
+      "character": "visible"
     },
     {
       "speaker": "",
