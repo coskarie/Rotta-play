@@ -5,7 +5,7 @@
 .france-story-village,.france-story-seated,.france-story-bread{opacity:0;transition:opacity .7s ease}
 .france-story:is([data-scene="harbor"],[data-scene="seated"],[data-scene="bread"]) .france-story-village,.france-story:is([data-scene="seated"],[data-scene="bread"]) .france-story-seated,.france-story[data-scene="bread"] .france-story-bread{opacity:1}
 .france-story-stage{position:absolute;inset:0;overflow:hidden;pointer-events:none}
-.france-story-character{position:absolute;right:9%;bottom:-4.5vh;height:90vh;width:auto;max-width:none;opacity:0;transform:translateX(24px);filter:brightness(1);transition:opacity .55s ease,transform .65s ease,filter 1s ease;user-select:none}
+.france-story-character{position:absolute;right:9%;bottom:-4.5vh;height:90vh;width:auto;max-width:none;opacity:0;transform:translateX(24px);filter:brightness(1);transition:opacity .55s ease,transform 1.3s ease,filter 1s ease;user-select:none}
 .france-story.is-silhouette .france-story-character{filter:brightness(0)}
 .france-story.has-character .france-story-character{opacity:1;transform:translateX(0)}
 .france-story-dialogue{position:absolute;bottom:3.6vh;left:50%;transform:translateX(-50%);width:min(1080px,90vw);min-height:174px;padding:32px 64px 54px 76px;cursor:pointer}
@@ -14,6 +14,7 @@
 .france-story.is-narration .france-story-speaker{visibility:hidden}
 .france-story-accessible-line{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .france-story-line{margin:0;font-size:20px;font-weight:400;line-height:1.8;letter-spacing:.02em;text-wrap:pretty;word-break:keep-all}
+.france-story-delivery-note{font-size:calc(1em - 2px);color:#9b9b9b;opacity:.8}
 .france-story-next{position:absolute;right:34px;bottom:20px;display:grid;place-items:center;width:34px;height:32px;padding:8px;border:0;border-radius:2px;background:transparent;color:#e7e3d9;cursor:pointer;transition:color .16s ease,background .16s ease,transform .16s ease}
 .france-story-next svg{display:block;width:13px;height:10px;transition:transform .16s ease}
 .france-story-next:hover{background:#ffffff12;color:#fff1bf}

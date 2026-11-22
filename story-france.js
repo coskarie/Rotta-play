@@ -23,6 +23,7 @@
   let active = false, ready = false, closing = false, index = 0;
   let finish, previousFocus, locked = [], closeTimer = 0;
   let writer = 0, writerRun = 0, typing = false, letters = [], cursor = 0;
+  let deliveryNote, spokenLine, deliveryLength = 0;
   let portraitMode = 'hidden', scene = 'sky', bounceAnimation;
   let portraitTimer = 0, portraitRun = 0;
   const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -74,10 +75,16 @@
     next.title = label;
   }
 
+  function writeVisibleText(count) {
+    if (!deliveryNote) { line.textContent = letters.slice(0, count).join(''); return; }
+    deliveryNote.textContent = letters.slice(0, Math.min(count, deliveryLength)).join('');
+    spokenLine.textContent = letters.slice(deliveryLength, count).join('');
+  }
+
   function finishTyping() {
     stopWriter();
     cursor = letters.length;
-    line.textContent = letters.join('');
+    writeVisibleText(cursor);
     typing = false;
     root.dataset.typing = 'false';
     updateNextLabel();
@@ -144,13 +151,20 @@
     accessibleLine.textContent = text;
     letters = Array.from(text); cursor = 0; typing = true;
     line.textContent = '';
+    deliveryNote = spokenLine = null; deliveryLength = 0;
+    if (text.startsWith('(콧소리로)')) {
+      line.innerHTML = '<span class="france-story-delivery-note"></span><span class="france-story-spoken-line"></span>';
+      deliveryNote = line.querySelector('.france-story-delivery-note');
+      spokenLine = line.querySelector('.france-story-spoken-line');
+      deliveryLength = Array.from('(콧소리로)').length;
+    }
     root.dataset.typing = 'true';
     updateNextLabel();
     if (reducedMotion()) { finishTyping(); return; }
     function tick() {
       if (run !== writerRun || !active || closing || !typing) return;
       writer = 0;
-      line.textContent = letters.slice(0, ++cursor).join('');
+      writeVisibleText(++cursor);
       if (cursor >= letters.length) { finishTyping(); return; }
       writer = setTimeout(tick, 32);
     }
