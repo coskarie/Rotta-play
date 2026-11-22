@@ -6,8 +6,9 @@
     sky: 'assets/story/france-v1/sky-upward-v1.png',
     seated: 'assets/story/france-v1/hill-seated-v1.png',
     bread: 'assets/story/france-v1/hill-seated-bread-v2.png',
-    script: 'assets/story/france-v1/opening-script.json?v=5',
-    character: 'assets/story/france-v1/colette.png'
+    script: 'assets/story/france-v1/opening-script.json?v=6',
+    character: 'assets/story/france-v1/colette.png',
+    characterTalk: 'assets/story/france-v1/colette-talk-v1.png'
   };
   let lines = [], script, scriptTask;
   function loadScript() {
@@ -19,10 +20,11 @@
       return data;
     }).catch(error => { scriptTask = null; throw error; });
   }
-  let root, background, villageBackground, seatedBackground, breadBackground, character, speaker, line, accessibleLine, next, panel;
+  let root, background, villageBackground, seatedBackground, breadBackground, character, talkPreload, speaker, line, accessibleLine, next, panel;
   let active = false, ready = false, closing = false, index = 0;
   let finish, previousFocus, locked = [], closeTimer = 0;
   let writer = 0, writerRun = 0, typing = false, letters = [], cursor = 0;
+  let part = 0, partEnds = [];
   let deliveryNote, spokenLine, deliveryLength = 0;
   let portraitMode = 'hidden', scene = 'sky', bounceAnimation;
   let portraitTimer = 0, portraitRun = 0;
@@ -53,6 +55,7 @@
     seatedBackground = root.querySelector('.france-story-seated');
     breadBackground = root.querySelector('.france-story-bread');
     character = root.querySelector('.france-story-character');
+    talkPreload = document.createElement('img');
     speaker = root.querySelector('.france-story-speaker');
     line = root.querySelector('.france-story-line');
     accessibleLine = root.querySelector('.france-story-accessible-line');
@@ -70,7 +73,7 @@
   }
 
   function updateNextLabel() {
-    const label = typing ? '대사 전체 보기' : index === lines.length - 1 ? '마르세유 항구로' : '다음 대화';
+    const label = typing ? '대사 전체 보기' : part < partEnds.length - 1 ? '이어서 보기' : index === lines.length - 1 ? '마르세유 항구로' : '다음 대화';
     next.setAttribute('aria-label', label);
     next.title = label;
   }
@@ -83,11 +86,30 @@
 
   function finishTyping() {
     stopWriter();
-    cursor = letters.length;
+    cursor = partEnds[part];
     writeVisibleText(cursor);
     typing = false;
     root.dataset.typing = 'false';
     updateNextLabel();
+  }
+
+  function typeCurrentPart(delay = 0) {
+    stopWriter();
+    const run = writerRun, end = partEnds[part];
+    typing = true;
+    root.dataset.typing = 'true'; root.dataset.part = String(part);
+    accessibleLine.textContent = letters.slice(0, end).join('');
+    updateNextLabel();
+    if (reducedMotion()) { finishTyping(); return; }
+    function tick() {
+      if (run !== writerRun || !active || closing || !typing) return;
+      writer = 0;
+      writeVisibleText(++cursor);
+      if (cursor >= end) { finishTyping(); return; }
+      writer = setTimeout(tick, 32);
+    }
+    if (delay) writer = setTimeout(tick, delay);
+    else tick();
   }
 
   function stopBounce() {
@@ -113,7 +135,7 @@
 
   function render(delay = 0) {
     stopWriter(); stopBounce();
-    const entry = lines[index], run = writerRun;
+    const entry = lines[index];
     const emphasized = entry.text.includes('<바운스>');
     const text = entry.text.replaceAll('<바운스>', '');
     scene = entry.scene ?? scene;
@@ -123,6 +145,8 @@
     root.dataset.line = String(index);
     root.dataset.scene = scene;
     root.dataset.character = portraitMode;
+    root.dataset.portrait = entry.portrait === 'talk' ? 'talk' : 'normal';
+    character.src = entry.portrait === 'talk' ? assets.characterTalk : assets.character;
     background.alt = scene === 'sky' ? '나무그늘 아래에서 올려다본 하늘' : scene === 'bread' ? '언덕에서 양손으로 빵을 잡고 베어 물며 웃는 콜레트' : scene === 'seated' ? '나무그늘 아래 언덕에 나란히 앉아 항구를 바라보는 두 사람' : '언덕의 나무그늘 아래에서 내려다본 마르세유 부둣가';
     if (entry.character === 'silhouette' && !root.classList.contains('has-character')) {
       // Set black while still invisible, preventing a flash of the real portrait.
@@ -147,9 +171,12 @@
     root.classList.toggle('is-narration', !entry.speaker);
     if (emphasized) bounce();
     speaker.textContent = entry.speaker;
-    // Announce the complete line once; visual character ticks stay out of live regions.
-    accessibleLine.textContent = text;
-    letters = Array.from(text); cursor = 0; typing = true;
+    letters = Array.from(text); cursor = 0; part = 0;
+    let end = 0;
+    partEnds = (entry.segments || [text]).map((segment, segmentIndex) => {
+      end += (segmentIndex ? 1 : 0) + Array.from(segment.replaceAll('<바운스>', '')).length;
+      return end;
+    });
     line.textContent = '';
     deliveryNote = spokenLine = null; deliveryLength = 0;
     if (text.startsWith('(콧소리로)')) {
@@ -158,18 +185,8 @@
       spokenLine = line.querySelector('.france-story-spoken-line');
       deliveryLength = Array.from('(콧소리로)').length;
     }
-    root.dataset.typing = 'true';
-    updateNextLabel();
-    if (reducedMotion()) { finishTyping(); return; }
-    function tick() {
-      if (run !== writerRun || !active || closing || !typing) return;
-      writer = 0;
-      writeVisibleText(++cursor);
-      if (cursor >= letters.length) { finishTyping(); return; }
-      writer = setTimeout(tick, 32);
-    }
-    if (delay) writer = setTimeout(tick, delay);
-    else tick();
+    // Each click-revealed part is announced once, without exposing later parts early.
+    typeCurrentPart(delay);
   }
 
   async function start({onFinish = () => {}} = {}) {
@@ -190,10 +207,11 @@
     seatedBackground.src = assets.seated;
     breadBackground.src = assets.bread;
     character.src = assets.character;
+    talkPreload.src = assets.characterTalk;
     root.focus({preventScroll: true});
     try {
-      const results = await Promise.all([background.decode(), villageBackground.decode(), seatedBackground.decode(), breadBackground.decode(), character.decode(), loadScript()]);
-      script = results[5]; lines = script.lines;
+      const results = await Promise.all([background.decode(), villageBackground.decode(), seatedBackground.decode(), breadBackground.decode(), character.decode(), talkPreload.decode(), loadScript()]);
+      script = results[6]; lines = script.lines;
     } catch (error) {
       console.warn('[Rotta France story]', error);
       complete();
@@ -212,6 +230,7 @@
   function advance() {
     if (!active || !ready || closing) return;
     if (typing) { finishTyping(); return; }
+    if (part < partEnds.length - 1) { part++; typeCurrentPart(); return; }
     if (index < lines.length - 1) { index++; render(); return; }
     closing = true; ready = false; stopBounce(); stopPortraitEntrance();
     root.classList.remove('is-visible', 'has-character');
