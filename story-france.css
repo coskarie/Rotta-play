@@ -1,0 +1,21 @@
+.france-story{position:fixed;inset:0;z-index:340;overflow:hidden;background:#05080b;color:#f4f1e9;opacity:0;transition:opacity .5s ease;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;isolation:isolate}
+.france-story[hidden]{display:none}
+.france-story.is-visible{opacity:1}
+.france-story-background{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:42% center;user-select:none;pointer-events:none}
+.france-story-stage{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.france-story-character{position:absolute;right:9%;bottom:-4.5vh;height:100vh;width:auto;max-width:none;opacity:0;transform:translateY(8px);transition:opacity .55s ease,transform .55s ease;user-select:none}
+.france-story.has-character .france-story-character{opacity:1;transform:translateY(0)}
+.france-story-dialogue{position:absolute;bottom:3.6vh;left:50%;transform:translateX(-50%);width:min(1080px,90vw);min-height:174px;padding:32px 64px 41px 46px;cursor:pointer}
+.france-story-dialogue:before{content:"";position:absolute;inset:0;z-index:-1;background:rgba(2,5,8,.9);mask-image:linear-gradient(to right,transparent,#000 4%,#000 96%,transparent),linear-gradient(to bottom,transparent,#000 14%,#000 87%,transparent);mask-composite:intersect;-webkit-mask-composite:source-in;pointer-events:none}
+.france-story-speaker{font-size:14px;font-weight:600;letter-spacing:.09em;color:#e5d2a2;margin:0 0 14px;min-height:20px}
+.france-story.is-narration .france-story-speaker{visibility:hidden;margin-bottom:4px}
+.france-story-line{margin:0;font-size:20px;font-weight:400;line-height:1.8;letter-spacing:.02em;text-wrap:pretty;word-break:keep-all}
+.france-story-next{position:absolute;right:27px;top:15px;display:grid;place-items:center;width:34px;height:32px;padding:8px;border:0;border-radius:2px;background:transparent;color:#e7e3d9;cursor:pointer;transition:color .16s ease,background .16s ease,transform .16s ease}
+.france-story-next svg{display:block;width:13px;height:10px;transition:transform .16s ease}
+.france-story-next:hover{background:#ffffff12;color:#fff1bf}
+.france-story-next:hover svg{transform:translateY(2px)}
+.france-story-next:active{transform:scale(.91)}
+.france-story-next:focus-visible{outline:1px solid #e5d2a2;outline-offset:2px}
+.france-story-hint{position:absolute;bottom:11px;right:35px;font-size:10px;letter-spacing:.04em;color:#d9d5cb99;pointer-events:none}
+@media(max-width:650px){.france-story-background{object-position:38% center}.france-story-character{right:-10%;height:94vh;bottom:-4vh}.france-story-dialogue{bottom:2vh;width:96vw;min-height:182px;padding:32px 35px 39px}.france-story-line{font-size:16px;line-height:1.85}.france-story-speaker{font-size:12px;margin-bottom:10px}.france-story-next{right:15px;top:12px}.france-story-hint{right:26px;font-size:9px}}
+@media(prefers-reduced-motion:reduce){.france-story,.france-story-character,.france-story-next,.france-story-next svg{transition:none}}
