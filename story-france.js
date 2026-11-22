@@ -2,11 +2,11 @@
 (() => {
   'use strict';
   const assets = {
-    background: 'assets/story/france-v1/home-exterior.png',
+    background: 'assets/story/france-v1/hill-harbor-pov-v1.png',
     sky: 'assets/story/france-v1/sky-upward-v1.png',
     seated: 'assets/story/france-v1/hill-seated-v1.png',
     bread: 'assets/story/france-v1/hill-seated-bread-v2.png',
-    script: 'assets/story/france-v1/opening-script.json?v=3',
+    script: 'assets/story/france-v1/opening-script.json?v=4',
     character: 'assets/story/france-v1/colette.png'
   };
   let lines = [], script, scriptTask;
@@ -108,7 +108,7 @@
     root.dataset.line = String(index);
     root.dataset.scene = scene;
     root.dataset.character = portraitMode;
-    background.alt = scene === 'sky' ? '나무그늘 아래에서 올려다본 하늘' : scene === 'bread' ? '언덕에서 양손으로 빵을 잡고 베어 물며 웃는 콜레트' : scene === 'seated' ? '나무그늘 아래 언덕에 나란히 앉아 항구를 바라보는 두 사람' : '프랑스 해안 마을의 언덕집';
+    background.alt = scene === 'sky' ? '나무그늘 아래에서 올려다본 하늘' : scene === 'bread' ? '언덕에서 양손으로 빵을 잡고 베어 물며 웃는 콜레트' : scene === 'seated' ? '나무그늘 아래 언덕에 나란히 앉아 항구를 바라보는 두 사람' : '언덕의 나무그늘 아래에서 내려다본 마르세유 부둣가';
     if (portraitMode === 'silhouette' && !root.classList.contains('has-character')) {
       // Set black while still invisible, preventing a flash of the real portrait.
       character.style.transition = 'none';
