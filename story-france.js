@@ -4,7 +4,8 @@
   const assets = {
     background: 'assets/story/france-v1/home-exterior.png',
     sky: 'assets/story/france-v1/sky-upward-v1.png',
-    script: 'assets/story/france-v1/opening-script.json?v=1',
+    seated: 'assets/story/france-v1/hill-seated-v1.png',
+    script: 'assets/story/france-v1/opening-script.json?v=2',
     character: 'assets/story/france-v1/colette.png'
   };
   let lines = [], script, scriptTask;
@@ -17,7 +18,7 @@
       return data;
     }).catch(error => { scriptTask = null; throw error; });
   }
-  let root, background, villageBackground, character, speaker, line, accessibleLine, next, panel;
+  let root, background, villageBackground, seatedBackground, character, speaker, line, accessibleLine, next, panel;
   let active = false, ready = false, closing = false, index = 0;
   let finish, previousFocus, locked = [], closeTimer = 0;
   let writer = 0, writerRun = 0, typing = false, letters = [], cursor = 0;
@@ -36,6 +37,7 @@
     root.tabIndex = -1;
     root.innerHTML = `<img class="france-story-background" alt="나무그늘 아래에서 올려다본 하늘" draggable="false">
       <img class="france-story-background france-story-village" alt="" aria-hidden="true" draggable="false">
+      <img class="france-story-background france-story-seated" alt="" aria-hidden="true" draggable="false">
       <div class="france-story-stage" aria-hidden="true"><img class="france-story-character" alt="" draggable="false"></div>
       <div class="france-story-dialogue" role="group" aria-label="대화">
         <div class="france-story-copy" aria-live="polite" aria-atomic="true"><p class="france-story-speaker"></p><p class="france-story-line" aria-hidden="true"></p><span class="france-story-accessible-line"></span></div>
@@ -44,6 +46,7 @@
     document.body.appendChild(root);
     background = root.querySelector('.france-story-background');
     villageBackground = root.querySelector('.france-story-village');
+    seatedBackground = root.querySelector('.france-story-seated');
     character = root.querySelector('.france-story-character');
     speaker = root.querySelector('.france-story-speaker');
     line = root.querySelector('.france-story-line');
@@ -85,7 +88,7 @@
     // Independent translate leaves the existing entrance/exit transform untouched.
     bounceAnimation = character.animate?.([
       {translate: '0 0', offset: 0},
-      {translate: '0 -3px', offset: .25},
+      {translate: '0 -6px', offset: .25},
       {translate: '0 0', offset: .5},
       {translate: '0 -2px', offset: .75},
       {translate: '0 0', offset: 1}
@@ -102,7 +105,7 @@
     root.dataset.line = String(index);
     root.dataset.scene = scene;
     root.dataset.character = portraitMode;
-    background.alt = scene === 'sky' ? '나무그늘 아래에서 올려다본 하늘' : '프랑스 해안 마을의 언덕집';
+    background.alt = scene === 'sky' ? '나무그늘 아래에서 올려다본 하늘' : scene === 'seated' ? '나무그늘 아래 언덕에 나란히 앉아 항구를 바라보는 두 사람' : '프랑스 해안 마을의 언덕집';
     if (portraitMode === 'silhouette' && !root.classList.contains('has-character')) {
       // Set black while still invisible, preventing a flash of the real portrait.
       character.style.transition = 'none';
@@ -147,11 +150,12 @@
     root.setAttribute('aria-busy', 'true');
     background.src = assets.sky;
     villageBackground.src = assets.background;
+    seatedBackground.src = assets.seated;
     character.src = assets.character;
     root.focus({preventScroll: true});
     try {
-      const results = await Promise.all([background.decode(), villageBackground.decode(), character.decode(), loadScript()]);
-      script = results[3]; lines = script.lines;
+      const results = await Promise.all([background.decode(), villageBackground.decode(), seatedBackground.decode(), character.decode(), loadScript()]);
+      script = results[4]; lines = script.lines;
     } catch (error) {
       console.warn('[Rotta France story]', error);
       complete();

@@ -2,16 +2,16 @@
 .france-story[hidden]{display:none}
 .france-story.is-visible{opacity:1}
 .france-story-background{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;background:#000;user-select:none;pointer-events:none}
-.france-story-village{opacity:0;transition:opacity .7s ease}
-.france-story[data-scene="home"] .france-story-village{opacity:1}
+.france-story-village,.france-story-seated{opacity:0;transition:opacity .7s ease}
+.france-story[data-scene="home"] .france-story-village,.france-story[data-scene="seated"] .france-story-village,.france-story[data-scene="seated"] .france-story-seated{opacity:1}
 .france-story-stage{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .france-story-character{position:absolute;right:9%;bottom:-4.5vh;height:90vh;width:auto;max-width:none;opacity:0;transform:translateY(8px);filter:brightness(1);transition:opacity .55s ease,transform .55s ease,filter 1s ease;user-select:none}
 .france-story.is-silhouette .france-story-character{filter:brightness(0)}
 .france-story.has-character .france-story-character{opacity:1;transform:translateY(0)}
 .france-story-dialogue{position:absolute;bottom:3.6vh;left:50%;transform:translateX(-50%);width:min(1080px,90vw);min-height:174px;padding:32px 64px 54px 76px;cursor:pointer}
 .france-story-dialogue:before{content:"";position:absolute;inset:0;z-index:-1;background:rgba(2,5,8,.9);mask-image:linear-gradient(to right,transparent,#000 4%,#000 96%,transparent),linear-gradient(to bottom,transparent,#000 14%,#000 87%,transparent);mask-composite:intersect;-webkit-mask-composite:source-in;pointer-events:none}
-.france-story-speaker{font-size:calc(14px + 1pt);font-weight:600;letter-spacing:.09em;color:#e5d2a2;margin:0 0 14px;min-height:20px}
-.france-story.is-narration .france-story-speaker{visibility:hidden;margin-bottom:4px}
+.france-story-speaker{box-sizing:border-box;font-size:calc(14px + 1pt);font-weight:600;line-height:20px;letter-spacing:.09em;color:#e5d2a2;height:30px;padding:0 0 9px;margin:0 0 14px;border-bottom:1px solid rgba(229,210,162,.3)}
+.france-story.is-narration .france-story-speaker{visibility:hidden}
 .france-story-accessible-line{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .france-story-line{margin:0;font-size:20px;font-weight:400;line-height:1.8;letter-spacing:.02em;text-wrap:pretty;word-break:keep-all}
 .france-story-next{position:absolute;right:34px;bottom:20px;display:grid;place-items:center;width:34px;height:32px;padding:8px;border:0;border-radius:2px;background:transparent;color:#e7e3d9;cursor:pointer;transition:color .16s ease,background .16s ease,transform .16s ease}
@@ -21,4 +21,4 @@
 .france-story-next:active{transform:scale(.91)}
 .france-story-next:focus-visible{outline:1px solid #e5d2a2;outline-offset:2px}
 @media(max-width:650px){.france-story-character{right:-10%;height:84.6vh;bottom:-4vh}.france-story-dialogue{bottom:2vh;width:96vw;min-height:182px;padding:32px 35px 52px 48px}.france-story-line{font-size:16px;line-height:1.85}.france-story-speaker{font-size:calc(12px + 1pt);margin-bottom:10px}.france-story-next{right:22px;bottom:16px}}
-@media(prefers-reduced-motion:reduce){.france-story,.france-story-village,.france-story-character,.france-story-next,.france-story-next svg{transition:none}}
+@media(prefers-reduced-motion:reduce){.france-story,.france-story-village,.france-story-seated,.france-story-character,.france-story-next,.france-story-next svg{transition:none}}
