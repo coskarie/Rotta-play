@@ -5,8 +5,11 @@
     {id:'caravel',name:'카라벨형',beam:1.7,wood:[.35,.21,.12],cloth:[.88,.82,.65]},
     {id:'cog',name:'외돛 화물선',beam:2.05,wood:[.28,.19,.12],cloth:[.79,.70,.52]},
     {id:'coaster',name:'쌍돛 연안선',beam:1.85,wood:[.18,.29,.25],cloth:[.80,.67,.43]},
-    {id:'galley',name:'갤리형',beam:1.3,wood:[.22,.29,.36],cloth:[.84,.79,.67]}
+    {id:'galley',name:'갤리형',beam:1.3,wood:[.22,.29,.36],cloth:[.84,.79,.67]},
+    {id:'fishing',name:'연안 어선',beam:1.55,wood:[.37,.22,.12],cloth:[.76,.36,.19],scale:.56}
   ];
+  const fishingPorts=new Set(['lisbon','seville','london','marseille','istanbul']);
+  const fishingKind=types.findIndex(type=>type.id==='fishing');
   const FPS=24,WAKE_FPS=12,WAKE_SIZE=256,SPRITE_SIZE=160,MAX_SPRITES=96;
   const MAX_VISIBLE=24;
   const routeData=typeof require==='function'?require('./harbor-traffic-routes.js'):window.ROTTA_TRAFFIC_ROUTES;
@@ -54,8 +57,43 @@
         if(col+row<5)triangle(point(u+1/6,v),point(u+1/6,v+1/6),point(u,v+1/6),color,3);
       }
     }
+    function fishingBoat(type){
+      // Shallow open clinker hull. Both ends fine down to a stem.
+      const rim=[.06,.92,1.44,type.beam,1.39,.84,.04];
+      const section=(i,side)=>{
+        const y=(i-3)*1.85,w=rim[i]*side,lip=1.35+.08*(i-3)**2;
+        return [[0,y,-.45],[w*.70,y,.19],[w,y,lip],[w*.86,y,lip-.05],[w*.54,y,.46]];
+      };
+      for(const side of [-1,1])for(let i=0;i<rim.length-1;i++){
+        const a=section(i,side),b=section(i+1,side);
+        for(let j=0;j<4;j++)quad(a[j],b[j],b[j+1],a[j+1],j===2?trim:type.wood);
+        quad(a[4],b[4],[0,b[4][1],.43],[0,a[4][1],.43],deck);
+        spar(a[2],b[2],.085,trim);
+      }
+      for(const y of [-2.8,-.3,2.1])box(0,y,1.04,2.36,.38,.15,deck);
+      // Raked red-ochre working sail leaves the aft benches and net exposed.
+      spar([0,1.25,.48],[0,1.00,7.30],.12,trim);
+      const tack=[-.24,3.68,2.05],peak=[.10,-1.55,7.00],clew=[1.55,-2.45,2.12];
+      spar(tack,peak,.085,trim);
+      const belly=[.91,-.02,3.94];
+      for(const [a,b] of [[tack,peak],[peak,clew],[clew,tack]])triangle(a,b,belly,type.cloth,3);
+      spar(clew,[1.20,-3.5,1.36],.035,rope);
+      // A folded fishing net with crossed cords and cork floats at the stern.
+      const net=[.25,.32,.27];
+      box(0,-3.62,.65,1.65,1.05,.50,net);
+      for(const x of [-.65,-.25,.15,.55]){
+        spar([x,-4.10,1.17],[x+.22,-3.14,1.17],.045,rope);
+        box(x,-4.10,1.17,.21,.20,.14,trim);
+      }
+      for(const y of [-3.90,-3.58,-3.26])spar([-.78,y,1.18],[.78,y+.09,1.18],.038,rope);
+    }
     for(const [index,type] of types.entries()){
       const firstVertex=vertices.length/10;
+      if(index===fishingKind){
+        fishingBoat(type);
+        ranges.push({firstVertex,vertexCount:vertices.length/10-firstVertex});
+        continue;
+      }
       const length=index===3?13.4:12;
       const ring=(u)=>{
         const width=type.beam*Math.pow(Math.sin(Math.PI*(.16+.84*u)),.65);
@@ -98,26 +136,42 @@
     return fleetMesh;
   }
 
+  function returnRoute(id,from,to,points){
+    const segments=[];let oneWayLength=0;
+    for(let i=1;i<points.length;i++){
+      const [x,y]=points[i-1],[bx,by]=points[i],length=Math.hypot(bx-x,by-y);
+      if(!length)continue;
+      segments.push({x,y,dx:bx-x,dy:by-y,length,start:oneWayLength});oneWayLength+=length;
+    }
+    if(!oneWayLength)return null;
+    let length=oneWayLength;
+    for(const segment of segments.slice().reverse()){
+      segments.push({x:segment.x+segment.dx,y:segment.y+segment.dy,dx:-segment.dx,dy:-segment.dy,length:segment.length,start:length});
+      length+=segment.length;
+    }
+    return {id,from,to,segments,length,oneWayLength,
+      bounds:{left:Math.min(...points.map(p=>p[0])),right:Math.max(...points.map(p=>p[0])),
+        top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))}};
+  }
+
+  function fishingRoute(home,lane){
+    // Follow the first 55 chart units of the safe approach from the home dock.
+    const start=home===lane.from?0:lane.oneWayLength;
+    const end=start+Math.min(55,lane.oneWayLength);
+    const points=[];
+    const add=p=>points.push([p.x,p.y]);
+    add(sampleRoute(lane,start));
+    for(const leg of lane.segments)if(leg.start>start&&leg.start<end)points.push([leg.x,leg.y]);
+    add(sampleRoute(lane,end));
+    return returnRoute(home+'-fishery',home,home+'-fishing-ground',points);
+  }
+
   function buildRoutes(ports,data=routeData){
     const lanes=new Map(),sites=[];
     for(const lane of Object.values(data?.routes??{})){
       if(!ports[lane.from]||!ports[lane.to])continue;
-      const segments=[];let oneWayLength=0;
-      for(let i=1;i<lane.points.length;i++){
-        const [x,y]=lane.points[i-1],[bx,by]=lane.points[i],length=Math.hypot(bx-x,by-y);
-        if(!length)continue;
-        segments.push({x,y,dx:bx-x,dy:by-y,length,start:oneWayLength});oneWayLength+=length;
-      }
-      if(!oneWayLength)continue;
-      let length=oneWayLength;
-      for(const segment of segments.slice().reverse()){
-        segments.push({x:segment.x+segment.dx,y:segment.y+segment.dy,dx:-segment.dx,dy:-segment.dy,length:segment.length,start:length});
-        length+=segment.length;
-      }
-      const points=lane.points;
-      lanes.set(lane.id,{id:lane.id,from:lane.from,to:lane.to,segments,length,oneWayLength,
-        bounds:{left:Math.min(...points.map(p=>p[0])),right:Math.max(...points.map(p=>p[0])),
-          top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))}});
+      const route=returnRoute(lane.id,lane.from,lane.to,lane.points);
+      if(route)lanes.set(lane.id,route);
     }
     for(const [id,assignments] of Object.entries(data?.ports??{})){
       if(!ports[id])continue;
@@ -256,9 +310,15 @@
         site.ships=[];
         for(let slot=0;slot<site.count;slot++){
           const route=site.plans[slot%site.plans.length];
-          const descriptor={key:site.id+':'+slot,port:site.id,kind:(seed+slot)%types.length,route,
+          const descriptor={key:site.id+':'+slot,port:site.id,kind:(seed+slot)%fishingKind,route,
             speed:.85+(seed+slot)%5*.14,dockSeconds:16+seed%9,phase:0,offset:seed%97};
           // Sample once per world initialization; camera culling and canvas reuse never respawn a ship.
+          descriptor.phase=randomVoyagePhase(descriptor,random);
+          site.ships.push(descriptor);catalog.push(descriptor);
+        }
+        if(fishingPorts.has(site.id)){
+          const descriptor={key:site.id+':fishing',port:site.id,kind:fishingKind,route:fishingRoute(site.id,site.plans[0]),
+            speed:.52,dockSeconds:22,phase:0,offset:seed%97+11};
           descriptor.phase=randomVoyagePhase(descriptor,random);
           site.ships.push(descriptor);catalog.push(descriptor);
         }
@@ -363,7 +423,7 @@
       const now=performance.now();if(!cameraOnly)lastPaint=now;
       const seconds=reduced?.matches?0:(now-epoch)/1000;
       const closeUp=Math.max(0,Math.min(1,(view.zoom-5)/1.5));
-      const scale=(.62+Math.max(0,Math.min(1,(view.zoom-1)/9))*.73)*(.75+.25*closeUp*closeUp*(3-2*closeUp));
+      const fleetScale=(.62+Math.max(0,Math.min(1,(view.zoom-1)/9))*.73)*(.75+.25*closeUp*closeUp*(3-2*closeUp));
       const candidates=[];
       // Only ships belonging to nearby trade corridors are sampled. Distant ships have no canvases or timers.
       for(const site of nearSites)for(const descriptor of site.ships){
@@ -390,6 +450,7 @@
           vessel.context.clearRect(0,0,SPRITE_SIZE,SPRITE_SIZE);
           vessel.context.drawImage(image,0,0);vessel.frame=image;
         }
+        const scale=fleetScale*(types[vessel.kind].scale??1);
         const bob=reduced?.matches?0:Math.sin(seconds*1.4+vessel.offset)*.35;
         const transform='translate3d('+screen.x.toFixed(2)+'px,'+(screen.y+bob).toFixed(2)+'px,0) translate(-50%,-50%) scale('+scale.toFixed(4)+')';
         if(transform!==vessel.transform){vessel.element.style.transform=transform;vessel.transform=transform;}
@@ -439,10 +500,10 @@
         playerY=worldY;
         for(const vessel of vessels)sortVessel(vessel);
       },
-      stats:()=>({vessels:catalog.length,ports:sites.length,allocated:vessels.length,nearPorts:nearSites.length,types:types.length,tradeLanes:new Set(catalog.map(v=>v.route.id)).size,visible:visibleCount,paintCount,routeBuilds,
+      stats:()=>({vessels:catalog.length,ports:sites.length,allocated:vessels.length,nearPorts:nearSites.length,types:types.length,tradeLanes:new Set(sites.flatMap(site=>site.plans.map(route=>route.id))).size,visible:visibleCount,paintCount,routeBuilds,
         spriteCache:sprites.size,meshTriangles:fleetMesh?.triangles??0,gpuDraws:renderer?.stats.draws??0,wakePaints,wakeMarks,active:inRegion()})
     };
   }
-  const api={types,buildFleet,buildRoutes,sampleRoute,voyageCycle,randomVoyagePhase,sampleVoyage,wakeWaterClear,paintWake,mount};
+  const api={types,buildFleet,buildRoutes,fishingRoute,sampleRoute,voyageCycle,randomVoyagePhase,sampleVoyage,wakeWaterClear,paintWake,mount};
   if(typeof module==='object')module.exports=api;else window.ROTTA_HARBOR_TRAFFIC=api;
 })();
