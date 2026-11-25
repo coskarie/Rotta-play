@@ -32,7 +32,7 @@
  });
  const names={timber:'목재',iron:'철재',linen:'리넨',hemp:'대마',navalStores:'송진·타르'};
  const own=(obj,key)=>Object.hasOwn(obj,key),num=value=>Number.isSafeInteger(value)&&value>=0?value:0;
- const tier=state=>Math.max(1,Math.min(hulls.length,num(state.ship?.tier)||1));
+ const tier=state=>Math.max(1,Math.min(hulls.length,num(state.ship?.testTier)||num(state.ship?.tier)||1));
  const level=(state,id)=>Math.min(5,num(state.ship?.parts?.[id]));
  let goodCatalog={};
  const setGoods=goods=>{goodCatalog=goods||{}};
@@ -87,7 +87,21 @@
   }
   return{...state,ship:{...state.ship,cabins:rooms}};
  }
+ const canTest=state=>state.nation==='portugal'&&state.current==='lisbon'&&state.atPort&&!state.traveling;
+ function testShip(state,id,{sync=()=>{}}){
+  if(!canTest(state))return{ok:false,message:'리스본 조선소에서 시험 승선할 수 있습니다.'};
+  const target=id==='restore'?null:Number(id);
+  if(id!=='restore'&&(!Number.isInteger(target)||target<1||target>hulls.length))return{ok:false,message:'선박 단계 오류'};
+  const ship={...state.ship};
+  if(target===null)delete ship.testTier;else ship.testTier=target;
+  if(!cargoFits({...state,ship}))return{ok:false,message:'교체할 선박의 화물 한도를 초과합니다. 화물을 줄여주세요.'};
+  ensure(state);
+  if(target===null)delete state.ship.testTier;else state.ship.testTier=target;
+  state.capacity=stats(state).capacity;sync();
+  return{ok:true,message:target===null?'원래 선박으로 복귀했습니다.':hulls[target-1].name+' 시험 승선 · 출항하여 확인하세요.'};
+ }
  function quote(state,action,id){
+  if(state.ship?.testTier&&action!=='repair')return{ok:false,message:'원래 선박 복귀 후 이용하세요.'};
   if(action==='build'){
    const next=tier(state)+1,target=id==null||id===''?next:Number(id);
    if(next>hulls.length)return{ok:false,message:'최종 선박'};
@@ -127,6 +141,7 @@
   return q;
  }
  function transact(state,action,id,{consume=null,sync=()=>{}}={}){
+  if(action==='test-ship')return testShip(state,id,{sync});
   const q=check(state,action,id);if(!q.ok)return q;
   if(Object.keys(q.materials).length&&typeof consume!=='function')return{ok:false,message:'자재 처리 불가'};
   // Validate everything before charging or changing the hull. Trade lots use the game's FIFO remover.
@@ -175,10 +190,14 @@
   const catalog=tab==='parts'?parts:cabins;
   return`<div class="vessel-cards ${tab==='parts'?'parts-cards':'cabin-cards'}">${Object.entries(catalog).map(([id,item])=>{const part=tab==='parts',lv=level(state,id),q=quote(state,part?'part':'cabin',id),status=part?`${lv} / 5`:item.preset?'기본 탑재':fitted(state,id)?'배치 중':state.ship?.cabins?.[id]?.unlocked?'미배치':'미해금';return`<article class="vessel-card ${part?'part-card':'cabin-card'} ${!part&&fitted(state,id)?'current':''}"><div class="vessel-item-art">${art(part?'part-'+id:cabinImage(id),item.name)}</div><div class="vessel-item-copy"><div class="vessel-card-top"><h3>${item.name}</h3><span>${status}</span></div>${!item.preset?`<p>${part?item.effect+' / 단계':escape(cabinEffect(state,id))}</p>`:''}${part?`<div class="part-levels" aria-label="${lv}단계">${Array.from({length:5},(_,i)=>`<i class="${i<lv?'filled':''}"></i>`).join('')}</div>`:''}${editable&&q.materials?`<div class="yard-materials">${Object.entries(q.materials).map(([key,n])=>`<span class="${num(state.cargo?.[key])<n?'lacking':''}">${names[key]} ${num(state.cargo?.[key])}/${n}</span>`).join('')}</div>`:''}${!part&&!item.preset?`<small class="cabin-tier">선체 ${item.tier}단계</small>`:''}${editable&&id==='specialHold'?specialSelect(state):''}${!item.preset?button(part?'part':'cabin',id):''}</div></article>`}).join('')}</div>`;
  }
+ function testControls(state){
+  if(!canTest(state))return '';
+  return `<section class="ship-test" aria-label="임시 시험 승선"><strong>임시 시험 승선</strong><p>배를 선택하고 출항해 확인하세요. 비용 없이 교체할 수 있습니다.</p><div class="ship-test-buttons">${hulls.map((h,i)=>`<button type="button" class="yard-work" data-yard-action="test-ship" data-yard-id="${i+1}" aria-pressed="${state.ship?.testTier===i+1}">${i+1}단계 · ${h.name}</button>`).join('')}<button type="button" class="yard-work" data-yard-action="test-ship" data-yard-id="restore" ${state.ship?.testTier?'':'disabled'}>원래 선박 복귀</button></div>${state.ship?.testTier?`<p role="status">${hulls[tier(state)-1].name} 시험 승선 중 · 복귀 후 건조·강화 가능</p>`:''}</section>`;
+ }
  function renderYard(container,{state,onAction,goods}){
   if(goods)setGoods(goods);
   window.ROTTA_SHIPYARD_ART?.materials(container.closest('.facility-panel')||container);
-  container.innerHTML=`${tabs(yardTab,'data-yard-tab')}<div class="vessel-scroll">${cards(state,yardTab,true)}</div>`;
+  container.innerHTML=`${testControls(state)}${tabs(yardTab,'data-yard-tab')}<div class="vessel-scroll">${cards(state,yardTab,true)}</div>`;
   container.querySelectorAll('[data-yard-tab]').forEach(b=>b.onclick=()=>{yardTab=b.dataset.yardTab;renderYard(container,{state,onAction})});
   container.querySelectorAll('[data-yard-action]').forEach(b=>b.onclick=()=>{if(!b.disabled)onAction(b.dataset.yardAction,b.dataset.yardId)});
   container.querySelectorAll('[data-special-good]').forEach(select=>select.onchange=()=>{if(onAction('special-good',select.value)===false)select.value=state.ship?.cabins?.specialHold?.good||''});
