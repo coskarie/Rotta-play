@@ -1,0 +1,47 @@
+:root{color-scheme:dark;font-family:Georgia,"Noto Serif KR",serif;color:#ead9b4;background:#10252e;font-synthesis:none}
+*{box-sizing:border-box}
+body{margin:0}
+button,a,input{-webkit-tap-highlight-color:transparent}
+button{font:inherit;cursor:pointer}
+a{color:inherit;text-decoration:none}
+button:focus-visible,a:focus-visible,input:focus-visible,.ship-stage:focus-visible{outline:2px solid #edcb82;outline-offset:4px}
+.viewer-header{height:78px;display:flex;align-items:center;gap:32px;padding:0 30px;border-bottom:1px solid #ad8c4a66;background:#17252a}
+.brand{color:#edd6a0;font-weight:bold;font-size:26px;letter-spacing:.24em}
+.viewer-header h1{font-size:16px;font-weight:normal;margin:0;color:#b4b5a7}
+.game-link{margin-left:auto;font-size:14px;border-bottom:1px solid #aa8b55;padding:6px 0}
+.viewer-layout{height:calc(100svh - 78px);min-height:590px;display:grid;grid-template-columns:225px minmax(0,1fr)}
+.hull-list{padding:24px 14px;display:flex;flex-direction:column;gap:8px;border-right:1px solid #9e88543b;background:#17272d}
+.hull-list button{display:flex;flex-direction:column;align-items:flex-start;gap:7px;padding:18px 20px;color:#cec6b0;border:1px solid transparent;border-radius:3px;background:transparent;text-align:left}
+.hull-list button small{font-size:12px;color:#9c9c88}
+.hull-list button span{font-size:17px}
+.hull-list button:hover{background:#c4ad7120}
+.hull-list button[aria-pressed="true"]{background:linear-gradient(110deg,#6f5d344d,#bfa16817);border-color:#b69b5f;color:#f5dfa6}
+.hull-list button[aria-pressed="true"] small{color:#d1b77d}
+.inspection{display:grid;grid-template-rows:auto minmax(260px,1fr) auto;min-width:0;min-height:0;background:radial-gradient(ellipse at 48% 40%,#397283 0,#234e5e 45%,#152f3a 100%)}
+.inspection-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:24px 30px 6px}
+.inspection-heading h2{margin:0;font-size:27px;font-weight:normal;letter-spacing:.035em}
+.scale-mode{display:flex;align-items:center;gap:8px;font:13px system-ui,sans-serif;color:#d5d9cc;cursor:pointer}
+.scale-mode input{accent-color:#c8a86c;width:16px;height:16px}
+.ship-stage{display:grid;place-items:center;overflow:hidden;min-height:0;position:relative;cursor:grab;touch-action:none;outline-offset:-5px!important}
+.ship-stage.dragging{cursor:grabbing}
+.ship-stage canvas{display:block;max-width:100%;max-height:100%;pointer-events:none}
+.viewer-error{position:absolute;max-width:380px;margin:24px;line-height:1.7;text-align:center;color:#f1d8ac;font:15px system-ui,sans-serif}
+.viewer-error[hidden]{display:none}
+.viewer-controls{padding:0 30px 22px;font-family:system-ui,sans-serif}
+.gesture-help{text-align:center;color:#bac5c4;font-size:12px;margin:8px 0 22px}
+.sliders{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:25px}
+.sliders label{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:12px;color:#d4d6c9}
+.sliders input{width:100%;min-width:30px;accent-color:#c8a86c;cursor:pointer}
+.sliders output{min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.view-presets{display:flex;justify-content:center;gap:8px;margin-top:22px}
+.view-presets button{padding:9px 17px;border:1px solid #b49a6466;border-radius:2px;color:#e3d6b6;background:#142b3677;font-size:12px}
+.view-presets button:hover{border-color:#dac18b;background:#9b87552b}
+@media(max-width:760px){
+.viewer-header{height:66px;padding:0 18px;gap:16px}.brand{font-size:21px}.viewer-header h1{font-size:13px}.game-link{font-size:12px}
+.viewer-layout{height:calc(100svh - 66px);min-height:640px;grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+.hull-list{flex-direction:row;overflow-x:auto;gap:3px;padding:10px 9px;border-right:0;border-bottom:1px solid #9e88543b}
+.hull-list button{flex:1;white-space:nowrap;padding:12px 10px;gap:5px}.hull-list button span{font-size:13px}.hull-list button small{font-size:11px}
+.inspection-heading{padding:18px 18px 4px}.inspection-heading h2{font-size:22px}.scale-mode{font-size:11px}
+.viewer-controls{padding:0 18px 18px}.sliders{grid-template-columns:1fr;gap:9px}.sliders label{grid-template-columns:38px 1fr 46px}
+.gesture-help{margin:8px 0 16px;font-size:11px}.view-presets{margin-top:16px;gap:5px}.view-presets button{padding:9px 12px}
+}

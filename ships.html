@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#142d36">
+  <title>선박 3D 보기 · ROTTA</title>
+  <link rel="stylesheet" href="ship-viewer.css?v=1">
+  <script defer src="ship-3d.js?v=13"></script>
+  <script defer src="ship-viewer.js?v=1"></script>
+</head>
+<body>
+  <header class="viewer-header">
+    <a class="brand" href="./?map=europe" aria-label="ROTTA 유럽 항해">ROTTA</a>
+    <h1>선박 3D 보기</h1>
+    <a class="game-link" href="./?map=europe">게임으로</a>
+  </header>
+  <main class="viewer-layout">
+    <nav class="hull-list" aria-label="선박 단계">
+      <button type="button" data-hull="caravel" aria-pressed="true"><small>1단계</small><span>소형 카라벨</span></button>
+      <button type="button" data-hull="carrack" aria-pressed="false"><small>2단계</small><span>상업용 카라벨</span></button>
+      <button type="button" data-hull="nau" aria-pressed="false"><small>3단계</small><span>나우</span></button>
+      <button type="button" data-hull="ocean-carrack" aria-pressed="false"><small>4단계</small><span>카락</span></button>
+      <button type="button" data-hull="grand-carrack" aria-pressed="false"><small>5단계</small><span>대형 카락</span></button>
+    </nav>
+    <section class="inspection" aria-labelledby="shipTitle">
+      <div class="inspection-heading"><h2 id="shipTitle">소형 카라벨</h2><label class="scale-mode"><input id="sameScale" type="checkbox">같은 축척으로 비교</label></div>
+      <div id="shipStage" class="ship-stage" tabindex="0" aria-label="선박 회전 영역. 방향키로 회전하고 더하기와 빼기로 확대합니다.">
+        <canvas id="shipCanvas" role="img" aria-label="소형 카라벨 3D 모델"></canvas>
+        <p id="viewerError" class="viewer-error" role="status" hidden>3D 화면을 표시할 수 없습니다. WebGL을 지원하는 브라우저에서 다시 열어주세요.</p>
+      </div>
+      <footer class="viewer-controls">
+        <p class="gesture-help">드래그하여 회전 · 휠 또는 두 손가락으로 확대</p>
+        <div class="sliders">
+          <label>방향 <input id="shipHeading" type="range" min="0" max="360" step="1" value="35"><output for="shipHeading">35°</output></label>
+          <label>기울기 <input id="shipPitch" type="range" min="0" max="85" step="1" value="48"><output for="shipPitch">48°</output></label>
+          <label>확대 <input id="shipZoom" type="range" min=".6" max="2.5" step=".05" value="1"><output for="shipZoom">1.00×</output></label>
+        </div>
+        <div class="view-presets" aria-label="시점 선택">
+          <button type="button" data-view="top">위에서</button>
+          <button type="button" data-view="side">옆에서</button>
+          <button type="button" data-view="stern">선미</button>
+          <button type="button" id="resetView">시점 초기화</button>
+        </div>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
