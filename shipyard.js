@@ -4,7 +4,8 @@
   {name:'소형 카라벨',capacity:60,slots:1,price:0,speed:1,turn:1,materials:{}},
   {name:'상업용 카라벨',capacity:100,slots:2,price:2600,speed:1.02,turn:.96,materials:{timber:22,linen:8,hemp:6,iron:4,navalStores:4}},
   {name:'나우',capacity:170,slots:3,price:9000,speed:1.04,turn:.9,materials:{timber:42,linen:16,hemp:12,iron:10,navalStores:8}},
-  {name:'카락',capacity:280,slots:4,price:26000,speed:1.06,turn:.84,materials:{timber:76,linen:28,hemp:22,iron:18,navalStores:16}}
+  {name:'카락',capacity:280,slots:4,price:26000,speed:1.06,turn:.84,materials:{timber:76,linen:28,hemp:22,iron:18,navalStores:16}},
+  {name:'왕실 갤리온',capacity:440,slots:6,price:80000,speed:1.08,turn:.78,materials:{timber:124,linen:44,hemp:36,iron:28,navalStores:24}}
  ]);
  const blueprints=Object.freeze(Object.fromEntries(hulls.slice(1).map((h,i)=>['shipPlan'+(i+2),Object.freeze({name:h.name+' 설계도',tier:i+2,source:'quest'})])));
  for(const hull of hulls){Object.freeze(hull.materials);Object.freeze(hull)}
@@ -96,7 +97,7 @@
   if(action==='part'&&own(parts,id)){
    const next=level(state,id)+1,item=parts[id];
    if(next>5)return{ok:false,message:'최대 강화'};
-   if(Math.min(next,hulls.length)>tier(state))return{ok:false,message:`선체 ${next}단계 필요`};
+   if(Math.min(next,4)>tier(state))return{ok:false,message:`선체 ${next}단계 필요`};
    return{ok:true,cost:item.cost*next*next,materials:Object.fromEntries(Object.entries(item.materials).map(([key,n])=>[key,n*next])),label:next===1?'제작':'강화'};
   }
   if(action==='cabin'&&own(cabins,id)){

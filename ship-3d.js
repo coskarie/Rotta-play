@@ -13,7 +13,8 @@
     caravel:{name:'소형 카라벨',wakeScale:caravelScale,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
     carrack:{name:'상업용 카라벨',wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
     nau:{name:'나우',wakeScale:2.8,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:156},
-    'ocean-carrack':{name:'카락',wakeScale:3.1,canvasSize:384,fallback:'high-carrack-topdown.png',fallbackWidth:240}
+    'ocean-carrack':{name:'카락',wakeScale:3.1,canvasSize:384,fallback:'high-carrack-topdown.png',fallbackWidth:240},
+    'royal-galleon':{name:'왕실 갤리온',wakeScale:3.7,canvasSize:400,fallback:'royal-galleon-topdown.png',fallbackWidth:320}
   };
   function buildModel(kind='carrack') {
     if(models.has(kind))return models.get(kind);
@@ -23,10 +24,12 @@
       'ocean-carrack':{length:39,beam:4.9,stern:8.0,bow:5.7,deck:3.8}}[kind];
     const livery=kind==='nau'?[.085,.16,.21]:highCarrack?[.59,.38,.18]:colors.wood;
     const data=[],sails=[];
+    const finishes=kind==='royal-galleon'?new Map():null;
     function tri(a,b,c,color,material=0) {
       const face=cross(sub(b,a),sub(c,a));if(Math.hypot(...face)<1e-8)return;
       const n=norm(face);
       const scale=small?caravelScale:1;
+      if(finishes)material=material===1?6:material===2?7:(finishes.get(color)??material);
       for(const p of [a,b,c])data.push(p[0]*scale,p[1]*scale,p[2]*scale,...n,...color,material);
     }
     function quad(a,b,c,d,color,material=0){tri(a,b,c,color,material);tri(a,c,d,color,material)}
@@ -38,6 +41,327 @@
     function box(x,y,z,w,l,h,c=colors.wood,m=0){
       const p=[[-1,-1,0],[1,-1,0],[1,1,0],[-1,1,0],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(([a,b,d])=>[x+a*w/2,y+b*l/2,z+d*h]);
       for(const f of [[0,3,2,1],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[4,5,6,7]])quad(...f.map(i=>p[i]),c,m);
+    }
+    // Tier V. Stations run from the gallery to the stem. The bottom stations
+    // sweep inboard lengthwise, so the forefoot and heel have a visible rake.
+    function buildGalleon(){
+      const oak=[.39,.205,.11], wales=[.21,.12,.084], deck=[.59,.395,.25], ochre=[.74,.525,.235];
+      const brass=[.88,.65,.29], gilt=[.99,.78,.38], tar=[.145,.119,.104], line=[.375,.295,.19];
+      const glass=[.21,.35,.38], red=[.51,.175,.125], canvas=[.965,.927,.824];
+      const lantern=[1,.88,.54];
+      finishes.set(brass,8);finishes.set(gilt,8);finishes.set(glass,9);finishes.set(lantern,10);
+      const stations=[[-24,3.75,8.35],[-22,4.49,8.30],[-18,5.0,8.08],[-13,5.43,7.5],
+        [-9,5.57,7.12],[-4,5.65,6.95],[3,5.6,6.92],[9,5.34,7.02],
+        [14,4.78,7.25],[18,3.74,7.6],[21,2.52,7.94],[23,1.08,8.28],[24,.08,8.50]];
+      function section(y){
+        let i=1;while(i<stations.length-1&&stations[i][0]<y)i++;
+        const a=stations[i-1],b=stations[i],t=(y-a[0])/(b[0]-a[0]);
+        return [a[1]+t*(b[1]-a[1]),a[2]+t*(b[2]-a[2])];
+      }
+      function shell(y,t,side,offset=0){
+        const [width,top]=section(y),rake=(y<0?1.75:-4.7)*Math.pow(Math.abs(y)/24,4);
+        const keel=-3.65+1.2*(y/24)**4;
+        return [side*(width*Math.sin(t*Math.PI*.575)**.74+offset),y+rake*(1-t)**1.8,keel+(top-keel)*t];
+      }
+      const rod=(a,b,r,c=line)=>tube(a,b,r,c,4);
+      const path=(points,r,c)=>{for(let i=1;i<points.length;i++)rod(points[i-1],points[i],r,c)};
+      function oval(center,radii,c){
+        const point=(i,j)=>{const a=i*TAU/12,b=(j/6-.5)*Math.PI;
+          return [center[0]+radii[0]*Math.cos(a)*Math.cos(b),center[1]+radii[1]*Math.sin(a)*Math.cos(b),center[2]+radii[2]*Math.sin(b)]};
+        for(let i=0;i<12;i++)for(let j=0;j<6;j++)quad(point(i,j),point(i+1,j),point(i+1,j+1),point(i,j+1),c);
+      }
+      const deckZ=y=>section(y)[1]+(y<=-13?1.0:y>=14?.63:0);
+      for(let y=-24;y<24;y++){
+        for(const side of [-1,1]){
+          for(let j=0;j<20;j++){
+            const t=j/20,next=(j+1)/20,band=(j>=10&&j<=12)||(j>=15&&j<=17);
+            const c=band?ochre:(j===9||j===14||j===18)?wales:oak;
+            quad(shell(y,t,side),shell(y+1,t,side),shell(y+1,next,side),shell(y,next,side),c,1);
+          }
+          const a=shell(y,1,side),b=shell(y+1,1,side);
+          rod(a,b,.12,wales);
+          const zb=section(y+1)[1]+(y< -13?1:y>=14?.63:0);
+          const height=y< -13?1:y>=14?.63:0;
+          const dz=section(y)[1]+height;
+          quad([a[0],y,dz],[b[0],y+1,zb],[0,y+1,zb+.045],[0,y,dz+.045],deck,2);
+          if(height)quad(a,b,[b[0],y+1,zb],[a[0],y,dz],oak,1);
+          const railZ=dz+.63;
+          rod([a[0],y,railZ],[b[0],y+1,zb+.63],.085,wales);
+          rod([a[0],y,dz],[a[0],y,railZ],.07,ochre);
+        }
+      }
+      for(const y of [-13,14]){
+        const [w,z]=section(y);box(0,y,z,1.92*w,.12,y<0?1:.63,oak,1);
+        for(let j=0;j<5;j++)box(1.9,y+(y<0?1:-1)*(1.25-j*.25),z+j*(y<0?.2:.126),1.45,.31,.12,deck,2);
+      }
+      for(let j=0;j<20;j++)quad(shell(-24,j/20,-1),shell(-24,j/20,1),shell(-24,(j+1)/20,1),shell(-24,(j+1)/20,-1),oak,1);
+      for(const side of [-1,1]){
+        for(const [count,start,t] of [[11,-18.4,.801],[10,-17.2,.552]]){
+          for(let k=0;k<count;k++){
+            const y=start+3.22*k;
+            const face=(dy,dt,out)=>shell(y+dy,t+dt,side,out);
+            quad(face(-.49,-.043,.04),face(.49,-.043,.04),face(.49,.049,.04),face(-.49,.049,.04),tar);
+            quad(face(-.54,.05,.04),face(.54,.05,.04),face(.54,.075,.69),face(-.54,.075,.69),red);
+            const p=face(0,0,.02),end=[p[0]+side*.77,p[1],p[2]+.04];
+            tube(p,end,.212,tar,8,.164);
+            tube(end,[end[0]+side*.09,end[1],end[2]],.18,brass,8);
+            const muzzle=[end[0]+side*.093,end[1],end[2]];
+            for(let i=0;i<8;i++){const rim=a=>[muzzle[0],muzzle[1]+.128*Math.cos(a),muzzle[2]+.128*Math.sin(a)];tri(muzzle,rim(i*TAU/8),rim((i+1)*TAU/8),tar)}
+          }
+        }
+        for(let y=-18;y<=17;y+=4.1)rod(shell(y,.49,side,.06),shell(y,.91,side,.09),.08,wales);
+      }
+      // Two glazed storeys wrap around the quarter galleries. Their back face
+      // bows aft at the centre and the gilded rails follow that same curve.
+      const gallery=(a,h,lip=0)=>[(4.19+lip)*Math.sin(a),-21.30-(3.86+lip)*Math.cos(a),h];
+      for(let j=0;j<16;j++){
+        const a=-Math.PI/2+j*Math.PI/16,b=a+Math.PI/16;
+        for(const [lo,hi] of [[4.56,6.18],[6.28,8.07]]){
+          const p=(u,z,out=0)=>gallery(a+(b-a)*u,z,out);
+          quad(p(0,lo),p(1,lo),p(1,hi),p(0,hi),wales);
+          quad(p(.10,lo+.22,.04),p(.90,lo+.22,.04),p(.90,hi-.15,.04),p(.10,hi-.15,.04),glass);
+          for(const u of [.12,.51,.89])rod(p(u,lo+.22,.085),p(u,hi-.13,.085),.045,ochre);
+          rod(p(.1,(lo+hi)/2,.08),p(.91,(lo+hi)/2,.08),.045,ochre);
+          rod(p(0,lo,.09),p(1,lo,.09),.11,brass);
+        }
+        const p=(u,z,lip)=>gallery(a+(b-a)*u,z,lip);
+        quad(p(0,6.21,0),p(1,6.21,0),p(1,6.21,.48),p(0,6.21,.48),deck,2);
+        rod(p(0,6.21,.49),p(1,6.21,.49),.096,brass);
+        rod(p(0,6.86,.49),p(1,6.86,.49),.09,gilt);
+        for(const u of [0,.5])rod(p(u,6.22,.48),p(u,6.85,.49),.042,brass);
+        const crown=u=>8.30+1.24*Math.cos(a+(b-a)*u)**2;
+        quad(p(0,8.06,0),p(1,8.06,0),p(1,crown(1),0),p(0,crown(0),0),wales);
+        rod(p(0,crown(0),.06),p(1,crown(1),.06),.075,brass);
+        tri([0,-20,9.18],p(0,crown(0),0),p(1,crown(1),0),deck,2);
+        rod(p(0,8.25,.06),p(1,8.25,.06),.055,gilt);
+      }
+      for(const x of [-2.25,0,2.25]){
+        const a=Math.asin(x/4.19),[cx,cy]=gallery(a,0,.09),z=x?8.60:8.94,r=x?.205:.37;
+        for(let i=0;i<16;i++){const point=k=>[cx+r*(k%2?.46:1)*Math.sin(k*TAU/16),cy-.08,z+r*(k%2?.46:1)*Math.cos(k*TAU/16)];tri([cx,cy-.13,z],point(i),point(i+1),gilt)}
+      }
+      for(const s of [-1,1]){
+        const [x,y]=gallery(s*.88,0,.24);
+        tube([x,y,8.36],[x,y,8.78],.12,wales,8,.085);
+        tube([x,y,8.74],[x,y,9.27],.18,lantern,6,.26);
+        for(let i=0;i<6;i++){const a=i*TAU/6;rod([x+.18*Math.cos(a),y+.18*Math.sin(a),8.74],[x+.26*Math.cos(a),y+.26*Math.sin(a),9.27],.035,brass)}
+        tube([x,y,9.27],[x,y,9.54],.30,brass,6,.04);
+      }
+      box(0,-23.58,-3.7,.46,1.2,5.82,oak,1);
+      for(const z of [-2.45,-.62,1.16])box(0,-23.65,z,.53,1.23,.16,tar);
+      for(const s of [-1,1])path([[s*2.9,-24.05,4.55],[s*1.8,-24.14,2.81],[s*.30,-24,2.22]],.047,tar);
+      for(const y of [-19.0,-8.3,3.3,16.7]){
+        const z=deckZ(y)+.10;
+        box(0,y,z,2.35,2.93,.18,wales);
+        for(let i=-1;i<=1.01;i+=.25)box(i,y,z+.185,.085,2.69,.041,ochre);
+        for(let i=-1.2;i<=1.21;i+=.24)box(0,y+i,z+.21,2.15,.077,.04,deck);
+      }
+      const wheel=[0,-16.6,deckZ(-16.6)+1.22];
+      box(0,wheel[1],wheel[2]-1.24,.39,.53,1.14,wales);
+      const spoke=(i,r)=>[r*Math.sin(i*TAU/10),wheel[1],wheel[2]+r*Math.cos(i*TAU/10)];
+      for(let i=0;i<10;i++){rod(wheel,spoke(i,.84),.054,ochre);rod(spoke(i,.63),spoke(i+1,.63),.09,wales)}
+      for(const s of [-1,1]){
+        const x=s*5.17,y=-16.3,z=8.04;
+        for(let j=0;j<12;j++){
+          const rail=(i,side)=>[x+side*.8*Math.sin(Math.PI*i/12),y-2.50+i*5/12,z+.61+.21*Math.cos(i*Math.PI/12)**2];
+          for(const side of [-1,1]){
+            const a=rail(j,side),b=rail(j+1,side);
+            quad([x,a[1],z],a,b,[x,b[1],z],oak,1);rod(a,b,.07,ochre);
+          }
+        }
+        for(const dy of [-1.15,0,1.15])box(x,y+dy,z+.49,1.18,.19,.1,deck,2);
+        for(const dy of [-1.43,1.43])path([[s*4.40,y+dy,8.3],[s*4.85,y+dy,9.94],[x,y+dy,9.90],[x,y+dy,z+.57]],.063,line);
+        for(const h of [0,.52,.98])path([[s*2.98,19.8,7.49+h],[s*2.11,22.2,7.14+h],[s*1.14,24.35,7.47+h],[s*.36,25.86,8.21+h]],h===.52?.07:.125,h===.52?brass:wales);
+      }
+      // Raised bulwarks bracket an open waist. Pin rails, their belayed lines
+      // and deck fittings break up the otherwise flush expanse of planking.
+      for(const s of [-1,1]){
+        for(const [start,end] of [[-22,-13],[-11,-5],[5,10],[15,21]]){
+          for(let y=start;y<end;y++){
+            const edge=(at,h)=>{const q=shell(at,1,s);return [q[0]-.07*s,at,deckZ(at)+h]};
+            const height=at=>.60+.29*Math.min(1,(at-start)/.65,(end-at)/.65);
+            quad(edge(y,.04),edge(y+1,.04),edge(y+1,height(y+1)),edge(y,height(y)),ochre,1);
+            rod(edge(y,height(y)),edge(y+1,height(y+1)),.11,wales);
+          }
+        }
+        for(const y of [-15.1,-1.9,12]){
+          const x=s*(section(y)[0]-.54),z=deckZ(y)+.10;
+          box(x,y,z+.56,.27,2.68,.13,wales);
+          for(const d of [-1.14,1.14])box(x,y+d,z,.20,.23,.60,oak);
+          for(let j=0;j<7;j++){
+            const yy=y-1.05+.35*j;
+            rod([x,yy,z+.41],[x,yy,z+.90],.056,ochre);
+            if(j%2===0){
+              const strand=[];
+              for(let k=0;k<=10;k++){const a=k*TAU/10;strand.push([x-.10*s,yy+.094*Math.cos(a),z+.43+.29*Math.sin(a)])}
+              path(strand,.035,line);
+            }
+          }
+        }
+        for(const [y,z] of [[-10,7.5],[7.8,7.26]]){
+          const x=s*(section(y)[0]-1.30);
+          box(x,y,z,.95,1.04,.34,oak);
+          for(const d of [-.47,.47])tube([x-s*.19,y+d,z+.20],[x+s*.23,y+d,z+.20],.227,wales,8);
+          tube([x-s*.50,y,z+.53],[x+s*1.04,y,z+.71],.24,tar,10,.18);
+        }
+        // Return glazing along the quarters, visible in profile as well as astern.
+        for(let j=0;j<5;j++)for(const [lo,hi] of [[.65,.745],[.79,.894]]){
+          const y=-23.72+j*.71;
+          const panel=(dy,t)=>shell(y+dy,t,s,.11);
+          quad(panel(0,lo),panel(.57,lo),panel(.57,hi),panel(0,hi),glass);
+          rod(panel(0,lo),panel(.57,lo),.046,brass);
+          rod(panel(.28,lo),panel(.28,hi),.035,ochre);
+        }
+      }
+      for(const [y,scale] of [[18.45,.81],[-4.35,1]]){
+        const h=deckZ(y);
+        tube([0,y,h],[0,y,h+.14],.68*scale,wales,12);
+        tube([0,y,h+.13],[0,y,h+.94],.47*scale,oak,12,.36*scale);
+        tube([0,y,h+.94],[0,y,h+1.10],.55*scale,ochre,12);
+        for(let j=0;j<6;j++){const a=j*TAU/6;rod([.35*Math.cos(a),y+.35*Math.sin(a),h+.90],[1.08*scale*Math.cos(a),y+1.08*scale*Math.sin(a),h+.92],.061,wales)}
+      }
+      for(const [x,y] of [[-2,-11.6],[-1.22,-11.51],[-2.05,-12.45],[2.22,5.40]]){
+        const z=deckZ(y);
+        tube([x,y,z],[x,y,z+.24],.34,oak,10,.43);
+        tube([x,y,z+.24],[x,y,z+.81],.43,oak,10,.35);
+        for(const [h,r] of [[.18,.408],[.64,.39]])tube([x,y,z+h],[x,y,z+h+.078],r,tar,10);
+        for(let i=0;i<10;i++){const lid=k=>[x+.343*Math.cos(k*TAU/10),y+.343*Math.sin(k*TAU/10),z+.811];tri([x,y,z+.811],lid(i),lid(i+1),deck,2)}
+      }
+      for(const s of [-1,1]){
+        const scroll=[];
+        for(let i=0;i<=28;i++){
+          const t=i/28,a=s*(.11+1.10*t);
+          scroll.push(gallery(a,8.47+.63*Math.cos(a)**2+.13*Math.sin(t*TAU*2),.10));
+        }
+        path(scroll,.047,brass);
+        const trim=[];
+        for(let j=0;j<=20;j++){
+          const t=j/20;
+          trim.push([s*(2.85-2.53*t),20.4+4.97*t,7.83+.67*t+.16*Math.sin(t*TAU*2)]);
+        }
+        path(trim,.072,brass);
+      }
+      // Mane, brows, muzzle and spaced ears give the gilt figurehead a lion profile.
+      oval([0,24.65,8.10],[.68,.85,1.0],brass);
+      for(let i=0;i<9;i++){const a=i*TAU/9;oval([.55*Math.cos(a),24.94,8.26+.65*Math.sin(a)],[.21,.37,.27],ochre)}
+      oval([0,25.20,8.42],[.52,.57,.56],gilt);oval([0,25.68,8.20],[.42,.38,.29],brass);
+      for(const s of [-1,1]){oval([s*.37,25.02,8.89],[.175,.16,.21],brass);oval([s*.31,25.59,8.50],[.079,.065,.063],tar)}
+      // Store smooth normals on the canvas grid. The curved foot, panel fluting
+      // and corner creases stay continuous when inspecting a sail at close range.
+      function loft(point,nx,ny,material=4){
+        const grid=[];
+        for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){
+          const u=i/nx,v=j/ny,d=.0005,p=point(u,v);
+          const du=sub(point(Math.min(1,u+d),v),point(Math.max(0,u-d),v));
+          const dv=sub(point(u,Math.min(1,v+d)),point(u,Math.max(0,v-d)));
+          grid.push([...p,...norm(cross(du,dv)),...canvas,material]);
+        }
+        for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+          const a=j*(nx+1)+i,b=a+1,c=b+nx+1,d=c-1;
+          for(const k of [a,b,c,a,c,d])data.push(...grid[k]);
+        }
+      }
+      function course(y,top,width,drop,furled=false){
+        const brace=.18;
+        const point=(u,v)=>{
+          const s=2*u-1,arch=1-s*s,full=Math.sin(Math.PI*v),panel=Math.cos(u*TAU*9);
+          const x=s*width*.5*(1+v*.13-.078*full);
+          if(furled)return [x,y+.23+brace*x+.40*full+.10*Math.cos(v*TAU*2),top-.12-v*(.48+arch*(.64+.57*Math.cos(u*TAU*3.5)**2))];
+          const crease=.14*Math.sin(26*u+9*v)*Math.abs(s)**3*full;
+          return [x,y+.19+brace*x+width*.17*(.31+.69*arch)*full+width*.037*arch*v+.075*panel*full+crease,
+            top-drop*v+drop*.16*arch*v*v-.11*arch*full];
+        };
+        sails.push({type:furled?'furled':'square',y,top,width});
+        loft(point,28,furled?5:11);
+        const half=width*.5+.36;
+        tube([-half,y-brace*half,top+.07],[half,y+brace*half,top+.07],width*.011,wales,8,width*.009);
+        for(let i=0;i<=10;i++){
+          const x=(i/10-.5)*width;
+          rod([x,y+brace*x-.11,top+.12],[x,y+brace*x+.22,top-.13],.041,line);
+          if(furled&&i%2===0)rod([x,y+brace*x+.39,top],point(i/10,.96),.046,line);
+        }
+        for(const u of [0,1]){
+          const s=u?1:-1;
+          if(y>24){
+            rod(point(u,0),[0,y-4,7.74+(y-4-19.1)*.423],.036,line);
+            rod(point(u,1),[s*.75,23.2,8.0],.033,line);
+          }else{
+            rod([0,y,top+1.8],point(u,0),.038,line);
+            if(!furled){
+              const pinY=y-1.68;
+              rod(point(u,1),[s*(section(pinY)[0]-.48),pinY,deckZ(pinY)+.83],.034,line);
+            }
+          }
+        }
+      }
+      const masts=[[12.0,38.4,[[21.6,16.9,10.4],[29.5,14.7,7.75],[34.96,10.2,5.20]]],
+        [-1.9,41.4,[[21.0,18.8,10.3,true],[30.6,17.2,8.5],[37.0,12.8,6.2]]],
+        [-15.2,30.7,[[17.65,12.27,6.2,true],[23.70,10.85,5.8],[27.97,7.72,4.04]]]];
+      for(const [y,top,tiers] of masts){
+        const z=deckZ(y),[lower,upper]=[tiers[0][0],tiers[1][0]];
+        for(const [base,end,r] of [[z,lower,.385],[lower,upper,.295],[upper,top,.185]]){
+          tube([0,y,base],[0,y,end],r,tar,10,r*.70);
+          for(let h=base+.34;h<end-.2;h+=2.8)tube([0,y,h],[0,y,h+.14],r*1.03,wales,8);
+        }
+        tube([0,y,top],[0,y,top+.14],.21,brass,8);
+        for(const [floor,w] of [[lower-.66,1.85],[upper-.68,1.36]]){
+          box(0,y,floor-.15,w,1.13*w,.17,wales);box(0,y,floor,w*1.06,w*1.16,.10,deck,2);
+        }
+        for(const side of [-1,1]){
+          const platform=[side*.84,y,lower-.56],width=section(y)[0];
+          box(side*width,y-.73,z-.20,.73,4.28,.20,wales);
+          for(const [baseX,baseZ,spread,target] of [[width+.21,z-.06,3.82,platform],[.86,lower-.50,1.64,[side*.55,y,upper-.53]]]){
+            const foot=offset=>[side*baseX,y-.42+offset*spread,baseZ];
+            const head=offset=>[target[0],target[1]+offset*.61,target[2]];
+            for(let i=0;i<6;i++){const k=i/5-.5;rod(foot(k),head(k),.051,line)}
+            const steps=Math.ceil((target[2]-baseZ)/.58);
+            for(let i=1;i<steps;i++){const t=i/steps;rod(mix(foot(-.5),head(-.5),t),mix(foot(.5),head(.5),t),.032,line)}
+          }
+        }
+        for(const spec of tiers)course(y,...spec);
+        // Yard braces run aft to the rail or to the next mast. Each purchase
+        // changes direction at a visible block before descending to its pin.
+        for(const s of [-1,1])for(const [index,level] of tiers.entries()){
+          const [h,w]=level,atY=Math.max(-21.7,y-8.2);
+          const block=[s*(index===0?section(atY)[0]-.27:1.1),atY,index===0?deckZ(atY)+.89:h-4.55];
+          const from=[s*w*.49,y+s*w*.49*.18,h+.05];
+          rod(from,block,index===0?.046:.036,line);
+          tube(block,[block[0],block[1]-.13,block[2]-.24],.11,wales,6,.085);
+          if(index>0)rod(block,[s*(section(y)[0]-.44),y-.76+index*.43,z+.74],.034,line);
+        }
+      }
+      const sparBase=[0,19.1,7.74],sparTip=[0,38.15,15.80];
+      tube(sparBase,sparTip,.41,tar,12,.14);
+      for(let i=1;i<9;i++){const a=i/9,r=.43-.26*a;tube(mix(sparBase,sparTip,a),mix(sparBase,sparTip,a+.011),r,ochre,8)}
+      rod(sparTip,[0,23.4,4.2],.06,line);
+      course(28.9,11.81,6.85,3.35);course(34.75,14.3,4.62,2.65);
+      // Alongship sails have their own camber and seams. The two jibs do not
+      // share a vertex at the tack, preserving the slot between them from above.
+      function staysail(name,head,tack,clew,throat){
+        const corner=throat||mix(head,tack,.013);
+        const point=(u,v)=>{
+          const p=mix(mix(head,corner,u),mix(tack,clew,u),v);
+          p[0]+=.23*Math.sin(Math.PI*v)+1.22*Math.sin(Math.PI*u)*Math.sin(Math.PI*v)
+              +.28*Math.sin(Math.PI*u)*v;
+          p[2]+=.54*Math.sin(Math.PI*u)*v;return p;
+        };
+        loft(point,12,12,5);sails.push({type:name});
+        rod(head,tack,.041,line);rod(head,corner,.041,line);
+      }
+      staysail('jib',[0,14,33.8],[0,37.65,15.69],[.39,29.7,14.1]);
+      staysail('jib',[0,13.1,29.35],[0,31.6,13.09],[.48,21.6,11.71]);
+      staysail('stay',[0,-1.66,34.8],[0,1.1,24.8],[.46,10.2,24.0],[0,9.92,28.92]);
+      staysail('stay',[0,-1.66,25.2],[0,.03,14.9],[.51,10.7,15.95],[0,10.12,21.34]);
+      staysail('stay',[0,-14.92,26.6],[0,-13.53,19.25],[.49,-3.3,20.2],[0,-3.65,24.3]);
+      const peak=[0,-24.88,22.1],throat=[0,-15.3,17.02],heel=[.1,-15.4,10.18],clew=[.75,-26.88,10.56];
+      staysail('spanker',throat,heel,clew,peak);
+      tube(throat,peak,.115,wales,8,.071);tube(heel,clew,.103,wales,8,.066);
+      for(const [a,b] of [[[0,12,38.1],sparTip],[[0,-1.9,41.1],[0,12,34.8]],[[0,-15.2,30.4],[0,-1.9,37.1]],[[0,-15.2,30.3],peak]])rod(a,b,.055,line);
+    }
+
+    if(kind==='royal-galleon'){
+      buildGalleon();
+      const model={vertices:new Float32Array(data),triangles:data.length/30,sails};
+      models.set(kind,model);return model;
     }
     // Stations retain the rounded stern, full belly and fine rising bow of the references.
     const stations=kind==='nau'?
@@ -465,7 +789,7 @@
 attribute vec3 a_position,a_normal,a_color;attribute float a_material;
 uniform vec2 u_size;uniform float u_heading,u_pitch,u_scale,u_center,u_heave;
 uniform vec4 u_hull_rotation;
-varying vec3 v_position,v_normal,v_color;varying float v_material;
+varying vec3 v_position,v_normal,v_color;varying mediump vec3 v_view;varying float v_material;
 varying mediump float v_surface_height;
 vec3 rock(vec3 p){
  float rollCos=u_hull_rotation.x,rollSin=u_hull_rotation.y;
@@ -478,9 +802,9 @@ vec3 p=rock(a_position);p.z+=u_heave;
 float x=p.x*c+p.y*s,y=p.x*s-p.y*c,z=p.z-u_center;
 float vertical=y*cp-z*sp,depth=y*sp+z*cp;
 gl_Position=vec4(x*u_scale*2.0/u_size.x,-vertical*u_scale*2.0/u_size.y,-depth/60.0,1.0);
-v_position=a_position;v_normal=rock(a_normal);v_color=a_color;v_material=a_material;v_surface_height=p.z;}`;
+v_view=vec3(s*sp,-c*sp,cp);v_position=a_position;v_normal=rock(a_normal);v_color=a_color;v_material=a_material;v_surface_height=p.z;}`;
   const fragment=`precision mediump float;
-varying vec3 v_position,v_normal,v_color;varying float v_material;uniform float u_waterline;
+varying vec3 v_position,v_normal,v_color;varying mediump vec3 v_view;varying float v_material;uniform float u_waterline;
 varying mediump float v_surface_height;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 void main(){if(v_surface_height<u_waterline)discard;vec3 n=normalize(v_normal);if(!gl_FrontFacing)n=-n;
@@ -492,6 +816,38 @@ if(v_material>.5&&v_material<2.5){
  float grain=sin(along*46.0+sin(across*57.0)*1.2)*.032+sin(along*127.0+across*83.0)*.016;
  float ends=step(.022,fract((along+hash(vec2(row,2.0))*4.0)/2.2));
  color*= (.78+.22*seam)*(.92+.08*ends)*( .92+hash(vec2(row,1.0))*.16+grain);
+}else if(v_material>7.5){
+ vec3 light=normalize(vec3(-.52,.50,1.0));
+ float shine=pow(max(0.0,dot(n,normalize(light+v_view))),16.0);
+ float fresnel=pow(1.0-abs(dot(n,v_view)),3.0);
+ if(v_material>9.5){gl_FragColor=vec4(color*(.92+.08*sun),1.0);return;}
+ if(v_material>8.5){color=mix(color*.54,vec3(.61,.73,.72),.16+.43*fresnel+.20*shine);}
+ else{color*=.60+.46*sun;color+=vec3(.52,.42,.22)*shine+.08*fresnel;}
+ gl_FragColor=vec4(color,1.0);return;
+}else if(v_material>5.5){
+ float deck=step(6.5,v_material);float across=mix(p.z,p.x,deck);
+ float course=across*mix(3.25,3.7,deck),row=floor(course),f=fract(course);
+ float seam=smoothstep(.0,.075,f)*(1.0-smoothstep(.925,1.0,f));
+ float along=p.y+2.2*sin(row*13.61);
+ float join=smoothstep(.012,.034,abs(fract(along*.17)-.5));
+ float fibre=sin(across*57.0+.53*sin(along*.83)+.14*sin(along*3.0));
+ float shade=.955+.046*sin(row*8.31)+.022*fibre+.022*sin(along*.91+row*4.61);
+ color*=shade*(.79+.21*seam)*(.87+.13*join);
+ if(deck>.5){
+  float mast=min(min(abs(p.y-12.0),abs(p.y+1.9)),abs(p.y+15.2));
+  float foot=smoothstep(.28,1.30,length(vec2(p.x,mast)));
+  color*=mix(.74,1.0,foot)*(.94+.06*cos(p.x*.56));
+ }
+}else if(v_material>3.5){
+ float u=v_material>4.5?p.y:p.x;
+ float panel=u*.82+.035*sin(p.z*.66);
+ float edge=abs(fract(panel)-.5);
+ float seam=1.0-smoothstep(.012,.050,edge);
+ float slub=sin(u*28.0+p.z*.61)*sin(p.z*32.0)*.014;
+ float worn=.024*sin(p.z*1.3+u*.43)*sin(u*1.78-p.z*.71);
+ float streak=.026*cos(u*4.2+.4*sin(p.z*.56))+.016*cos(u*10.5+p.z*.24);
+ color*=.968+.029*sin(floor(panel+.5)*7.13)-.082*seam+slub+worn+streak;
+ sun=.48+.52*abs(dot(n,normalize(vec3(-.52,.50,.82))));
 }else if(v_material>2.5){float seam=pow(.5+.5*cos(p.x*15.0),28.0);float weave=sin(p.x*165.0)*sin(p.z*165.0)*.012;color*=1.0-seam*.075+weave;sun=.35+.65*abs(dot(n,normalize(vec3(-.6,.35,1.0))));}
 color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
   function createRenderer(canvas,model=buildModel()){

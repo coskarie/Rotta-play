@@ -60,13 +60,14 @@
     schedule();
   }
   function reset(){
-    heading.value=35;pitch.value=48;zoom.value=1;schedule();
+    const galleon=kind==='royal-galleon';
+    heading.value=galleon?225:35;pitch.value=galleon?63:48;zoom.value=galleon?1.15:1;schedule();
   }
   buttons.forEach(button=>button.addEventListener('click',()=>selectHull(button.dataset.hull)));
   for(const input of [heading,pitch,zoom,sameScale])input.addEventListener('input',schedule);
   document.querySelector('#resetView').addEventListener('click',reset);
   document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{
-    const views={top:[0,0],side:[90,85],stern:[180,70]};
+    const views={top:[0,0],side:[90,85],stern:[0,78]};
     [heading.value,pitch.value]=views[button.dataset.view];schedule();
   }));
   stage.addEventListener('pointerdown',event=>{
@@ -121,5 +122,5 @@
   window.addEventListener('pageshow',event=>{if(event.persisted)selectHull(kind)});
   new ResizeObserver(resize).observe(stage);
   const tier=clamp(Math.trunc(Number(new URL(location.href).searchParams.get('tier'))||1),1,buttons.length);
-  selectHull(buttons[tier-1].dataset.hull);resize();
+  selectHull(buttons[tier-1].dataset.hull);reset();resize();
 })();
