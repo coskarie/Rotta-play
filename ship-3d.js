@@ -12,17 +12,18 @@
   const hulls={
     caravel:{name:'소형 카라벨',wakeScale:caravelScale,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
     carrack:{name:'상업용 카라벨',wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
-    nau:{name:'나우',wakeScale:1.24,canvasSize:224,fallback:'nau-topdown-v1.png',fallbackWidth:134},
-    'ocean-carrack':{name:'카락',wakeScale:1.48,canvasSize:256,fallback:'ocean-carrack-topdown-v1.png',fallbackWidth:142},
-    'grand-carrack':{name:'대형 카락',wakeScale:1.70,canvasSize:288,fallback:'grand-carrack-topdown-v1.png',fallbackWidth:139}
+    nau:{name:'나우',wakeScale:1.4,canvasSize:256,fallback:'nau-topdown-v2.png',fallbackWidth:80},
+    'ocean-carrack':{name:'카락',wakeScale:1.9,canvasSize:320,fallback:'ocean-carrack-topdown-v2.png',fallbackWidth:104},
+    'grand-carrack':{name:'대형 카락',wakeScale:2.8,canvasSize:384,fallback:'grand-carrack-topdown-v2.png',fallbackWidth:156}
   };
   function buildModel(kind='carrack') {
     if(models.has(kind))return models.get(kind);
     const small=kind==='caravel';
-    const ocean={nau:{length:15.1,beam:2.45,stern:3.5,bow:2.8,deck:2.05},
-      'ocean-carrack':{length:17.6,beam:2.92,stern:4.7,bow:3.7,deck:2.35},
-      'grand-carrack':{length:20.4,beam:3.40,stern:5.8,bow:4.25,deck:2.7}}[kind];
-    const data=[];
+    const ocean={nau:{length:18.4,beam:3.1,stern:3.9,bow:3.05,deck:2.25},
+      'ocean-carrack':{length:24,beam:3.55,stern:6.3,bow:4.25,deck:2.75},
+      'grand-carrack':{length:34,beam:4.0,stern:5.0,bow:3.85,deck:3.2}}[kind];
+    const livery=kind==='grand-carrack'?[.085,.16,.21]:kind==='ocean-carrack'?[.29,.115,.085]:colors.wood;
+    const data=[],sails=[];
     function tri(a,b,c,color,material=0) {
       const face=cross(sub(b,a),sub(c,a));if(Math.hypot(...face)<1e-8)return;
       const n=norm(face);
@@ -40,7 +41,10 @@
       for(const f of [[0,3,2,1],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[4,5,6,7]])quad(...f.map(i=>p[i]),c,m);
     }
     // Stations retain the rounded stern, full belly and fine rising bow of the references.
-    const stations=ocean?
+    const stations=kind==='grand-carrack'?
+      [[-1,.56,5.0],[-.94,.76,5.0],[-.75,.93,4.70],[-.47,1,3.45],
+       [0,.98,3.2],[.42,.87,3.32],[.67,.64,3.55],[.87,.34,3.95],[.97,.012,4.25]]
+        .map(([y,w,z])=>[y*ocean.length/2,w*ocean.beam,z]):ocean?
       [[-1,.42,ocean.stern],[-.91,.75,ocean.stern],[-.66,.96,ocean.stern-.15],
        [-.43,1,ocean.deck+.35],[0,.98,ocean.deck],[.42,.85,ocean.deck+.15],
        [.66,.62,ocean.bow],[.87,.31,ocean.bow+.15],[.97,.015,ocean.bow+.4]]
@@ -54,7 +58,7 @@
     const slices=ocean?64:small?48:100,bands=small?12:18;
     for(let i=0;i<slices;i++)for(let j=0;j<bands;j++)for(const side of [-1,1]){
       const y=sternY+hullLength*i/slices,yn=sternY+hullLength*(i+1)/slices,t=j/bands,tn=(j+1)/bands;
-      quad(hull(y,t,side),hull(yn,t,side),hull(yn,tn,side),hull(y,tn,side),j<5?[.38,.27,.15]:colors.wood,1);
+      quad(hull(y,t,side),hull(yn,t,side),hull(yn,tn,side),hull(y,tn,side),j<5?[.38,.27,.15]:livery,1);
     }
     // Transom and narrow stern gallery.
     for(let j=0;j<18;j++){const a=j/18,b=(j+1)/18;quad(hull(sternY,a,-1),hull(sternY,a,1),hull(sternY,b,1),hull(sternY,b,-1),colors.wood,1)}
@@ -69,6 +73,7 @@
         if(i<steps){const yn=y0+(y1-y0)*(i+1)/steps,[wn,zn]=station(yn);for(const h of [.29,.65])tube([w*side,y,z+h],[wn*side,yn,zn+h],h===.65?.055:.038,colors.dark,5)}}
     }
     function squareSail(y,top,bottom,width,topWidth,cloth=colors.cloth){
+      sails.push({type:'square',y,top,bottom,width});
       const nx=small||ocean?18:28,nz=small||ocean?14:22;
       const p=(u,v)=>[(u-.5)*(topWidth+(width-topWidth)*v),y+.12+Math.sin(Math.PI*u)*Math.sin(Math.PI*v)*(ocean?width*.22:small?1.45:.95),top-(top-bottom)*v+.44*Math.sin(Math.PI*u)*v*v];
       for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)quad(p(i/nx,j/nz),p((i+1)/nx,j/nz),p((i+1)/nx,(j+1)/nz),p(i/nx,(j+1)/nz),cloth,3);
@@ -152,9 +157,9 @@
       tube([0,9,6.4],[0,5.3,.5],.025);tube([0,-.3,14.7],[0,-5.8,3.7],.022);
     }
     function fitOceanShip(){
-      const grand=kind==='grand-carrack',castle=kind!=='nau';
-      const gold=grand?[.83,.63,.30]:[.67,.48,.25];
-      const accent=grand?[.13,.25,.30]:[.22,.30,.29];
+      const castle=kind!=='nau';
+      const gold=[.67,.48,.25];
+      const accent=castle?[.31,.12,.105]:[.32,.25,.14];
       const L=ocean.length,deck=ocean.deck;
       // Wide cargo belly, raised forecastle and a stepped aftercastle.
       for(const side of [-1,1]){
@@ -188,7 +193,7 @@
             [boatX+side*wn,yn,deck+.73],[boatX,yn,deck+.31],colors.wood,1);
       }
       for(const y of [-.65,0,.65])box(boatX,boatY+y,deck+.69,.72,.16,.08,colors.deck,2);
-      const tiers=grand?3:castle?2:1;
+      const tiers=castle?2:1;
       for(let floor=0;floor<tiers;floor++){
         const z=ocean.stern+.1+floor*.87;
         const y=sternY+1.18+floor*.31,w=ocean.beam*(1.24-floor*.13);
@@ -217,18 +222,17 @@
       for(let i=0;i<9;i++)
         box(ocean.beam*.55,-L*.22-i*.14,deck+.16+i*(ocean.stern-deck)/9,.65,.21,.12,colors.deck,2);
       if(castle)for(const side of [-1,1]){
-        for(let i=0;i<(grand?9:7);i++){
+        for(let i=0;i<7;i++){
           const y=-L*.29+i*L*.073,[w]=station(y),z=deck-.24;
           box(side*(w*.97),y,z,.085,.40,.30,colors.dark);
           for(const h of [-.02,.30])box(side*(w*.99),y,z+h,.10,.45,.055,gold);
         }
       }
-      // Main and fore courses spread across a full broad hull. The final tier gains a fourth mast.
-      const main=grand?20.6:castle?18.9:17.0;
-      const fore=grand?17.7:castle?16.0:14.2;
-      const aft=grand?14.1:castle?12.4:10.8;
+      // Main and fore courses spread across a full broad hull. The cargo tiers use a foremast, a mainmast and a lateen mizzen.
+      const main=castle?22.8:18.6;
+      const fore=castle?20.3:16.0;
+      const aft=castle?15.7:12.2;
       const mastSpecs=[[L*.24,fore],[0,main],[-L*.31,aft]];
-      if(grand)mastSpecs.push([-L*.43,10.9]);
       for(const [y,top] of mastSpecs){
         const [w,z]=station(y);
         tube([0,y,z],[0,y,top],top===main?.19:.14,colors.dark,10,.055);
@@ -263,9 +267,10 @@
           squareSail(y,top-.90,upper+.32,width*.55,width*.42);
         }
       }
-      rig(0,main,grand?9.25:castle?8.4:7.75,grand?3:2);
-      rig(L*.24,fore,grand?7.7:castle?6.9:6.1,castle?3:2);
+      rig(0,main,castle?10.0:8.6,castle?3:2);
+      rig(L*.24,fore,castle?8.6:7.2,castle?3:2);
       function lateen(y,top,span){
+        sails.push({type:'lateen',y,top,span});
         const a=[0,y+span*.48,top*.44],b=[0,y-span*.52,top],c=[1.0,y-span*.43,deck+1.0],n=12;
         const point=(u,v)=>{
           const p=a.map((x,i)=>x+u*(b[i]-x)+v*(c[i]-x));
@@ -277,32 +282,165 @@
         }
         tube(a,b,.075,gold,8);tube(b,c,.021);tube(c,a,.021);
       }
-      lateen(-L*.31,aft,grand?5.1:4.7);
-      if(grand)lateen(-L*.43,10.8,3.2);
-      const bowTip=L*.5+(grand?4.2:3.2),bowZ=ocean.bow+2.5;
+      lateen(-L*.31,aft,castle?6.2:4.7);
+      const bowTip=L*.5+3.2,bowZ=ocean.bow+2.5;
       tube([0,L*.35,ocean.bow-.1],[0,bowTip,bowZ],.13,colors.dark,10,.052);
       tube([0,0,main-.3],[0,bowTip,bowZ],.023);
       tube([0,L*.24,fore-.3],[0,bowTip,bowZ],.023);
       tube([0,bowTip,bowZ],[0,L*.43,.45],.025);
-      if(castle)squareSail(L*.58,bowZ-.1,ocean.bow-.2,grand?3.7:3.0,grand?3.3:2.7);
+      if(castle)squareSail(L*.58,bowZ-.1,ocean.bow-.2,3.7,3.3);
       for(const [y,top] of mastSpecs)
         tri([0,y,top],[0,y-1.5,top-.28],[0,y,top-.65],accent);
-      if(grand){
-        // Gold scrollwork and a beakhead ornament, visible from the stern and either quarter.
-        for(const side of [-1,1])for(let row=0;row<3;row++){
-          const z=ocean.stern+row*.87+.43;
-          for(let i=0;i<10;i++){
-            const t=i*TAU/10,tn=(i+1)*TAU/10;
-            tube([side*1.6+.19*Math.cos(t),sternY-.16,z+.19*Math.sin(t)],
-              [side*1.6+.19*Math.cos(tn),sternY-.16,z+.19*Math.sin(tn)],.04,gold,4);
+    }
+    function fitFlagship(){
+      const L=ocean.length,deck=ocean.deck;
+      const navy=[.075,.16,.23],gold=[.86,.65,.29],lightGold=[.97,.78,.40];
+      const cream=[.87,.80,.62],glass=[.12,.27,.32];
+      // A long continuous two-tier broadside replaces the stubby merchant hull silhouette.
+      for(const side of [-1,1]){
+        rail(sternY,-L*.25,side);rail(-L*.22,L*.35,side);rail(L*.37,bowY,side);
+        for(const z of [.65,1.85,2.75]){
+          for(let i=0;i<64;i++){
+            const y=sternY+hullLength*i/64,yn=sternY+hullLength*(i+1)/64;
+            const p=(at)=>{
+              const [,rim]=station(at),keel=-1.35+Math.pow(Math.abs(at/keelY),4)*1.3;
+              const point=hull(at,Math.max(0,Math.min(1,(z-keel)/(rim-keel))),side);
+              point[0]+=side*.05;return point;
+            };
+            tube(p(y),p(yn),.085,gold,5);
           }
         }
-        tube([0,L*.47,ocean.bow+.05],[0,L*.55,ocean.bow+1.35],.21,gold,8,.09);
+        for(const [z,count,start,step] of [[1.05,14,-L*.36,L*.052],[2.15,12,-L*.32,L*.054]]){
+          for(let i=0;i<count;i++){
+            const y=start+i*step,[w,rim]=station(y);
+            const keel=-1.35+Math.pow(Math.abs(y/keelY),4)*1.3;
+            const x=side*w*Math.pow(Math.sin((z-keel)/(rim-keel)*Math.PI/2),.68);
+            box(x+side*.055,y,z,.11,.64,.40,colors.dark);
+            for(const h of [-.035,.42])box(x+side*.11,y,z+h,.13,.72,.075,gold);
+            // Short visible muzzles with end disks, attached to the two gun decks.
+            tube([x,y,z+.19],[x+side*.38,y,z+.19],.085,colors.iron,6);
+          }
+        }
       }
+      box(0,sternY-.2,-.95,.30,.66,5.7,colors.wood,1);
+      // Three glazed tiers use curved galleries around the transom rather than square cabins.
+      for(let floor=0;floor<3;floor++){
+        const z=4.65+floor*.92;
+        const width=5.55-floor*.35;
+        const back=sternY+.35+floor*.20;
+        box(0,back+1.10,z,width,2.45,.82,navy,1);
+        box(0,back-.145,z+.10,width*.91,.07,.49,glass);
+        for(let x=-width*.43;x<width*.46;x+=.43)
+          box(x,back-.20,z+.07,.065,.11,.57,gold);
+        for(const h of [.055,.66])box(0,back-.2,z+h,width*.96,.12,.075,gold);
+        const ring=(t,h)=>[Math.sin(t)*width*.58,back+.12-Math.cos(t)*.75,z+h];
+        for(let i=0;i<20;i++){
+          const a=-Math.PI/2+i*Math.PI/20,b=a+Math.PI/20;
+          quad(ring(a,.81),ring(b,.81),[ring(b,.81)[0]*.88,ring(b,.81)[1]+.18,z+.81],[ring(a,.81)[0]*.88,ring(a,.81)[1]+.18,z+.81],colors.deck,2);
+          tube(ring(a,.87),ring(b,.87),.065,gold,5);
+          tube(ring(a,1.22),ring(b,1.22),.055,gold,5);
+          tube(ring(a,.87),ring(a,1.22),.035,lightGold,4);
+        }
+        for(const side of [-1,1]){
+          box(side*width/2,back+1.1,z+.1,.12,2.0,.50,glass);
+          for(let y=.20;y<2.1;y+=.36)box(side*(width/2+.08),back+y,z+.04,.12,.06,.60,gold);
+        }
+      }
+      // Crest, pilasters and hanging stern lanterns.
+      for(const side of [-1,1]){
+        tube([side*2.0,sternY-.50,4.55],[side*1.65,sternY+.15,8.05],.11,gold,7);
+        for(let i=0;i<18;i++){
+          const a=i*TAU/18,b=(i+1)*TAU/18;
+          tube([side*1.6+.38*Math.cos(a),sternY-.58,6.2+.38*Math.sin(a)],
+            [side*1.6+.38*Math.cos(b),sternY-.58,6.2+.38*Math.sin(b)],.055,lightGold,4);
+        }
+        tube([side*2.7,sternY+.5,7.9],[side*3.2,sternY+.2,8.5],.065,gold);
+        box(side*3.2,sternY+.2,8.38,.34,.34,.55,gold);
+        box(side*3.2,sternY+.2,8.49,.23,.35,.29,cream);
+      }
+      const crestY=sternY-.4;
+      tri([-.65,crestY,7.9],[0,crestY,8.85],[.65,crestY,7.9],gold);
+      box(0,crestY-.06,8.0,.13,.13,.82,lightGold);
+      // Detailed open waist, paired boats and hatches, with stairs up to the quarterdeck.
+      for(const y of [-3.7,2.5]){
+        box(0,y,deck+.08,2.3,1.8,.15,colors.dark);
+        for(let x=-1.0;x<=1;x+=.24)box(x,y,deck+.24,.065,1.65,.045,gold);
+        for(let off=-.65;off<.7;off+=.26)box(0,y+off,deck+.24,2.2,.07,.045,gold);
+      }
+      for(const side of [-1,1]){
+        for(let i=0;i<8;i++){
+          const y=-2.5+i*.60,yn=y+.60;
+          const w=.57*Math.sin(Math.PI*i/8),wn=.57*Math.sin(Math.PI*(i+1)/8);
+          for(const edge of [-1,1])quad([side*2.1,y,deck+.25],[side*2.1+edge*w,y,deck+.91],[side*2.1+edge*wn,yn,deck+.91],[side*2.1,yn,deck+.25],colors.wood,1);
+        }
+        for(const y of [-1.5,0,1.5])box(side*2.1,y,deck+.85,1.0,.18,.09,colors.deck,2);
+        for(let i=0;i<12;i++)box(side*2.55,-L*.19-i*.29,deck+.12+i*.145,.62,.34,.12,colors.deck,2);
+      }
+      // Three spaced full-rigged masts. Nine square sails create the flagship's defining mass.
+      const mastSpecs=[{y:L*.28,top:24.8,width:10.5,bottom:5.0},
+        {y:0,top:28.4,width:12.3,bottom:4.85},
+        {y:-L*.29,top:22.6,width:8.4,bottom:7.3}];
+      for(const {y,top,width,bottom}of mastSpecs){
+        const [,base]=station(y);
+        tube([0,y,base],[0,y,top],.22,colors.dark,10,.07);
+        for(let h=base+.5;h<top;h+=2.8)tube([0,y,h],[0,y,h+.12],.24,gold,8);
+        const levels=[[top*.56,bottom,width,width*.90],
+          [top*.79,top*.56+.70,width*.78,width*.63],
+          [top-1.0,top*.79+.60,width*.51,width*.39]];
+        for(const [a,b,w,tw]of levels)squareSail(y,a,b,w,tw);
+        const basketZ=top*.57;
+        for(let i=0;i<12;i++){
+          const a=i*TAU/12,b=(i+1)*TAU/12,r=.76;
+          tri([0,y,basketZ],[r*Math.cos(a),y+r*Math.sin(a),basketZ],[r*Math.cos(b),y+r*Math.sin(b),basketZ],colors.deck,2);
+          tube([r*Math.cos(a),y+r*Math.sin(a),basketZ],[r*1.12*Math.cos(a),y+r*1.12*Math.sin(a),basketZ+.5],.032,gold,4);
+          tube([r*1.12*Math.cos(a),y+r*1.12*Math.sin(a),basketZ+.5],[r*1.12*Math.cos(b),y+r*1.12*Math.sin(b),basketZ+.5],.05,gold,5);
+        }
+        for(const side of [-1,1]){
+          const ends=[];
+          for(let i=0;i<5;i++){
+            const dy=y-1.3+i*.61,[w,z]=station(dy);
+            const end=[side*(w+.12),dy,z+.12];ends.push(end);tube(end,[0,y,basketZ+.3],.027);
+          }
+          for(let t=.08;t<.93;t+=.075)
+            tube(mix(ends[0],[0,y,basketZ+.3],t),mix(ends.at(-1),[0,y,basketZ+.3],t),.016,colors.rope,4);
+        }
+        tri([0,y,top],[0,y-2.7,top-.4],[0,y,top-.85],navy);
+      }
+      const tip=L*.5+7.5,tipZ=5.5;
+      tube([0,L*.34,3.7],[0,tip,tipZ],.19,colors.dark,10,.07);
+      for(const [y,top]of [[L*.28,24.1],[0,27.7],[-L*.29,21.9]])
+        tube([0,y,top],[0,tip,tipZ],.027);
+      tube([0,tip,tipZ],[0,L*.41,.65],.035);
+      // Three overlapping head sails, each built as a curved triangular surface.
+      function jib(a,b,c){
+        sails.push({type:'jib'});
+        const n=12;
+        const point=(u,v)=>{
+          const p=a.map((x,i)=>x+(b[i]-x)*u+(c[i]-x)*v);
+          p[0]+=14*u*v*(1-u-v);return p;
+        };
+        for(let i=0;i<n;i++)for(let j=0;j<n-i;j++){
+          tri(point(i/n,j/n),point((i+1)/n,j/n),point(i/n,(j+1)/n),colors.cloth,3);
+          if(i+j<n-1)tri(point((i+1)/n,j/n),point((i+1)/n,(j+1)/n),point(i/n,(j+1)/n),colors.cloth,3);
+        }
+        tube(a,b,.025);tube(b,c,.025);tube(c,a,.025);
+      }
+      jib([0,L*.30,18.7],[0,tip-1.0,tipZ+.45],[.3,L*.42,6.2]);
+      jib([0,L*.30,14.4],[0,tip-3.4,tipZ+.20],[.6,L*.36,5.2]);
+      jib([0,L*.30,10.8],[0,tip-5.7,tipZ],[.7,L*.31,4.7]);
+      squareSail(L*.63,4.35,1.80,4.7,4.3);
+      jib([0,-L*.29,15.2],[0,-L*.46,12.8],[.8,-L*.43,8.2]);
+      // Extended beakhead and gilded figurehead.
+      for(const side of [-1,1]){
+        tube([side*1.75,L*.39,3.6],[side*.55,L*.58,3.0],.095,gold,6);
+        tube([side*1.75,L*.39,4.1],[side*.55,L*.58,3.5],.065,gold,5);
+      }
+      tube([0,L*.47,3.9],[0,L*.57,5.15],.29,gold,8,.15);
+      tube([0,L*.57,5.15],[0,L*.60,5.0],.15,lightGold,8,.11);
     }
-    if(ocean)fitOceanShip();else if(small)fitCaravel();else fitCarrack();
+    if(kind==='grand-carrack')fitFlagship();else if(ocean)fitOceanShip();else if(small)fitCaravel();else fitCarrack();
 
-    const model={vertices:new Float32Array(data),triangles:data.length/30};
+    const model={vertices:new Float32Array(data),triangles:data.length/30,sails};
     models.set(kind,model);
     return model;
   }
