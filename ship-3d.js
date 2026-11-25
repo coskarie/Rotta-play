@@ -12,9 +12,9 @@
   const hulls={
     caravel:{name:'소형 카라벨',wakeScale:caravelScale,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
     carrack:{name:'상업용 카라벨',wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
-    nau:{name:'나우',wakeScale:1.24,canvasSize:224,fallback:'nau-topdown-v1.png',fallbackWidth:46},
-    'ocean-carrack':{name:'카락',wakeScale:1.48,canvasSize:256,fallback:'ocean-carrack-topdown-v1.png',fallbackWidth:55},
-    'grand-carrack':{name:'대형 카락',wakeScale:1.70,canvasSize:288,fallback:'grand-carrack-topdown-v1.png',fallbackWidth:63}
+    nau:{name:'나우',wakeScale:1.24,canvasSize:224,fallback:'nau-topdown-v1.png',fallbackWidth:134},
+    'ocean-carrack':{name:'카락',wakeScale:1.48,canvasSize:256,fallback:'ocean-carrack-topdown-v1.png',fallbackWidth:142},
+    'grand-carrack':{name:'대형 카락',wakeScale:1.70,canvasSize:288,fallback:'grand-carrack-topdown-v1.png',fallbackWidth:139}
   };
   function buildModel(kind='carrack') {
     if(models.has(kind))return models.get(kind);
