@@ -13,8 +13,8 @@
     caravel:{name:'소형 카라벨',wakeScale:caravelScale,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
     carrack:{name:'상업용 카라벨',wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
     nau:{name:'나우',wakeScale:1.4,canvasSize:256,fallback:'nau-topdown-v2.png',fallbackWidth:80},
-    'ocean-carrack':{name:'카락',wakeScale:1.9,canvasSize:320,fallback:'ocean-carrack-topdown-v2.png',fallbackWidth:104},
-    'grand-carrack':{name:'대형 카락',wakeScale:2.8,canvasSize:384,fallback:'grand-carrack-topdown-v2.png',fallbackWidth:156}
+    'ocean-carrack':{name:'카락',wakeScale:1.9,canvasSize:320,fallback:'ocean-carrack-topdown-v3.png',fallbackWidth:104},
+    'grand-carrack':{name:'대형 카락',wakeScale:2.8,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:156}
   };
   function buildModel(kind='carrack') {
     if(models.has(kind))return models.get(kind);
@@ -75,7 +75,17 @@
     function squareSail(y,top,bottom,width,topWidth,cloth=colors.cloth){
       sails.push({type:'square',y,top,bottom,width});
       const nx=small||ocean?18:28,nz=small||ocean?14:22;
-      const p=(u,v)=>[(u-.5)*(topWidth+(width-topWidth)*v),y+.12+Math.sin(Math.PI*u)*Math.sin(Math.PI*v)*(ocean?width*.22:small?1.45:.95),top-(top-bottom)*v+.44*Math.sin(Math.PI*u)*v*v];
+      const curved=kind==='ocean-carrack'||kind==='grand-carrack';
+      const p=(u,v)=>{
+        const x=(u-.5)*(topWidth+(width-topWidth)*v);
+        if(!curved)return [x,y+.12+Math.sin(Math.PI*u)*Math.sin(Math.PI*v)*(ocean?width*.22:small?1.45:.95),top-(top-bottom)*v+.44*Math.sin(Math.PI*u)*v*v];
+        // A broad parabolic belly continues gently into the curved foot.
+        // The yard and both clews remain fixed, while the middle carries the wind.
+        const arch=4*u*(1-u),fill=3.2*v*(1-v)+.36*v;
+        const belly=width*.27*arch*fill;
+        const foot=Math.min((top-bottom)*.17,width*.105)*arch*v*v;
+        return [x,y+.12+belly,top-(top-bottom)*v+foot];
+      };
       for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)quad(p(i/nx,j/nz),p((i+1)/nx,j/nz),p((i+1)/nx,(j+1)/nz),p(i/nx,(j+1)/nz),cloth,3);
       tube([-topWidth/2-.25,y,top+.06],[topWidth/2+.25,y,top+.06],.065,colors.trim,8,.05);
       for(const u of [0,1]){for(let j=0;j<nz;j++)tube(p(u,j/nz),p(u,(j+1)/nz),.017,colors.trim,4);tube(p(u,1),[u===0?-1.65:1.65,y-1,2.25],.018)}
@@ -274,7 +284,7 @@
         const a=[0,y+span*.48,top*.44],b=[0,y-span*.52,top],c=[1.0,y-span*.43,deck+1.0],n=12;
         const point=(u,v)=>{
           const p=a.map((x,i)=>x+u*(b[i]-x)+v*(c[i]-x));
-          p[0]+=11*u*v*(1-u-v);return p;
+          p[0]+=(castle?15:11)*u*v*(1-u-v);return p;
         };
         for(let i=0;i<n;i++)for(let j=0;j<n-i;j++){
           tri(point(i/n,j/n),point((i+1)/n,j/n),point(i/n,(j+1)/n),colors.cloth,3);
@@ -417,7 +427,7 @@
         const n=12;
         const point=(u,v)=>{
           const p=a.map((x,i)=>x+(b[i]-x)*u+(c[i]-x)*v);
-          p[0]+=14*u*v*(1-u-v);return p;
+          p[0]+=18*u*v*(1-u-v);return p;
         };
         for(let i=0;i<n;i++)for(let j=0;j<n-i;j++){
           tri(point(i/n,j/n),point((i+1)/n,j/n),point(i/n,(j+1)/n),colors.cloth,3);
