@@ -10,11 +10,11 @@
   const models=new Map();
   const caravelScale=.76;
   const hulls={
-    caravel:{name:'소형 카라벨',wakeScale:caravelScale,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
-    carrack:{name:'상업용 카라벨',wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
-    nau:{name:'나우',wakeScale:2.8,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:156},
-    'ocean-carrack':{name:'카락',wakeScale:3.1,canvasSize:384,fallback:'high-carrack-topdown-v3.png',fallbackWidth:240},
-    'royal-galleon':{name:'왕실 갤리온',wakeScale:3.7,canvasSize:400,fallback:'royal-galleon-topdown.png',fallbackWidth:320}
+    caravel:{name:'소형 카라벨',sailingScale:1,seaRadius:18,wakeScale:0.76,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
+    carrack:{name:'상업용 카라벨',sailingScale:1,seaRadius:24,wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
+    nau:{name:'나우',sailingScale:0.42,seaRadius:28,wakeScale:1.15,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:66},
+    'ocean-carrack':{name:'카락',sailingScale:0.4,seaRadius:32,wakeScale:1.3,canvasSize:384,fallback:'high-carrack-topdown-v3.png',fallbackWidth:96},
+    'royal-galleon':{name:'왕실 갤리온',sailingScale:0.33,seaRadius:35,wakeScale:1.45,canvasSize:400,fallback:'royal-galleon-topdown.png',fallbackWidth:106}
   };
   function buildModel(kind='carrack') {
     if(models.has(kind))return models.get(kind);
@@ -1311,10 +1311,12 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
     wakePaints++;
   }
 
+  const screenScaleAt=zoom=>(.62+Math.max(0,Math.min(1,(zoom-1)/9))*.73)*Math.min(1,zoom/3);
   function drawShip(element,heading,pitch,zoom,speed=0,now=performance.now(),water=null,kind='carrack'){
     if(failed)return false;
+    const canvasSize=Math.min(192,hulls[kind].canvasSize);
     speed=speed>.025?Math.min(1,speed):0;
-    const screenScale=.62+Math.max(0,Math.min(1,(zoom-1)/9))*.73;
+    const screenScale=screenScaleAt(zoom);
     const radius=WAKE_SIZE/2*screenScale;
     const offscreen=water?.viewWidth>0&&water.viewHeight>0&&(
       water.screenX+radius<0||water.screenY+radius<0||
@@ -1335,7 +1337,7 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
         gameCanvas??=document.createElement('canvas');
         gameCanvas.className='ship-model';
         gameCanvas.setAttribute('aria-label','3D '+hulls[kind].name);
-        gameCanvas.style.width=gameCanvas.style.height=hulls[kind].canvasSize+'px';
+        gameCanvas.style.width=gameCanvas.style.height=canvasSize+'px';
         gameRenderer=createRenderer(gameCanvas,buildModel(kind));
         if(!gameRenderer){failed=true;return false}
         if(!gameKind)element.appendChild(gameCanvas);
@@ -1351,10 +1353,10 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
       lastMotionFrame=motionFrame;
     }
     // Use the sailing frame loop. Rocking and foam are sampled at 12 Hz.
-    const model=gameRenderer.draw({heading,pitch,size:hulls[kind].canvasSize,scale:4,waterline:0,...pose,ratio:Math.min(2,globalThis.devicePixelRatio||1)*Math.max(1,screenScale)});
+    const model=gameRenderer.draw({heading,pitch,size:canvasSize,scale:4*hulls[kind].sailingScale,waterline:0,...pose,ratio:Math.min(2,globalThis.devicePixelRatio||1)*Math.max(1,screenScale)});
     drawWake(element,heading,pitch,frame,model?speed:0,zoom,screenScale,water,hulls[kind].wakeScale);
     return model;
   }
-  const api={hulls,buildModel,createRenderer,drawShip,get stats(){return gameRenderer?{...gameRenderer.stats,wakePackets:wakePackets.length,wakePaints,wakeCoastTiles:coastTiles.size}:null}};
+  const api={hulls,screenScaleAt,buildModel,createRenderer,drawShip,get stats(){return gameRenderer?{...gameRenderer.stats,wakePackets:wakePackets.length,wakePaints,wakeCoastTiles:coastTiles.size}:null}};
   if(typeof module==='object')module.exports=api;else window.ROTTA_SHIP_3D=api;
 })();

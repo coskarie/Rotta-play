@@ -326,7 +326,7 @@ function bestSeaHeading(wx,wy,base=null){let best=base??0,bestClearance=-1,bestS
 function clearStraitGuide(status='idle'){MANUAL_SAIL.guide=null;MANUAL_SAIL.guideIndex=1;document.documentElement.dataset.straitAssist=status}
 function narrowWaterAhead(wx,wy,heading){const forward=seaClearance(wx,wy,heading,18);if(forward>=12)return false;return seaClearance(wx,wy,(heading+270)%360,32)<32&&seaClearance(wx,wy,(heading+90)%360,32)<32}
 function buildStraitGuide(wx,wy,heading){if(!COAST.ready||!preciseWaterAt(wx,wy,false))return null;const start=maskGridAt(COAST,wx,wy),radius=48,minX=Math.max(1,start.x-radius),maxX=Math.min(COAST.w-2,start.x+radius),minY=Math.max(1,start.y-radius),maxY=Math.min(COAST.h-2,start.y+radius),width=maxX-minX+1,height=maxY-minY+1,size=width*height,index=(x,y)=>(y-minY)*width+x-minX,came=new Int32Array(size),steps=new Uint16Array(size),queue=new Int32Array(size),si=index(start.x,start.y),angle=heading*Math.PI/180,fx=Math.sin(angle),fy=-Math.cos(angle),dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];came.fill(-2);came[si]=-1;queue[0]=si;let head=0,tail=1,best=-1,bestScore=6;while(head<tail){const at=queue[head++],x=at%width+minX,y=Math.floor(at/width)+minY,point=maskWorldAt(COAST,x,y),vx=point.x-wx,vy=point.y-wy,forward=vx*fx+vy*fy,lateral=Math.abs(vx*fy-vy*fx);if(forward>6){const clearance=seaClearance(point.x,point.y,heading,32),score=forward*1.7-lateral*.72+clearance*.2-steps[at]*.04;if(score>bestScore){best=at;bestScore=score}}if(steps[at]>=radius)continue;for(const[dx,dy]of dirs){const nx=x+dx,ny=y+dy;if(nx<minX||ny<minY||nx>maxX||ny>maxY||Math.max(Math.abs(nx-start.x),Math.abs(ny-start.y))>radius)continue;const ni=index(nx,ny);if(came[ni]!==-2||!COAST.rawWater[ny*COAST.w+nx])continue;if(dx&&dy&&(!COAST.rawWater[y*COAST.w+nx]||!COAST.rawWater[ny*COAST.w+x]))continue;came[ni]=at;steps[ni]=steps[at]+1;queue[tail++]=ni}}if(best<0)return null;const points=[];for(let at=best;at!==-1;at=came[at])points.push(maskWorldAt(COAST,at%width+minX,Math.floor(at/width)+minY));points.reverse();points[0]={x:wx,y:wy};const path=EUROPE?EUROPE.nav.simplify(points):simplifyPath(points,3);if(path.length<2)return null;document.documentElement.dataset.straitAssist=`planned:${path.length}`;return path}
-function advanceStraitGuide(distance){const guide=MANUAL_SAIL.guide;if(!guide)return null;let x=state.shipX,y=state.shipY,remaining=distance;while(remaining>.0001&&MANUAL_SAIL.guideIndex<guide.length){const target=guide[MANUAL_SAIL.guideIndex],dx=target.x-x,dy=target.y-y,gap=Math.hypot(dx,dy);if(gap<.0001){MANUAL_SAIL.guideIndex++;continue}const step=Math.min(remaining,gap),nx=x+dx/gap*step,ny=y+dy/gap*step;if(!preciseWaterAt(nx,ny,false)||(EUROPE&&!waterLineClear({x:state.shipX,y:state.shipY},{x:nx,y:ny}))){clearStraitGuide('blocked');return null}x=nx;y=ny;remaining-=step;MANUAL_SAIL.heading=headingFromVector(dx,dy);if(step>=gap-.0001)MANUAL_SAIL.guideIndex++}if(MANUAL_SAIL.guideIndex>=guide.length)clearStraitGuide('complete');else document.documentElement.dataset.straitAssist='active';return{x,y}}
+function advanceStraitGuide(distance){const guide=MANUAL_SAIL.guide;if(!guide)return null;let x=state.shipX,y=state.shipY,remaining=distance;while(remaining>.0001&&MANUAL_SAIL.guideIndex<guide.length){const target=guide[MANUAL_SAIL.guideIndex],dx=target.x-x,dy=target.y-y,gap=Math.hypot(dx,dy);if(gap<.0001){MANUAL_SAIL.guideIndex++;continue}const step=Math.min(remaining,gap),nx=x+dx/gap*step,ny=y+dy/gap*step;if(!shipWaterAt(nx,ny)||(EUROPE&&!shipCourseClear({x:state.shipX,y:state.shipY},{x:nx,y:ny}))){clearStraitGuide('blocked');return null}x=nx;y=ny;remaining-=step;MANUAL_SAIL.heading=headingFromVector(dx,dy);if(step>=gap-.0001)MANUAL_SAIL.guideIndex++}if(MANUAL_SAIL.guideIndex>=guide.length)clearStraitGuide('complete');else document.documentElement.dataset.straitAssist='active';return{x,y}}
 function connectedOffshoreCourse(sx,sy){const start=maskGridAt(COAST,sx,sy),queue=[{x:start.x,y:start.y,d:0}],seen=new Set([start.y*COAST.w+start.x]),dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]],radius=72;let best=null,bestScore=-Infinity;for(let qi=0;qi<queue.length;qi++){const cell=queue[qi];if(cell.d>radius)continue;if(cell.d%3===0){const point=maskWorldAt(COAST,cell.x,cell.y),open=bestSeaHeading(point.x,point.y),score=open.clearance-cell.d*.28;if(score>bestScore){best={x:point.x,y:point.y,heading:open.heading,clearance:open.clearance,offset:Math.hypot(point.x-sx,point.y-sy)};bestScore=score;if(open.clearance>=96)return best}}for(const[dx,dy]of dirs){const nx=cell.x+dx,ny=cell.y+dy;if(nx<1||ny<1||nx>=COAST.w-1||ny>=COAST.h-1||Math.max(Math.abs(nx-start.x),Math.abs(ny-start.y))>radius)continue;const key=ny*COAST.w+nx;if(seen.has(key)||!COAST.rawWater[key])continue;if(dx&&dy&&(!COAST.rawWater[cell.y*COAST.w+nx]||!COAST.rawWater[ny*COAST.w+cell.x]))continue;seen.add(key);queue.push({x:nx,y:ny,d:cell.d+1})}}return best}
 function nearestOpenSeaCourse(sx,sy){const start=maskGridAt(COAST,sx,sy);for(let radius=18;radius<=180;radius+=6){let best=null;const test=(x,y)=>{if(x<1||y<1||x>=COAST.w-1||y>=COAST.h-1||!COAST.rawWater[y*COAST.w+x])return;const point=maskWorldAt(COAST,x,y);for(let heading=0;heading<360;heading+=45){const clearance=seaClearance(point.x,point.y,heading);if(!best||clearance>best.clearance)best={x:point.x,y:point.y,heading,clearance,offset:Math.hypot(point.x-sx,point.y-sy)}}};for(let d=-radius;d<=radius;d+=6){test(start.x+d,start.y-radius);test(start.x+d,start.y+radius);test(start.x-radius,start.y+d);test(start.x+radius,start.y+d)}if(best&&best.clearance>=48)return best}return null}
 function departureCourse(port){if(EUROPE)return{x:port.navX,y:port.navY,heading:port.departureHeading??0,clearance:24,offset:0};if(!port||!COAST.ready)return null;const sx=port.navX??port.x,sy=port.navY??port.y,cx=port.coastX??port.x,cy=port.coastY??port.y,base=headingFromVector(sx-cx,sy-cy);let course=bestSeaHeading(sx,sy,base);course={x:sx,y:sy,heading:course.heading,clearance:course.clearance,offset:0};if(course.clearance<18){const open=bestSeaHeading(sx,sy);if(open.clearance>course.clearance)course={x:sx,y:sy,heading:open.heading,clearance:open.clearance,offset:0}}if(course.clearance<18){const offshore=connectedOffshoreCourse(sx,sy);if(offshore&&offshore.clearance>course.clearance)course=offshore}if(course.clearance<18){const openSea=nearestOpenSeaCourse(sx,sy);if(openSea&&openSea.clearance>course.clearance)course=openSea}return course}
@@ -841,6 +841,47 @@ function updatePortDiscoveries(force=false){
  }
  return found;
 }
+function sailingHull(){
+ const tier=Math.max(1,Math.min(5,Math.trunc(Number(window.ROTTA_SHIPYARD?.tier(state)??state.ship?.tier)||1)));
+ return window.ROTTA_SHIP_3D?.hulls?.[['caravel','carrack','nau','ocean-carrack','royal-galleon'][tier-1]];
+}
+const SHIP_SEA_ROOM=new Map();
+function shipSeaRadius(){
+ if(!EUROPE)return 0;
+ const api=window.ROTTA_SHIP_3D;
+ return (sailingHull()?.seaRadius||0)*(api?.screenScaleAt?.(state.zoom)??1)/state.zoom;
+}
+function shipWaterAt(x,y){
+ if(!preciseWaterAt(x,y,false))return false;
+ const radius=shipSeaRadius();if(!radius)return true;
+ // Check every coastal mask cell touched by the hull's swept rotation envelope.
+ const r=Math.ceil(radius*4)/4,cx=Math.floor(x),cy=Math.floor(y),key=cx+':'+cy+':'+r;
+ if(SHIP_SEA_ROOM.has(key))return SHIP_SEA_ROOM.get(key);
+ let safe=true;
+ for(let dy=-Math.ceil(r);dy<=Math.ceil(r)&&safe;dy++)for(let dx=-Math.ceil(r);dx<=Math.ceil(r);dx++){
+  if(Math.hypot(Math.max(0,Math.abs(dx)-1),Math.max(0,Math.abs(dy)-1))>r)continue;
+  if(!preciseWaterAt(cx+dx+.5,cy+dy+.5,false)){safe=false;break}
+ }
+ if(SHIP_SEA_ROOM.size>=1024)SHIP_SEA_ROOM.clear();
+ SHIP_SEA_ROOM.set(key,safe);return safe;
+}
+function shipCourseClear(a,b){
+ if(!waterLineClear(a,b))return false;
+ const length=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(length));
+ for(let i=1;i<=steps;i++)if(!shipWaterAt(a.x+(b.x-a.x)*i/steps,a.y+(b.y-a.y)*i/steps))return false;
+ return true;
+}
+let shipSeaRoomAttempt='';
+function ensureShipSeaRoom(){
+ if(!EUROPE||!COAST.ready||!shipSeaRadius()||shipWaterAt(state.shipX,state.shipY))return;
+ const attempt=Math.floor(state.shipX)+':'+Math.floor(state.shipY)+':'+shipSeaRadius().toFixed(2);
+ if(attempt===shipSeaRoomAttempt)return;shipSeaRoomAttempt=attempt;
+ const origin={x:state.shipX,y:state.shipY};
+ for(let r=1;r<=64;r++)for(let i=0;i<32;i++){
+  const angle=i*Math.PI/16,x=origin.x+Math.cos(angle)*r,y=origin.y+Math.sin(angle)*r;
+  if(shipWaterAt(x,y)&&waterLineClear(origin,{x,y})){shipSeaRoomAttempt='';setSailingPosition(x,y);return}
+ }
+}
 function positionSailingShip(){
  const ship=NAV_RENDER.ship;
  NAV_RENDER.traffic?.setPlayer(state.shipY);
@@ -894,7 +935,7 @@ function setZoom(value,anchor=null,departureFrame=false){
  }
  state.zoom=next;window.ROTTA_CLOUDS?.sync(NAV_RENDER.viewport,state.zoom);
  if(active&&w){state.camX=ax-w/2-(worldX-state.shipX)*next;state.camY=ay-h/2-(worldY-state.shipY)*next}
- $('#zoomRange').value=Math.max(1,state.zoom);$('#zoomText').textContent=`${state.zoom.toFixed(1)}×`;const world=NAV_RENDER.world,zoomProgress=Math.max(0,(state.zoom-1)/9),worldOverview=state.zoom<=1.05,portLogoScale=.4+zoomProgress*.44,shipScreenScale=.62+zoomProgress*.73,lowDetail=!EUROPE&&(state.zoom<=2.5||!NAV_RENDER.vectorReady),wasLow=world.classList.contains('low-detail');world.style.setProperty('--inverse-zoom',1/state.zoom);world.style.setProperty('--ship-scale',shipScreenScale/state.zoom);world.style.setProperty('--port-logo-scale',portLogoScale);world.style.setProperty('--land-edge-width',`${Math.max(.42,1.35/state.zoom).toFixed(2)}px`);world.style.setProperty('--route-width',`${Math.max(.4,1.9/state.zoom).toFixed(2)}px`);document.documentElement.dataset.shipScreenScale=shipScreenScale.toFixed(3);world.classList.toggle('low-detail',lowDetail);world.classList.toggle('world-overview',worldOverview);if(NAV_RENDER.annotations){const overlay=NAV_RENDER.annotations;overlay.style.setProperty('--ship-scale',shipScreenScale);overlay.style.setProperty('--port-logo-scale',portLogoScale);overlay.classList.toggle('world-overview',worldOverview);}if(wasLow&&!lowDetail){world.classList.add('vector-refresh');requestAnimationFrame(()=>requestAnimationFrame(()=>world.classList.remove('vector-refresh')))}updateCamera()}
+ $('#zoomRange').value=Math.max(1,state.zoom);$('#zoomText').textContent=`${state.zoom.toFixed(1)}×`;const world=NAV_RENDER.world,zoomProgress=Math.max(0,(state.zoom-1)/9),worldOverview=state.zoom<=1.05,portLogoScale=.4+zoomProgress*.44,shipScreenScale=window.ROTTA_SHIP_3D?.screenScaleAt?.(state.zoom)??(.62+zoomProgress*.73),lowDetail=!EUROPE&&(state.zoom<=2.5||!NAV_RENDER.vectorReady),wasLow=world.classList.contains('low-detail');world.style.setProperty('--inverse-zoom',1/state.zoom);world.style.setProperty('--ship-scale',shipScreenScale/state.zoom);world.style.setProperty('--port-logo-scale',portLogoScale);world.style.setProperty('--land-edge-width',`${Math.max(.42,1.35/state.zoom).toFixed(2)}px`);world.style.setProperty('--route-width',`${Math.max(.4,1.9/state.zoom).toFixed(2)}px`);document.documentElement.dataset.shipScreenScale=shipScreenScale.toFixed(3);world.classList.toggle('low-detail',lowDetail);world.classList.toggle('world-overview',worldOverview);if(NAV_RENDER.annotations){const overlay=NAV_RENDER.annotations;overlay.style.setProperty('--ship-scale',shipScreenScale);overlay.style.setProperty('--port-logo-scale',portLogoScale);overlay.classList.toggle('world-overview',worldOverview);}if(wasLow&&!lowDetail){world.classList.add('vector-refresh');requestAnimationFrame(()=>requestAnimationFrame(()=>world.classList.remove('vector-refresh')))}updateCamera()}
 function zoomWheel(e){if(!$('#sailingView').classList.contains('active'))return;e.preventDefault();const rect=NAV_RENDER.viewport.getBoundingClientRect();setZoom(state.zoom+(e.deltaY<0?.5:-.5),{x:e.clientX-rect.left,y:e.clientY-rect.top})}
 function syncViewportMetrics(){NAV_RENDER.width=NAV_RENDER.viewport.clientWidth;NAV_RENDER.height=NAV_RENDER.viewport.clientHeight}
 function clampCamera(){const w=NAV_RENDER.width,h=NAV_RENDER.height;if(!w||DEPARTURE_ZOOM.active)return;const minX=w/2+(state.shipX-WORLD.w)*state.zoom,maxX=state.shipX*state.zoom-w/2,minY=h/2+(state.shipY-WORLD.h)*state.zoom,maxY=state.shipY*state.zoom-h/2;state.camX=Math.max(minX,Math.min(maxX,state.camX));state.camY=Math.max(minY,Math.min(maxY,state.camY))}
@@ -921,6 +962,7 @@ function projectChartPosition(worldX,worldY,onLand=false,withDepth=false){
  return position;
 }
 function updateCamera(){
+ ensureShipSeaRoom();
  const w=NAV_RENDER.width,h=NAV_RENDER.height;if(!w)return;
  clampCamera();
  const tx=w/2-state.shipX*state.zoom+state.camX,ty=h/2-state.shipY*state.zoom+state.camY;
@@ -1145,7 +1187,7 @@ function retargetSailingPath(destination){
 function setSailingPosition(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))return false;if(!CAMERA_VIEW.followShip){state.camX+=(x-state.shipX)*state.zoom;state.camY+=(y-state.shipY)*state.zoom;}state.shipX=x;state.shipY=y;}
 function startManualSailing(){EUROPE_ROUTE_REQUEST++;stopDepartureZoom();dismissArrivalPrompt();if(CAMERA_VIEW.autoFollow)stopAutoCamera();if(MANUAL_SAIL.frame)return;MANUAL_SAIL.last=0;NAV_RENDER.dockAt=-Infinity;NAV_RENDER.dockId=undefined;MANUAL_SAIL.frame=requestAnimationFrame(manualSailFrame)}
 function manualSailFrame(now){MANUAL_SAIL.frame=0;if(state.traveling||!$('#sailingView').classList.contains('active')){clearManualKeys();$('#speedText').textContent='0.0 kn';return}if(!EUROPE&&MANUAL_SAIL.last&&now-MANUAL_SAIL.last<1000/30-1){MANUAL_SAIL.frame=requestAnimationFrame(manualSailFrame);return}if(!MANUAL_SAIL.last)MANUAL_SAIL.last=now;const dt=Math.min(.05,(now-MANUAL_SAIL.last)/1000),steer=(MANUAL_SAIL.keys.has('d')?1:0)-(MANUAL_SAIL.keys.has('a')?1:0);MANUAL_SAIL.last=now;if(MANUAL_SAIL.keys.has('s'))MANUAL_SAIL.velocity=Math.max(0,MANUAL_SAIL.velocity-MANUAL_SAIL.brake*dt);else if(MANUAL_SAIL.keys.has('w'))MANUAL_SAIL.velocity=Math.min(MANUAL_SAIL.maxSpeed,MANUAL_SAIL.velocity+MANUAL_SAIL.acceleration*dt);if(steer){if(MANUAL_SAIL.guide)clearStraitGuide('manual');MANUAL_SAIL.heading=(MANUAL_SAIL.heading+steer*MANUAL_SAIL.turnRate*dt+360)%360}if(MANUAL_SAIL.velocity>.001){const angle=MANUAL_SAIL.heading*Math.PI/180;moveManualShip(Math.sin(angle)*MANUAL_SAIL.velocity*dt,-Math.cos(angle)*MANUAL_SAIL.velocity*dt)}else{$('#speedText').textContent='0.0 kn';updateShip()}if(MANUAL_SAIL.keys.size||MANUAL_SAIL.velocity>.001)MANUAL_SAIL.frame=requestAnimationFrame(manualSailFrame);else MANUAL_SAIL.last=0}
-function moveManualShip(dx,dy){const ox=state.shipX,oy=state.shipY,distance=Math.hypot(dx,dy),manualSteer=MANUAL_SAIL.keys.has('a')||MANUAL_SAIL.keys.has('d'),tryMove=(x,y)=>x>0&&y>0&&x<WORLD.w&&y<WORLD.h&&preciseWaterAt(x,y,false)&&(!EUROPE||waterLineClear({x:ox,y:oy},{x,y}));let nx=ox+dx,ny=oy+dy,guided=MANUAL_SAIL.guide&&advanceStraitGuide(distance);if(!guided&&!manualSteer&&narrowWaterAhead(ox,oy,MANUAL_SAIL.heading)){MANUAL_SAIL.guide=buildStraitGuide(ox,oy,MANUAL_SAIL.heading);MANUAL_SAIL.guideIndex=1;guided=MANUAL_SAIL.guide&&advanceStraitGuide(distance)}if(guided){nx=guided.x;ny=guided.y}else if(!tryMove(nx,ny)){if(tryMove(ox+dx,oy)){nx=ox+dx;ny=oy}else if(tryMove(ox,oy+dy)){nx=ox;ny=oy+dy}else{MANUAL_SAIL.velocity*=.25;if(EUROPE)positionSailingShip();document.documentElement.dataset.straitAssist='stopped';return}}setSailingPosition(nx,ny);consumeVoyageDistance(Math.hypot(nx-ox,ny-oy));updateCamera();updateShip()}
+function moveManualShip(dx,dy){const ox=state.shipX,oy=state.shipY,distance=Math.hypot(dx,dy),manualSteer=MANUAL_SAIL.keys.has('a')||MANUAL_SAIL.keys.has('d'),tryMove=(x,y)=>x>0&&y>0&&x<WORLD.w&&y<WORLD.h&&shipWaterAt(x,y)&&(!EUROPE||shipCourseClear({x:ox,y:oy},{x,y}));let nx=ox+dx,ny=oy+dy,guided=MANUAL_SAIL.guide&&advanceStraitGuide(distance);if(!guided&&!manualSteer&&narrowWaterAhead(ox,oy,MANUAL_SAIL.heading)){MANUAL_SAIL.guide=buildStraitGuide(ox,oy,MANUAL_SAIL.heading);MANUAL_SAIL.guideIndex=1;guided=MANUAL_SAIL.guide&&advanceStraitGuide(distance)}if(guided){nx=guided.x;ny=guided.y}else if(!tryMove(nx,ny)){if(tryMove(ox+dx,oy)){nx=ox+dx;ny=oy}else if(tryMove(ox,oy+dy)){nx=ox;ny=oy+dy}else{MANUAL_SAIL.velocity*=.25;if(EUROPE)positionSailingShip();document.documentElement.dataset.straitAssist='stopped';return}}setSailingPosition(nx,ny);consumeVoyageDistance(Math.hypot(nx-ox,ny-oy));updateCamera();updateShip()}
 const DOCKING_RADIUS=20;
 const DOCK_SELECTION={portId:null};
 function canDockAt(id){const p=PORTS[id];if(!p)return false;const ship={x:state.shipX,y:state.shipY},dock={x:p.navX??p.x,y:p.navY??p.y};return (dock.x-ship.x)**2+(dock.y-ship.y)**2<DOCKING_RADIUS**2&&waterLineClear(ship,dock);}
@@ -1299,7 +1341,13 @@ function sailPath(path,portId,{initialSpeed=0,retarget=false,confirmArrival=fals
   AUTO_SAIL.route.segmentIndex=segmentIndex;
   const seg=segments[segmentIndex],local=Math.max(0,Math.min(1,(travelled-seg.start)/seg.len));
   MANUAL_SAIL.heading=(Math.atan2(seg.b.x-seg.a.x,-(seg.b.y-seg.a.y))*180/Math.PI+360)%360;
-  setSailingPosition(seg.a.x+(seg.b.x-seg.a.x)*local,seg.a.y+(seg.b.y-seg.a.y)*local);advanceAutoCamera(now);updateCamera();updateShip();
+  const next={x:seg.a.x+(seg.b.x-seg.a.x)*local,y:seg.a.y+(seg.b.y-seg.a.y)*local};
+  if(EUROPE&&!shipCourseClear({x:state.shipX,y:state.shipY},next)){
+   cancelAutoSail();if(portId&&canDockAt(portId))finishCourse(portId,days);
+   else toast('선체가 해안에 닿지 않도록 정지했습니다. 바다 쪽으로 항로를 잡아주세요.');
+   updateCamera();updateShip();return;
+  }
+  setSailingPosition(next.x,next.y);advanceAutoCamera(now);updateCamera();updateShip();
   if(sample.complete){arrived=true;AUTO_SAIL.route=null;finishCourse(portId,days);}
   if(!arrived||CAMERA_VIEW.autoFollow)requestAnimationFrame(frame);
  }
