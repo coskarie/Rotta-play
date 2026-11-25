@@ -849,13 +849,16 @@ function positionSailingShip(){
  ship.hidden=!visible;
  if(!visible)return;
  const speed=(state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity)/MANUAL_SAIL.maxSpeed;
- const starter=(state.ship?.tier??1)===1;
- const hullModel=starter?'caravel':'carrack';
+ const hullTier=Math.max(1,Math.min(5,Math.trunc(Number(state.ship?.tier)||1)));
+ const hullModel=['caravel','carrack','nau','ocean-carrack','grand-carrack'][hullTier-1];
  const model3d=!!(EUROPE&&window.ROTTA_SHIP_3D?.drawShip(ship,MANUAL_SAIL.heading,NAV_RENDER.projection?.degrees||0,state.zoom,speed,undefined,{x:state.shipX,y:state.shipY,project:projectChartPosition,unproject:chartWorldPosition,isWater:EUROPE.nav?.water,screenX:x,screenY:y,viewWidth:NAV_RENDER.width,viewHeight:NAV_RENDER.height},hullModel));
  if(!model3d&&NAV_RENDER.fallbackHull!==hullModel){
   const image=$('#ship .merchant-ship');
-  image.src=starter?'assets/caravel-topdown-v1.png':'assets/carrack-topdown-v1.png?v=1';
-  image.alt=starter?'위에서 내려다본 소형 카라벨':'위에서 내려다본 카락 무역선';
+  const fallback=window.ROTTA_SHIP_3D?.hulls?.[hullModel]??{fallback:'carrack-topdown-v1.png?v=1',name:'상업용 카라벨',fallbackWidth:36};
+  image.src='assets/'+fallback.fallback;
+  image.alt='위에서 내려다본 '+fallback.name;
+  image.style.width=fallback.fallbackWidth+'px';
+  image.style.marginLeft=(36-fallback.fallbackWidth)/2+'px';
   NAV_RENDER.fallbackHull=hullModel;
  }
  if(ship.classList.contains('has-3d-model')!==model3d)ship.classList.toggle('has-3d-model',model3d);
