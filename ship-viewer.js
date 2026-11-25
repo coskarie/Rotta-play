@@ -60,8 +60,8 @@
     schedule();
   }
   function reset(){
-    const galleon=kind==='royal-galleon';
-    heading.value=galleon?225:35;pitch.value=galleon?63:48;zoom.value=galleon?1.15:1;schedule();
+    const largeShip=kind==='royal-galleon'||kind==='ocean-carrack';
+    heading.value=largeShip?225:35;pitch.value=largeShip?63:48;zoom.value=largeShip?1.15:1;schedule();
   }
   buttons.forEach(button=>button.addEventListener('click',()=>selectHull(button.dataset.hull)));
   for(const input of [heading,pitch,zoom,sameScale])input.addEventListener('input',schedule);

@@ -13,16 +13,15 @@
     caravel:{name:'소형 카라벨',wakeScale:caravelScale,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
     carrack:{name:'상업용 카라벨',wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
     nau:{name:'나우',wakeScale:2.8,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:156},
-    'ocean-carrack':{name:'카락',wakeScale:3.1,canvasSize:384,fallback:'high-carrack-topdown.png',fallbackWidth:240},
+    'ocean-carrack':{name:'카락',wakeScale:3.1,canvasSize:384,fallback:'high-carrack-topdown-v2.png',fallbackWidth:240},
     'royal-galleon':{name:'왕실 갤리온',wakeScale:3.7,canvasSize:400,fallback:'royal-galleon-topdown.png',fallbackWidth:320}
   };
   function buildModel(kind='carrack') {
     if(models.has(kind))return models.get(kind);
     const small=kind==='caravel';
     const highCarrack=kind==='ocean-carrack';
-    const ocean={nau:{length:34,beam:4.0,stern:5.0,bow:3.85,deck:3.2},
-      'ocean-carrack':{length:39,beam:4.9,stern:8.0,bow:5.7,deck:3.8}}[kind];
-    const livery=kind==='nau'?[.085,.16,.21]:highCarrack?[.59,.38,.18]:colors.wood;
+    const ocean=kind==='nau'?{length:34,beam:4.0,stern:5.0,bow:3.85,deck:3.2}:null;
+    const livery=kind==='nau'?[.085,.16,.21]:colors.wood;
     const data=[],sails=[];
     const finishes=kind==='royal-galleon'?new Map():null;
     function tri(a,b,c,color,material=0) {
@@ -358,8 +357,8 @@
       for(const [a,b] of [[[0,12,38.1],sparTip],[[0,-1.9,41.1],[0,12,34.8]],[[0,-15.2,30.4],[0,-1.9,37.1]],[[0,-15.2,30.3],peak]])rod(a,b,.055,line);
     }
 
-    if(kind==='royal-galleon'){
-      buildGalleon();
+    if(kind==='royal-galleon'||highCarrack){
+      if(highCarrack)fitHighCarrack();else buildGalleon();
       const model={vertices:new Float32Array(data),triangles:data.length/30,sails};
       models.set(kind,model);return model;
     }
@@ -367,10 +366,6 @@
     const stations=kind==='nau'?
       [[-1,.56,5.0],[-.94,.76,5.0],[-.75,.93,4.70],[-.47,1,3.45],
        [0,.98,3.2],[.42,.87,3.32],[.67,.64,3.55],[.87,.34,3.95],[.97,.012,4.25]]
-        .map(([y,w,z])=>[y*ocean.length/2,w*ocean.beam,z]):ocean?
-      [[-1,.42,ocean.stern],[-.91,.75,ocean.stern],[-.66,.96,ocean.stern-.15],
-       [-.43,1,ocean.deck+.35],[0,.98,ocean.deck],[.42,.85,ocean.deck+.15],
-       [.66,.62,ocean.bow],[.87,.31,ocean.bow+.15],[.97,.015,ocean.bow+.4]]
         .map(([y,w,z])=>[y*ocean.length/2,w*ocean.beam,z]):small?
       [[-6,.66,2.06],[-5.2,1.26,2.00],[-3.9,1.55,1.88],[-2.1,1.71,1.48],[0,1.76,1.43],[1.8,1.61,1.49],[3.5,1.23,1.72],[4.9,.64,2.02],[5.8,.035,2.31]]:
       [[-6,.68,3.65],[-5.5,1.28,3.58],[-4.4,1.63,3.45],[-3.4,1.82,3.35],[-2.6,1.9,2.1],[-1.6,1.95,1.83],[0,1.93,1.8],[1.6,1.8,1.9],[2.5,1.55,2.18],[3.3,1.29,3.1],[4.2,.97,3.26],[5.1,.55,3.4],[5.8,.05,3.54]];
@@ -407,16 +402,14 @@
         const arch=4*u*(1-u),fill=3.2*v*(1-v)+.36*v;
         const belly=width*.27*arch*fill;
         const foot=Math.min((top-bottom)*.17,width*.105)*arch*v*v;
-        // A lightly braced yard and broad sewn panels catch the light on the high carrack.
-        const fold=highCarrack ? .16*Math.sin(14*Math.PI*u)*arch*Math.sin(Math.PI*v) : 0;
-        return [x,y+.12+belly+fold+(highCarrack?x*.23:0),top-(top-bottom)*v+foot];
+        return [x,y+.12+belly,top-(top-bottom)*v+foot];
       };
       for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)quad(p(i/nx,j/nz),p((i+1)/nx,j/nz),p((i+1)/nx,(j+1)/nz),p(i/nx,(j+1)/nz),cloth,3);
-      const yardHalf=topWidth/2+.25,yardOffset=highCarrack?yardHalf*.23:0;
-      tube([-yardHalf,y-yardOffset,top+.06],[yardHalf,y+yardOffset,top+.06],.065,colors.trim,8,.05);
+      const yardHalf=topWidth/2+.25;
+      tube([-yardHalf,y,top+.06],[yardHalf,y,top+.06],.065,colors.trim,8,.05);
       for(const u of [0,1]){for(let j=0;j<nz;j++)tube(p(u,j/nz),p(u,(j+1)/nz),.017,colors.trim,4);tube(p(u,1),[u===0?-1.65:1.65,y-1,2.25],.018)}
       for(let i=0;i<nx;i++)tube(p(i/nx,1),p((i+1)/nx,1),.018,colors.trim,4);
-      tube([0,y,top+1.1],[-topWidth/2,y-yardOffset,top],.017);tube([0,y,top+1.1],[topWidth/2,y+yardOffset,top],.017);
+      tube([0,y,top+1.1],[-topWidth/2,y,top],.017);tube([0,y,top+1.1],[topWidth/2,y,top],.017);
     }
     function fitCaravel(){
       // One broad course forward and a smaller lateen aft. Low rails keep the working deck open.
@@ -492,145 +485,266 @@
       }
       tube([0,9,6.4],[0,5.3,.5],.025);tube([0,-.3,14.7],[0,-5.8,3.7],.022);
     }
-    // The forward rig is tall and square. Two separate lateen masts leave the rising stern visible.
+    // Four-masted Portuguese merchant carrack. Model space is metres, with the bow at +Y.
     function fitHighCarrack(){
-      const oak=[.53,.32,.14],honey=[.75,.50,.23],gilt=[.94,.73,.36];
-      const blue=[.105,.21,.28],glass=[.09,.17,.20],linen=[.96,.93,.84];
-      const sidePoint=(y,t,side,out=0)=>{
-        const p=hull(y,t,side);p[0]+=side*out;return p;
-      };
-      for(const side of [-1,1]){
-        rail(sternY,-12,side);rail(-9,8.4,side);rail(11,bowY,side);
-        // Continuous bands follow both the tumble of the hull and its rising sheer.
-        for(let i=0;i<32;i++){
-          const y=sternY+hullLength*i/32,next=sternY+hullLength*(i+1)/32;
-          quad(sidePoint(y,.78,side,.025),sidePoint(next,.78,side,.025),
-            sidePoint(next,.98,side,.025),sidePoint(y,.98,side,.025),blue);
-          for(const t of [.49,.72,.78,.98]){
-            tube(sidePoint(y,t,side,.05),sidePoint(next,t,side,.05),t===.49?.105:.075,honey,6);
+      const oak=[.445,.252,.139],deck=[.61,.424,.278],pitch=[.204,.133,.105],honey=[.71,.489,.259];
+      const red=[.52,.137,.095],gold=[.86,.635,.34],rope=[.355,.292,.218],glass=[.205,.30,.31];
+      const ivory=[.956,.897,.76],pennant=[.65,.15,.095];
+      const rod=(a,b,r,c=rope,n=5)=>tube(a,b,r,c,n);
+      // A rising keel and flared stern tuck in under the overhanging castles.
+      const sections=[[-19.6,2.73,7.63],[-18.3,3.47,7.52],[-16,4.18,7.05],[-13,4.77,6.46],
+        [-10,5.05,5.81],[-7,5.20,5.25],[-2,5.26,4.96],[3,5.19,5.00],[8,4.92,5.27],
+        [12,4.27,5.69],[15,3.24,6.22],[17.4,2.04,6.87],[19.1,.085,7.64]];
+      function section(y){
+        let i=1;while(i<sections.length-1&&sections[i][0]<y)i++;
+        const a=sections[i-1],b=sections[i],t=Math.max(0,Math.min(1,(y-a[0])/(b[0]-a[0])));
+        return [a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+      }
+      function shell(y,t,s,off=0){
+        const [w,h]=section(y),u=Math.min(1,Math.abs(y/19.6));
+        const keel=-3.85+1.8*u**3,rake=(y<0?2.0:-4.0)*u**4*(1-t)**1.46;
+        return [s*(w*Math.sin(t*Math.PI*.565)**.76+off),y+rake,keel+(h-keel)*t];
+      }
+      const railPoint=(y,s,h)=>{const a=shell(y,1,s);a[2]+=h;return a};
+      const strip=[...sections.map(s=>s[0]),...Array.from({length:38},(_,i)=>i-19)].sort((a,b)=>a-b).filter((v,i,a)=>!i||v>a[i-1]);
+      for(let i=1;i<strip.length;i++){
+        const a=strip[i-1],b=strip[i];
+        for(const s of [-1,1]){
+          for(let k=0;k<16;k++){
+            const p=[shell(a,k/16,s),shell(b,k/16,s),shell(b,(k+1)/16,s),shell(a,(k+1)/16,s)];
+            if(s<0)p.reverse();
+            quad(...p,k<4?[.37,.23,.15]:k===11||k===13?pitch:oak,6);
           }
+
         }
-        for(let y=sternY+.8;y<bowY-1.2;y+=1.2){
-          const left=sidePoint(y,.88,side,.10),right=sidePoint(y+.85,.88,side,.10);
-          const peak=sidePoint(y+.43,.96,side,.13),base=sidePoint(y+.43,.80,side,.13);
-          tri(left,peak,base,gilt);tri(peak,right,base,honey);
-        }
-        for(let y=-15.5;y<13;y+=1.58){
-          const corner=(dy,t)=>sidePoint(y+dy,t,side,.10);
-          quad(corner(-.32,.53),corner(.32,.53),corner(.32,.66),corner(-.32,.66),glass);
-          tube(corner(-.37,.67),corner(.37,.67),.065,gilt,5);
+        quad(shell(a,1,-1),shell(a,1,1),shell(b,1,1),shell(b,1,-1),deck,7);
+      }
+      // Sweep a single ring through each join so the rubbing strakes and
+      // external frames follow the rounded hull without cracks between timbers.
+      function timber(spine,r,c,reference){
+        let previous;
+        for(let i=0;i<spine.length;i++){
+          const axis=norm(sub(spine[Math.min(i+1,spine.length-1)],spine[Math.max(0,i-1)]));
+          const u=norm(cross(axis,reference)),v=cross(axis,u);
+          const ring=Array.from({length:6},(_,k)=>spine[i].map((n,j)=>n+r*(u[j]*Math.cos(k*TAU/6)+v[j]*Math.sin(k*TAU/6))));
+          if(previous)for(let k=0;k<6;k++){const next=(k+1)%6;quad(previous[k],previous[next],ring[next],ring[k],c)}
+          previous=ring;
         }
       }
-      // Faceted, overhanging stern galleries. Each window sits on its own outer face.
-      for(let tier=0;tier<2;tier++){
-        const back=sternY-.55+tier*.48,front=-12.5-tier*.85;
-        const z=7.85+tier*1.53,w=3.65-tier*.28;
-        const plan=[[-w*.76,back],[w*.76,back],[w,back+.86],[w*.94,front],[-w*.94,front],[-w,back+.86]];
-        for(let i=0;i<plan.length;i++){
-          const a=plan[i],b=plan[(i+1)%plan.length];
-          const point=(u,h)=>[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,z+h];
-          quad(point(0,0),point(1,0),point(1,1.52),point(0,1.52),oak,1);
-          tri([0,(back+front)/2,z],point(1,0),point(0,0),oak,1);
-          tri([0,(back+front)/2,z+1.52],point(0,1.52),point(1,1.52),colors.deck,2);
-          const len=Math.hypot(b[0]-a[0],b[1]-a[1]),bays=Math.max(1,Math.round(len/.85));
-          const outer=(u,h)=>{const p=point(u,h);p[0]+=(b[1]-a[1])*.06/len;p[1]-=(b[0]-a[0])*.06/len;return p};
-          for(let j=0;j<bays;j++){
-            const lo=(j+.15)/bays,hi=(j+.85)/bays,mid=(lo+hi)/2;
-            const sill=.32,lintel=1.02;
-            quad(outer(lo,sill),outer(hi,sill),outer(hi,lintel),outer(lo,lintel),glass);
-            tri(outer(lo,lintel),outer(hi,lintel),outer(mid,1.27),glass);
-            tube(outer(lo,sill),outer(lo,lintel),.056,gilt,5);
-            tube(outer(lo,lintel),outer(mid,1.29),.055,gilt,5);
-            tube(outer(mid,1.29),outer(hi,lintel),.055,gilt,5);
-            tube(outer(hi,lintel),outer(hi,sill),.056,gilt,5);
+      for(const side of [-1,1])for(const [t,r,c] of [[.50,.119,pitch],[.72,.125,pitch],[.86,.10,honey],[1,.138,pitch]])
+        timber(strip.map(y=>shell(y,t,side,.037)),r,c,[0,0,1]);
+      for(const [y,stern] of [[-19.6,true],[19.1,false]])for(let k=0;k<16;k++){
+        const p=[shell(y,k/16,-1),shell(y,k/16,1),shell(y,(k+1)/16,1),shell(y,(k+1)/16,-1)];
+        if(!stern)p.reverse();quad(...p,oak,6);
+      }
+      // The quarter galleries are lofted from the actual deck perimeter. Their
+      // upper floor is shorter and narrower, with the aftmost bays carried on knees.
+      function castle(y0,y1,height,upper=false,fore=false){
+        const ys=Array.from({length:13},(_,i)=>y0+(y1-y0)*i/12);
+        function corner(y,s,t){
+          const base=upper?1.52:0,w=section(y)[0]*.979-(upper?.36:.02);
+          return [s*(w-.32*t),y+(fore?.36:-.44)*t,section(y)[1]+base+height*t];
+        }
+        function panel(a,b,c,d,ink){
+          quad(a,b,c,d,ink,ink===oak?6:0);
+        }
+        for(let i=1;i<ys.length;i++){
+          const a=ys[i-1],b=ys[i];
+          for(const s of [-1,1]){
+            const p=(y,t,offset=0)=>{const v=corner(y,s,t);v[0]+=s*offset;return v};
+            const sideWall=[p(a,0),p(b,0),p(b,1),p(a,1)];if(s<0)sideWall.reverse();
+            panel(...sideWall,upper?red:oak);
+            if(i%2===0||upper){
+              panel(p(a+.12,.27,.009),p(b-.12,.27,.009),p(b-.15,.79,.009),p(a+.15,.79,.009),glass);
+              rod(mix(p(a+.12,.27,.009),p(b-.12,.27,.009),.5),
+                mix(p(a+.15,.79,.009),p(b-.15,.79,.009),.5),.038,honey);
+            }
+            rod(p(a,.12,.025),p(a,.95,.025),.076,pitch);
+            for(const t of [.17,.98])rod(p(a,t,.055),p(b,t,.055),t>.9?.119:.067,t>.9?pitch:honey);
+            rod(p(a,1),[p(a,1)[0],p(a,1)[1],p(a,1)[2]+.48],.056,honey);
+            const top=(y)=>{const v=p(y,1);v[2]+=.48;return v};
+            rod(top(a),top(b),.068,pitch);
           }
-          for(const h of [.19,1.46])tube(outer(0,h),outer(1,h),.11,honey,6);
-          if(tier===1){
-            tube(point(0,1.52),point(0,2.12),.07,gilt,6);
-            tube(point(0,2.12),point(1,2.12),.08,honey,6);
+          quad(corner(a,-1,1),corner(a,1,1),corner(b,1,1),corner(b,-1,1),deck,7);
+        }
+        for(const y of [y0,y1]){
+          const face=(u,t,off=0)=>{const v=mix(corner(y,-1,t),corner(y,1,t),u);v[1]+=(y===y0?-1:1)*off;return v};
+          const wall=[face(0,0),face(1,0),face(1,1),face(0,1)];if(y===y1)wall.reverse();panel(...wall,oak);
+          const end=y===y0&&!fore;
+          if(end)for(let j=0;j<5;j++){
+            const a=(j+.13)/5,b=(j+.87)/5,m=(a+b)/2;
+            panel(face(a,.24,.034),face(b,.24,.034),face(b,.68,.034),face(a,.68,.034),glass);
+            tri(face(a,.68,.034),face(b,.68,.034),face(m,.87,.034),glass);
+            for(const [lo,hi] of [[[a,.22],[a,.69]],[[a,.69],[m,.88]],[[m,.88],[b,.69]],[[b,.69],[b,.22]],[[m,.23],[m,.82]]])
+              rod(face(...lo,.068),face(...hi,.068),.037,honey);
           }
+          for(const t of [.15,.97])rod(face(0,t,.048),face(1,t,.048),.095,end?gold:pitch);
         }
       }
-      box(0,sternY-.28,-.75,.42,.65,8.8,oak,1);
-      for(const x of [-2.5,2.5]){
-        tube([x,sternY,10.92],[x,sternY,12],.09,honey);
-        tube([x,sternY,11.6],[x,sternY,12.15],.25,gilt,6,.19);
-      }
-      for(const y of [-6.2,3.7]){
-        const z=station(y)[1]+.2;
-        box(0,y,z,2.75,2.0,.15,colors.dark);
-        for(let i=-1.2;i<=1.2;i+=.24)box(i,y,z+.15,.075,1.93,.06,honey);
-        for(let j=-.8;j<=.8;j+=.27)box(0,y+j,z+.20,2.55,.065,.05,oak);
-      }
-      // A clinker-built tender, thwart seats and stair to the raised quarterdeck.
-      const boatX=-2.5,boatZ=4.10;
-      for(let i=0;i<12;i++){
-        const end=(j,side)=>[boatX+side*.79*Math.sin(j*Math.PI/12),-4+j*.51,boatZ+.89];
-        for(const side of [-1,1]){
-          const a=end(i,side),b=end(i+1,side);
-          quad([boatX,a[1],boatZ],a,b,[boatX,b[1],boatZ],oak,1);
-          tube(a,b,.055,honey,5);
+      castle(-19.55,-9.9,1.52);castle(-19.47,-14.6,1.24,true);castle(11.6,18.25,1.03,false,true);
+      for(const s of [-1,1]){
+        for(let y=-9.8;y<11.3;y+=.86){
+          const yn=Math.min(11.6,y+.86);
+          rod(railPoint(y,s,.035),railPoint(y,s,.69),.068,honey);
+          for(const h of [.29,.68])rod(railPoint(y,s,h),railPoint(yn,s,h),h>.6?.083:.041,pitch);
+        }
+        for(let y=-17.4;y<16;y+=2.06){
+          const p=(t)=>shell(y,t,s,.065);
+          timber([.37,.54,.73,.94].map(p),.096,pitch,[0,1,0]);
+        }
+        // Small recessed ports and strakes follow each local section of planking.
+        for(let y=-15.2;y<13;y+=3.08){
+          const p=(dy,t)=>shell(y+dy,t,s,.021);
+          quad(p(-.36,.742),p(.36,.742),p(.36,.83),p(-.36,.83),pitch);
+          rod(p(-.39,.836),p(.39,.836),.063,honey);
         }
       }
-      for(const y of [-2.65,-1.2,.25])box(boatX,y,boatZ+.77,1.26,.21,.10,colors.deck,2);
-      for(let i=0;i<12;i++){
-        const y=-8.25-i*.43,z=station(y)[1]+.11;
-        box(2.45,y,z,1.0,.48,.12,colors.deck,2);
-        if(i%3===0)tube([2.98,y,z],[2.98,y,z+.7],.045,honey);
-        if(i<11)tube([2.98,y,z+.7],[2.98,y-.43,station(y-.43)[1]+.81],.055,honey);
-      }
-      // Swept beak rails converge beneath the long bowsprit.
-      for(const side of [-1,1]){
-        for(const h of [0,.62]){
-          const railStart=[side*2.55,14.8,5.35+h],elbow=[side*1.15,21,4.65+h],end=[side*.28,24.2,5.55+h];
-          tube(railStart,elbow,.14,honey);tube(elbow,end,.11,gilt);
-          if(h===0)for(let j=1;j<9;j++){
-            const p=mix(railStart,elbow,j/9);tube(p,[p[0],p[1],p[2]+.64],.06,gilt,5);
-          }
+      const blade=[[-17.93,-2.27],[-19.36,-2.38],[-20.03,4.95],[-19.92,6.11],[-19.40,6.13]];
+      for(const s of [-1,1])for(let j=1;j<blade.length-1;j++)
+        tri([s*.155,...blade[0]],[s*.155,...blade[s>0?j+1:j]],[s*.155,...blade[s>0?j:j+1]],oak,6);
+      for(let j=0;j<blade.length;j++){const a=blade[j],b=blade[(j+1)%blade.length];quad([-.155,...a],[.155,...a],[.155,...b],[-.155,...b],pitch)}
+      for(const s of [-1,1]){
+        for(let k=0;k<3;k++){
+          const h=k*.36;
+          const curve=t=>[s*(2.75*(1-t)**1.34+.16),15.9+7.03*t,5.77+h+.98*t+.84*t*t-.52*Math.sin(t*Math.PI)];
+          for(let i=0;i<10;i++)rod(curve(i/10),curve((i+1)/10),k===2?.11:.077,k===1?honey:pitch);
+          if(k===0)for(let i=2;i<10;i+=2){const a=curve(i/10);rod(a,[a[0],a[1],a[2]+.72],.047,honey)}
         }
       }
-      tube([0,15.8,4.8],[0,28.6,7.3],.27,honey,10,.065);
-      tube([0,28.5,7.28],[0,18.7,1.35],.035);
-      const masts=[[10.2,27.5,14.2],[-2.4,32.3,16.9],[-12.3,24.2,16],[-17,19.6,14.3]];
-      for(const [y,top,basket] of masts){
-        const z=station(y)[1];
-        tube([0,y,z],[0,y,top],.25,oak,10,.065);
-        for(let h=z+.8;h<top-1;h+=3.2)tube([0,y,h],[0,y,h+.13],.24,honey,8);
-        tube([0,y,basket-.36],[0,y,basket],.53,oak,12,.82);
-        tube([0,y,basket],[0,y,basket+.12],.86,honey,12);
-        for(const side of [-1,1]){
-          const peak=[0,y,basket+.08],feet=[];
-          for(let k=0;k<4;k++){
-            const at=y-.95+k*.62,[w,rim]=station(at);
-            const p=[side*w,at,rim+.22];feet.push(p);tube(p,peak,.032,colors.rope,5);
-          }
-          for(let t=.1;t<.9;t+=.10)tube(mix(feet[0],peak,t),mix(feet[3],peak,t),.02,colors.rope,4);
+      const root=[0,14.8,6.32],tip=[0,27.9,11.63];
+      tube(root,tip,.29,pitch,10,.092);
+      for(let i=1;i<=5;i++){const t=i/6,r=.29-.198*t;tube(mix(root,tip,t),mix(root,tip,t+.014),r*.97,honey,10,r*1.15)}
+      rod(tip,[0,18.28,3.27],.047,rope);
+      // Light canvas awning on the poop, scalloped at the eaves. The passage
+      // underneath and the handrails remain open when seen from the stern.
+      const awning=(u,v)=>[(u-.5)*4.4,-19.66+v*2.86,11.68+.48*(1-(2*u-1)**2)-.12*Math.sin(v*Math.PI)-.29*v];
+      for(let j=0;j<6;j++)for(let i=0;i<10;i++){
+        const a=i/10,b=(i+1)/10,c=j/6,d=(j+1)/6;
+        quad(awning(a,c),awning(b,c),awning(b,d),awning(a,d),i%5===1?ivory:red);
+        if(j===0){
+          const l=awning(a,c),r=awning(b,c),m=mix(l,r,.5);
+          tri(r,l,[m[0],m[1],m[2]-.24],i%5===1?ivory:red);
         }
       }
-      for(const [y,top,low,width] of [[10.2,27.5,6.25,13.55],[-2.4,32.3,6.40,15.7]]){
-        squareSail(y,top*.55,low,width,width*.89,linen);
-        squareSail(y,top*.78,top*.55+.62,width*.80,width*.65,linen);
-        squareSail(y,top-1.55,top*.78+.52,width*.53,width*.41,linen);
+      for(const u of [0,1])for(const v of [0,1]){
+        const p=awning(u,v);rod([p[0],p[1],section(p[1]+.44)[1]+2.69],p,.069,pitch);
       }
-      squareSail(25.45,6.74,2.32,5.75,5.16,linen);
-      for(const [y,top,span,foot] of [[-12.3,24.2,8.6,9.0],[-17,19.6,6.4,11.3]]){
-        const a=[-.6,y+span*.55,foot+.70],b=[.6,y-span*.5,top-.18],c=[1.35,y-span*.48,foot];
-        sails.push({type:'lateen',y,top,span});
-        tube(a,b,.13,honey,8,.062);
-        const p=(u,v)=>{
-          const point=a.map((n,i)=>n+(b[i]-n)*u+(c[i]-n)*v);
-          point[0]+=22*u*v*(1-u-v);return point;
+      // Three thwarts and a dark interior read clearly from the sailing camera.
+      const bx=-2.14,by=-.60,bz=5.08;
+      const gunwale=(t,s)=>[bx+s*(.04+.85*Math.sin(Math.PI*t)**.74),by+5.05*(t-.5),bz+.75+.24*(2*t-1)**2];
+      for(const s of [-1,1])for(let i=0;i<14;i++){
+        const a=gunwale(i/14,s),b=gunwale((i+1)/14,s),ka=[bx,a[1],bz],kb=[bx,b[1],bz];
+        if(s>0)quad(ka,kb,b,a,oak,6);else quad(a,b,kb,ka,oak,6);rod(a,b,.077,honey);
+      }
+      for(const t of [.25,.5,.75]){const p=gunwale(t,1);box(bx,p[1],p[2]-.19,(p[0]-bx)*1.84,.19,.11,honey)}
+      for(const y of [-6.75,5.3]){
+        const z=section(y)[1]-.035;box(.80,y,z,2.36,2.06,.14,pitch);
+        for(let x=-.18;x<1.9;x+=.26)box(x,y,z+.131,.079,1.84,.044,honey);
+        for(let j=-.78;j<=.8;j+=.26)box(.80,y+j,z+.164,2.10,.072,.046,oak);
+      }
+      for(const [y,dir,base,h] of [[-9.9,1,0,1.52],[-14.6,1,1.52,1.24],[11.6,-1,0,1.03]]){
+        for(const x of [1.13,1.91]){
+          const first=y+dir*1.64,last=y-dir*.04;
+          rod([x,first,section(first)[1]+base-.028],[x,last,section(last)[1]+base+h-.075],.102,pitch,6);
+        }
+        for(let j=0;j<6;j++){
+          const at=y+dir*(1.52-j*.272);box(1.52,at,section(at)[1]+base+(j+1)*h/6-.13,.99,.31,.15,deck,7);
+        }
+      }
+      // Smooth two-sided canvas; the painted device uses the same mesh and
+      // normals as the sail, so the pigment follows its folds at every angle.
+      function clothPatch(point,nx,ny,material){
+        const vertices=[];
+        for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){
+          const u=i/nx,v=j/ny,d=.001;
+          const tangent=sub(point(Math.min(1,u+d),v),point(Math.max(0,u-d),v));
+          const down=sub(point(u,Math.min(1,v+d)),point(u,Math.max(0,v-d)));
+          vertices.push([...point(u,v),...norm(cross(tangent,down)),...ivory,material]);
+        }
+        for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+          const a=j*(nx+1)+i,b=a+1,c=b+nx+1;
+          for(const k of [a,b,c,a,c,c-1])data.push(...vertices[k]);
+        }
+      }
+      function square(y,top,bottom,head,foot,angle,device=false){
+        sails.push({type:'square',y,top,bottom,width:foot});
+        const cloth=(u,v)=>{
+          const lateral=2*u-1,arch=1-lateral*lateral,belly=Math.sin(Math.PI*v);
+          const x=lateral*(head+(foot-head)*v)*.5*(1-.057*belly);
+          const curl=.17*Math.sin(u*30+v*5)*Math.abs(lateral)**2*belly;
+          return [x,y+.10+x*angle+foot*.165*(.27+.73*arch)*belly+foot*.054*arch*v+curl,
+            top+(bottom-top)*v+(top-bottom)*.20*arch*v*v+.16*lateral];
         };
-        for(let i=0;i<14;i++)for(let j=0;j<14-i;j++){
-          tri(p(i/14,j/14),p((i+1)/14,j/14),p(i/14,(j+1)/14),linen,3);
-          if(i+j<13)tri(p((i+1)/14,j/14),p((i+1)/14,(j+1)/14),p(i/14,(j+1)/14),linen,3);
+        clothPatch(cloth,26,12,device?11:4);
+        const end=(s)=>[s*(head*.5+.28),y+s*(head*.5+.28)*angle,top+.11+s*.16];
+        tube(end(-1),end(1),head*.0125,pitch,8,head*.0095);
+        for(let j=0;j<=8;j++){const u=j/8,p=cloth(u,0);rod([p[0],p[1]-.22,p[2]+.16],p,.038,rope)}
+        for(const s of [-1,1]){
+          const u=(s+1)/2,clew=cloth(u,1);
+          const pinY=y>19?18:Math.max(-9.4,y-1.96);
+          const target=railPoint(pinY,s,.32);
+          rod(clew,target,.034,rope);
+          const peak=y>19?mix(root,tip,.96):[0,y,top+1.37];
+          rod(peak,end(s),.041,rope);
         }
-        tube(b,c,.035);tube(c,a,.035);
       }
-      for(let i=0;i<masts.length;i++){
-        const [y,top]=masts[i];
-        const forward=i?[0,masts[i-1][0],masts[i-1][1]*.76]:[0,28.5,7.28];
-        tube([0,y,top-.45],forward,.038,colors.rope,5);
+      const masts=[[9.15,26.0,17.46],[-2.5,33.7,22.12],[-11.78,24.32,13.75],[-17.13,18.16,12.82]];
+      for(const [i,[y,top,crow]] of masts.entries()){
+        const base=section(y)[1]+(i===2?1.52:i===3?2.76:0),r=[.273,.387,.196,.155][i];
+        tube([0,y,base-.20],[0,y,crow],r,pitch,12,r*.83);
+        tube([0,y,crow-.03],[0,y,top],r*.72,oak,10,r*.27);
+        for(let h=base+.24;h<crow-.2;h+=2.1){
+          const radius=r*(1-.17*(h-base)/(crow-base));
+          tube([0,y,h],[0,y,h+.15],radius*.962,honey,12,radius*1.09);
+        }
+        if(i<2){
+          const radius=i===1?1.17:.88;
+          tube([0,y,crow-.69],[0,y,crow],radius*.50,pitch,14,radius);
+          for(let j=0;j<14;j++){
+            const ring=(k,h,r)=>[r*Math.cos(k*TAU/14),y+r*Math.sin(k*TAU/14),crow+h];
+            tri([0,y,crow],ring(j,0,radius),ring(j+1,0,radius),deck,7);
+            rod(ring(j,0,radius),ring(j,.42,radius*1.04),.043,honey);
+            rod(ring(j,.42,radius*1.04),ring(j+1,.42,radius*1.04),.060,pitch);
+          }
+        }
+        for(const s of [-1,1]){
+          const foot=k=>railPoint(y-.50+k*(i<2?3.15:1.60),s,.08);
+          const head=k=>[s*(i<2?.71:.11),y+k*.40,crow-.24];
+          for(let k=0;k<=4;k++)rod(foot(k*.25-.5),head(k*.25-.5),.049,rope);
+          for(let t=.06;t<.96;t+=.059)rod(mix(foot(-.5),head(-.5),t),mix(foot(.5),head(.5),t),.033,rope,4);
+        }
+        const stay=i?[0,masts[i-1][0],masts[i-1][2]+.27]:tip;
+        rod([0,y,top-.57],stay,.049,rope);
+      }
+      square(-2.5,20.88,7.55,16.4,17.80,.34,true);
+      square(-2.5,27.89,21.24,11.08,13.08,.32);
+      square(-2.5,31.78,28.30,6.01,7.83,.30);
+      square(9.15,16.34,7.47,12.78,14.01,.27);
+      square(9.15,21.75,16.67,8.87,10.83,.26);
+      square(9.15,24.64,22.07,4.96,6.67,.25);
+      square(23.88,10.02,5.96,5.45,5.98,.13);
+      for(const [y,top,span,foot] of [[-11.78,24.32,11.3,9.15],[-17.13,18.16,8.19,11.40]]){
+        const a=[-.49,y+span*.47,foot+1.15],b=[.66,y-span*.53,top-.20],c=[1.53,y-span*.46,foot];
+        const peak=(top+foot)*.5+.29;
+        sails.push({type:'lateen',y,top,span});
+        tube(a,b,.138,pitch,9,.070);rod([0,y,peak],mix(a,b,.54),.12,rope);
+        const point=(u,v)=>{const p=mix(mix(a,b,u),mix(a,c,u),v);p[0]+=1.23*Math.sin(Math.PI*u*.96)*Math.sin(Math.PI*v)*u+.29*Math.sin(Math.PI*u)*v;return p};
+        // Collapse the common tack to a single vertex (no zero-area grid column).
+        const rows=17;
+        const sail=(i,j)=>{
+          const u=(i+j)/rows,v=(i+j)?j/(i+j):0;
+          return point(u,v);
+        };
+        for(let i=0;i<rows;i++)for(let j=0;j<rows-i;j++){
+          tri(sail(i,j),sail(i+1,j),sail(i,j+1),ivory,5);
+          if(i+j+1<rows)tri(sail(i+1,j),sail(i+1,j+1),sail(i,j+1),ivory,5);
+        }
+        rod(b,[0,y,top-.35],.039,rope);rod(c,railPoint(-19,-1,.30),.045,rope);
+      }
+      // Long narrow streamers give the standing spars a readable wind direction.
+      for(const [y,z,length] of [[-2.5,33.64,5.56],[9.15,25.93,3.11]]){
+        const point=(t,v)=>[.10+Math.sin(t*TAU*1.08)*.29*t,y-length*t,z-.27*t+.20*Math.sin(t*TAU*1.16)-v*(1-.93*t)*.80];
+        for(let i=0;i<16;i++)quad(point(i/16,0),point((i+1)/16,0),point((i+1)/16,1),point(i/16,1),i<3?gold:pennant);
       }
     }
     function fitNau(){
@@ -779,7 +893,7 @@
       tube([0,L*.47,3.9],[0,L*.57,5.15],.29,gold,8,.15);
       tube([0,L*.57,5.15],[0,L*.60,5.0],.15,lightGold,8,.11);
     }
-    if(kind==='nau')fitNau();else if(highCarrack)fitHighCarrack();else if(small)fitCaravel();else fitCarrack();
+    if(kind==='nau')fitNau();else if(small)fitCaravel();else fitCarrack();
 
     const model={vertices:new Float32Array(data),triangles:data.length/30,sails};
     models.set(kind,model);
@@ -816,6 +930,18 @@ if(v_material>.5&&v_material<2.5){
  float grain=sin(along*46.0+sin(across*57.0)*1.2)*.032+sin(along*127.0+across*83.0)*.016;
  float ends=step(.022,fract((along+hash(vec2(row,2.0))*4.0)/2.2));
  color*= (.78+.22*seam)*(.92+.08*ends)*( .92+hash(vec2(row,1.0))*.16+grain);
+}else if(v_material>10.5){
+ // Oxide-red cross with flared arms. The unpainted inner cross reveals the linen.
+ vec2 q=abs(vec2(p.x/2.65,(p.z-14.58)/3.72));
+ float outer=min(max(q.y-(.195+.25*q.x*q.x),q.x-1.0),max(q.x-(.195+.25*q.y*q.y),q.y-1.0));
+ float inner=min(max(q.y-.079,q.x-.70),max(q.x-.079,q.y-.72));
+ float dye=(1.0-smoothstep(-.014,.014,outer))*smoothstep(-.014,.014,inner);
+ color=mix(color,vec3(.60,.125,.082),dye*.92);
+ float panel=abs(fract(p.x*.74+.024*sin(p.z*.63))-.5);
+ float seam=1.0-smoothstep(.012,.050,panel);
+ float bonnet=1.0-smoothstep(.025,.080,abs(p.z-(10.70+.86*(1.0-pow(p.x/9.0,2.0)))));
+ color*=.966-.071*seam-.08*bonnet+.026*cos(p.x*5.3+.44*sin(p.z))+.016*sin(p.z*3.0+p.x*2.0);
+ sun=.42+.58*abs(dot(n,normalize(vec3(-.52,.50,.82))));
 }else if(v_material>7.5){
  vec3 light=normalize(vec3(-.52,.50,1.0));
  float shine=pow(max(0.0,dot(n,normalize(light+v_view))),16.0);
