@@ -120,6 +120,6 @@
   window.addEventListener('pagehide',()=>{cancelAnimationFrame(frame);renderer?.dispose();renderer=null});
   window.addEventListener('pageshow',event=>{if(event.persisted)selectHull(kind)});
   new ResizeObserver(resize).observe(stage);
-  const tier=clamp(Math.trunc(Number(new URL(location.href).searchParams.get('tier'))||1),1,5);
+  const tier=clamp(Math.trunc(Number(new URL(location.href).searchParams.get('tier'))||1),1,buttons.length);
   selectHull(buttons[tier-1].dataset.hull);resize();
 })();
