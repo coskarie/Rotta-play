@@ -13,7 +13,7 @@
     caravel:{name:'소형 카라벨',wakeScale:caravelScale,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
     carrack:{name:'상업용 카라벨',wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
     nau:{name:'나우',wakeScale:2.8,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:156},
-    'ocean-carrack':{name:'카락',wakeScale:3.1,canvasSize:384,fallback:'high-carrack-topdown-v2.png',fallbackWidth:240},
+    'ocean-carrack':{name:'카락',wakeScale:3.1,canvasSize:384,fallback:'high-carrack-topdown-v3.png',fallbackWidth:240},
     'royal-galleon':{name:'왕실 갤리온',wakeScale:3.7,canvasSize:400,fallback:'royal-galleon-topdown.png',fallbackWidth:320}
   };
   function buildModel(kind='carrack') {
@@ -488,8 +488,8 @@
     // Four-masted Portuguese merchant carrack. Model space is metres, with the bow at +Y.
     function fitHighCarrack(){
       const oak=[.445,.252,.139],deck=[.61,.424,.278],pitch=[.204,.133,.105],honey=[.71,.489,.259];
-      const red=[.52,.137,.095],gold=[.86,.635,.34],rope=[.355,.292,.218],glass=[.205,.30,.31];
-      const ivory=[.956,.897,.76],pennant=[.65,.15,.095];
+      const gold=[.86,.635,.34],rope=[.355,.292,.218],glass=[.205,.30,.31];
+      const white=[.965,.965,.965];
       const rod=(a,b,r,c=rope,n=5)=>tube(a,b,r,c,n);
       // A rising keel and flared stern tuck in under the overhanging castles.
       const sections=[[-19.6,2.73,7.63],[-18.3,3.47,7.52],[-16,4.18,7.05],[-13,4.77,6.46],
@@ -553,7 +553,7 @@
           for(const s of [-1,1]){
             const p=(y,t,offset=0)=>{const v=corner(y,s,t);v[0]+=s*offset;return v};
             const sideWall=[p(a,0),p(b,0),p(b,1),p(a,1)];if(s<0)sideWall.reverse();
-            panel(...sideWall,upper?red:oak);
+            panel(...sideWall,upper?white:oak);
             if(i%2===0||upper){
               panel(p(a+.12,.27,.009),p(b-.12,.27,.009),p(b-.15,.79,.009),p(a+.15,.79,.009),glass);
               rod(mix(p(a+.12,.27,.009),p(b-.12,.27,.009),.5),
@@ -620,10 +620,10 @@
       const awning=(u,v)=>[(u-.5)*4.4,-19.66+v*2.86,11.68+.48*(1-(2*u-1)**2)-.12*Math.sin(v*Math.PI)-.29*v];
       for(let j=0;j<6;j++)for(let i=0;i<10;i++){
         const a=i/10,b=(i+1)/10,c=j/6,d=(j+1)/6;
-        quad(awning(a,c),awning(b,c),awning(b,d),awning(a,d),i%5===1?ivory:red);
+        quad(awning(a,c),awning(b,c),awning(b,d),awning(a,d),white);
         if(j===0){
           const l=awning(a,c),r=awning(b,c),m=mix(l,r,.5);
-          tri(r,l,[m[0],m[1],m[2]-.24],i%5===1?ivory:red);
+          tri(r,l,[m[0],m[1],m[2]-.24],white);
         }
       }
       for(const u of [0,1])for(const v of [0,1]){
@@ -651,22 +651,21 @@
           const at=y+dir*(1.52-j*.272);box(1.52,at,section(at)[1]+base+(j+1)*h/6-.13,.99,.31,.15,deck,7);
         }
       }
-      // Smooth two-sided canvas; the painted device uses the same mesh and
-      // normals as the sail, so the pigment follows its folds at every angle.
+      // Smooth two-sided canvas; the main course also carries a horizontal bonnet seam.
       function clothPatch(point,nx,ny,material){
         const vertices=[];
         for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){
           const u=i/nx,v=j/ny,d=.001;
           const tangent=sub(point(Math.min(1,u+d),v),point(Math.max(0,u-d),v));
           const down=sub(point(u,Math.min(1,v+d)),point(u,Math.max(0,v-d)));
-          vertices.push([...point(u,v),...norm(cross(tangent,down)),...ivory,material]);
+          vertices.push([...point(u,v),...norm(cross(tangent,down)),...white,material]);
         }
         for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
           const a=j*(nx+1)+i,b=a+1,c=b+nx+1;
           for(const k of [a,b,c,a,c,c-1])data.push(...vertices[k]);
         }
       }
-      function square(y,top,bottom,head,foot,angle,device=false){
+      function square(y,top,bottom,head,foot,angle,bonnet=false){
         sails.push({type:'square',y,top,bottom,width:foot});
         const cloth=(u,v)=>{
           const lateral=2*u-1,arch=1-lateral*lateral,belly=Math.sin(Math.PI*v);
@@ -675,7 +674,7 @@
           return [x,y+.10+x*angle+foot*.165*(.27+.73*arch)*belly+foot*.054*arch*v+curl,
             top+(bottom-top)*v+(top-bottom)*.20*arch*v*v+.16*lateral];
         };
-        clothPatch(cloth,26,12,device?11:4);
+        clothPatch(cloth,26,12,bonnet?11:4);
         const end=(s)=>[s*(head*.5+.28),y+s*(head*.5+.28)*angle,top+.11+s*.16];
         tube(end(-1),end(1),head*.0125,pitch,8,head*.0095);
         for(let j=0;j<=8;j++){const u=j/8,p=cloth(u,0);rod([p[0],p[1]-.22,p[2]+.16],p,.038,rope)}
@@ -736,15 +735,15 @@
           return point(u,v);
         };
         for(let i=0;i<rows;i++)for(let j=0;j<rows-i;j++){
-          tri(sail(i,j),sail(i+1,j),sail(i,j+1),ivory,5);
-          if(i+j+1<rows)tri(sail(i+1,j),sail(i+1,j+1),sail(i,j+1),ivory,5);
+          tri(sail(i,j),sail(i+1,j),sail(i,j+1),white,5);
+          if(i+j+1<rows)tri(sail(i+1,j),sail(i+1,j+1),sail(i,j+1),white,5);
         }
         rod(b,[0,y,top-.35],.039,rope);rod(c,railPoint(-19,-1,.30),.045,rope);
       }
       // Long narrow streamers give the standing spars a readable wind direction.
       for(const [y,z,length] of [[-2.5,33.64,5.56],[9.15,25.93,3.11]]){
         const point=(t,v)=>[.10+Math.sin(t*TAU*1.08)*.29*t,y-length*t,z-.27*t+.20*Math.sin(t*TAU*1.16)-v*(1-.93*t)*.80];
-        for(let i=0;i<16;i++)quad(point(i/16,0),point((i+1)/16,0),point((i+1)/16,1),point(i/16,1),i<3?gold:pennant);
+        for(let i=0;i<16;i++)quad(point(i/16,0),point((i+1)/16,0),point((i+1)/16,1),point(i/16,1),white);
       }
     }
     function fitNau(){
@@ -931,12 +930,6 @@ if(v_material>.5&&v_material<2.5){
  float ends=step(.022,fract((along+hash(vec2(row,2.0))*4.0)/2.2));
  color*= (.78+.22*seam)*(.92+.08*ends)*( .92+hash(vec2(row,1.0))*.16+grain);
 }else if(v_material>10.5){
- // Oxide-red cross with flared arms. The unpainted inner cross reveals the linen.
- vec2 q=abs(vec2(p.x/2.65,(p.z-14.58)/3.72));
- float outer=min(max(q.y-(.195+.25*q.x*q.x),q.x-1.0),max(q.x-(.195+.25*q.y*q.y),q.y-1.0));
- float inner=min(max(q.y-.079,q.x-.70),max(q.x-.079,q.y-.72));
- float dye=(1.0-smoothstep(-.014,.014,outer))*smoothstep(-.014,.014,inner);
- color=mix(color,vec3(.60,.125,.082),dye*.92);
  float panel=abs(fract(p.x*.74+.024*sin(p.z*.63))-.5);
  float seam=1.0-smoothstep(.012,.050,panel);
  float bonnet=1.0-smoothstep(.025,.080,abs(p.z-(10.70+.86*(1.0-pow(p.x/9.0,2.0)))));
