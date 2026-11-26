@@ -9,12 +9,15 @@
   const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
   const models=new Map();
   const caravelScale=.76;
+  // Tier two defines the in-game length. Canvas export sizes include transparent padding.
+  const sailingReferenceLength=16.173726081848145;
+  const fallbackReferenceLength=36*756/512;
   const hulls={
     caravel:{name:'소형 카라벨',sailingScale:1,seaRadius:18,wakeScale:0.76,canvasSize:160,fallback:'caravel-topdown-v1.png',fallbackWidth:36},
     carrack:{name:'상업용 카라벨',sailingScale:1,seaRadius:24,wakeScale:1,canvasSize:160,fallback:'carrack-topdown-v1.png?v=1',fallbackWidth:36},
-    nau:{name:'나우',sailingScale:0.42,seaRadius:28,wakeScale:1.15,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:66},
-    'ocean-carrack':{name:'카락',sailingScale:0.4,seaRadius:32,wakeScale:1.3,canvasSize:384,fallback:'high-carrack-topdown-v3.png',fallbackWidth:96},
-    'royal-galleon':{name:'왕실 갤리온',sailingScale:0.33,seaRadius:35,wakeScale:1.45,canvasSize:400,fallback:'royal-galleon-topdown.png',fallbackWidth:106}
+    nau:{name:'나우',sailingScale:sailingReferenceLength/42.15321159362793,seaRadius:24,wakeScale:1,canvasSize:384,fallback:'grand-carrack-topdown-v3.png',fallbackWidth:fallbackReferenceLength*384/350},
+    'ocean-carrack':{name:'카락',sailingScale:sailingReferenceLength/49.442630767822266,seaRadius:24,wakeScale:1,canvasSize:384,fallback:'high-carrack-topdown-v3.png',fallbackWidth:fallbackReferenceLength*512/423},
+    'royal-galleon':{name:'왕실 갤리온',sailingScale:sailingReferenceLength/65.0887279510498,seaRadius:24,wakeScale:1,canvasSize:400,fallback:'royal-galleon-topdown.png',fallbackWidth:fallbackReferenceLength*512/417}
   };
   function buildModel(kind='carrack') {
     if(models.has(kind))return models.get(kind);
@@ -1314,7 +1317,7 @@ color*=.48+.53*sun+fill;gl_FragColor=vec4(color,1.0);}`;
   const screenScaleAt=zoom=>(.62+Math.max(0,Math.min(1,(zoom-1)/9))*.73)*Math.min(1,zoom/3);
   function drawShip(element,heading,pitch,zoom,speed=0,now=performance.now(),water=null,kind='carrack'){
     if(failed)return false;
-    const canvasSize=Math.min(192,hulls[kind].canvasSize);
+    const canvasSize=160;
     speed=speed>.025?Math.min(1,speed):0;
     const screenScale=screenScaleAt(zoom);
     const radius=WAKE_SIZE/2*screenScale;
