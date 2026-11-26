@@ -1295,24 +1295,28 @@ function positionSeaClickTarget(){
 function cancelAutoSail(keepTarget=false){EUROPE_ROUTE_REQUEST++;dismissArrivalPrompt();stopAutoCamera();AUTO_SAIL.velocity=0;AUTO_SAIL.route=null;if(!state.traveling){if(!keepTarget)setSeaClickTarget(null);return false}SEA_ROUTE_RUN++;state.traveling=false;$('#destinationSelect').disabled=false;$('#setCourseBtn').disabled=false;drawRoute([]);if(!keepTarget)setSeaClickTarget(null);updateDockingState(true);updateShip();return true}
 function startCourse(){const id=$('#destinationSelect').value;if(!id)return toast('목적항을 선택하거나 바다를 클릭하십시오.');selectSeaPort(id)}
 let EUROPE_ROUTE_REQUEST=0;
-async function plotEuropeCourse(portId,destination,confirmArrival){
+async function plotEuropeCourse(portId,destination,confirmArrival,{replanning=false}={}){
+ const failed=message=>{
+  if(replanning)cancelAutoSail();
+  toast(message);
+ };
  const request=++EUROPE_ROUTE_REQUEST;
  let origin={x:state.shipX,y:state.shipY};
  for(let attempt=0;attempt<3;attempt++){
-  let path;try{path=await EUROPE.routeAsync(origin,destination);}catch(error){console.error(error);if(request===EUROPE_ROUTE_REQUEST)toast('항로를 찾지 못했습니다.');return;}
+  let path;try{path=await EUROPE.routeAsync(origin,destination,shipSeaRadius());}catch(error){console.error(error);if(request===EUROPE_ROUTE_REQUEST)failed('항로를 찾지 못했습니다.');return;}
   if(request!==EUROPE_ROUTE_REQUEST||!$('#sailingView').classList.contains('active'))return;
-  if(!path?.length){toast('이 위치까지 이어지는 항로를 찾지 못했습니다.');return;}
+  if(!path?.length){failed('이 선박이 통과할 수 있는 항로를 찾지 못했습니다.');return;}
   const current={x:state.shipX,y:state.shipY};
   // Join only a visible waypoint. Never rewind to the ship's position at request time.
-  let join=-1;for(let i=0;i<path.length;i++)if(waterLineClear(current,path[i]))join=i;else if(join>=0)break;
+  let join=-1;for(let i=0;i<path.length;i++)if(shipCourseClear(current,path[i]))join=i;else if(join>=0)break;
   if(join<0){origin=current;continue;}
   path=compactSeaPath([current,...path.slice(join)]);
   if(!seaPathClear(path)&&path.length>1){origin=current;continue;}
   const retarget=state.traveling&&AUTO_SAIL.velocity>.001;
-  if(retarget){const radians=MANUAL_SAIL.heading*Math.PI/180,forward={x:Math.sin(radians),y:-Math.cos(radians)},step=Math.min(1.5,Math.hypot(path[1]?.x-current.x||0,path[1]?.y-current.y||0)/3),drift={x:current.x+forward.x*step,y:current.y+forward.y*step};if(path.length>1&&waterLineClear(current,drift)&&waterLineClear(drift,path[1]))path=[current,drift,...path.slice(1)];}
+  if(retarget){const radians=MANUAL_SAIL.heading*Math.PI/180,forward={x:Math.sin(radians),y:-Math.cos(radians)},step=Math.min(1.5,Math.hypot(path[1]?.x-current.x||0,path[1]?.y-current.y||0)/3),drift={x:current.x+forward.x*step,y:current.y+forward.y*step};if(path.length>1&&shipCourseClear(current,drift)&&shipCourseClear(drift,path[1]))path=[current,drift,...path.slice(1)];}
   DOCK_SELECTION.portId=null;setSeaClickTarget(destination);sailPath(path,portId,{initialSpeed:retarget?AUTO_SAIL.velocity:0,retarget,confirmArrival});return;
  }
- toast('이 위치까지 이어지는 항로를 찾지 못했습니다.');
+ failed('이 선박이 통과할 수 있는 항로를 찾지 못했습니다.');
 }
 function plotCourse(portId=null,seaPoint=null,{confirmArrival=false}={}){
  if(!NAV.ready)return toast('해수 판독이 끝날 때까지 잠시 기다리십시오.');
@@ -1352,17 +1356,19 @@ function sailPath(path,portId,{initialSpeed=0,retarget=false,confirmArrival=fals
   if(run!==SEA_ROUTE_RUN)return;
   if(!EUROPE&&now-lastPaint<1000/30-1){requestAnimationFrame(frame);return;}lastPaint=now;
   if(arrived){advanceAutoCamera(now);updateCamera();if(CAMERA_VIEW.autoFollow)requestAnimationFrame(frame);return;}
-  const sample=sampleSailingMotion(motion,(now-started)/1000),travelled=sample.distance;AUTO_SAIL.velocity=sample.velocity;consumeVoyageDistance(travelled-lastTravelled);lastTravelled=travelled;
+  const sample=sampleSailingMotion(motion,(now-started)/1000),travelled=sample.distance;AUTO_SAIL.velocity=sample.velocity;
   while(segmentIndex<segments.length-1&&travelled>segments[segmentIndex].start+segments[segmentIndex].len)segmentIndex++;
   AUTO_SAIL.route.segmentIndex=segmentIndex;
   const seg=segments[segmentIndex],local=Math.max(0,Math.min(1,(travelled-seg.start)/seg.len));
   MANUAL_SAIL.heading=(Math.atan2(seg.b.x-seg.a.x,-(seg.b.y-seg.a.y))*180/Math.PI+360)%360;
   const next={x:seg.a.x+(seg.b.x-seg.a.x)*local,y:seg.a.y+(seg.b.y-seg.a.y)*local};
   if(EUROPE&&!shipCourseClear({x:state.shipX,y:state.shipY},next)){
-   cancelAutoSail();if(portId&&canDockAt(portId))finishCourse(portId,days);
-   else toast('선체가 해안에 닿지 않도록 정지했습니다. 바다 쪽으로 항로를 잡아주세요.');
-   updateCamera();updateShip();return;
+   // Replan from the last safe position, keeping the destination and arrival intent.
+   SEA_ROUTE_RUN++;
+   plotEuropeCourse(portId,path[path.length-1],confirmArrival,{replanning:true});
+   return;
   }
+  consumeVoyageDistance(travelled-lastTravelled);lastTravelled=travelled;
   setSailingPosition(next.x,next.y);advanceAutoCamera(now);updateCamera();updateShip();
   if(sample.complete){arrived=true;AUTO_SAIL.route=null;finishCourse(portId,days);}
   if(!arrived||CAMERA_VIEW.autoFollow)requestAnimationFrame(frame);

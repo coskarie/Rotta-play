@@ -9,11 +9,45 @@ const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 function createNavigation(meta,bits,edges){
  const W=meta.width,H=meta.height,S=meta.step,GW=meta.graphWidth,N=GW*meta.graphHeight;
  const water=(x,y)=>Number.isFinite(x)&&Number.isFinite(y)&&x>=0&&y>=0&&x<W&&y<H&&!!(bits[(Math.floor(y)*W+Math.floor(x))>>>3]&(1<<((Math.floor(y)*W+Math.floor(x))&7)));
+
+ // One clearance envelope is shared by graph edges, local connectors and smoothing.
+ let hullRadius=0;
+ const hullWater=new Map(),openBlocks=new Map(),bridgePaths=new Map();
+ let hullOffsets=[];
+ const rawWater=water;
+ function navigable(x,y){
+  if(!rawWater(x,y))return false;
+  if(!hullRadius)return true;
+  const cx=Math.floor(x),cy=Math.floor(y),key=cy*W+cx;
+  if(hullWater.has(key))return hullWater.get(key);
+  const bx=Math.floor(cx/32)*32,by=Math.floor(cy/32)*32,block=by*W+bx;
+  if(!openBlocks.has(block)){
+   const reach=Math.ceil(hullRadius);let open=true;
+   for(let y=by-reach;y<by+32+reach&&open;y++)for(let x=bx-reach;x<bx+32+reach;x++)if(!rawWater(x,y)){open=false;break}
+   openBlocks.set(block,open);
+  }
+  if(openBlocks.get(block))return true;
+  let safe=true;
+  for(const [dx,dy]of hullOffsets)if(!rawWater(cx+dx,cy+dy)){safe=false;break}
+  if(hullWater.size>=250000)hullWater.clear();
+  hullWater.set(key,safe);return safe;
+ }
+ function safeEndpoint(p){
+  if(navigable(p.x,p.y))return p;
+  for(let r=1;r<=96;r++)for(let i=0;i<32;i++){
+   const a=i*Math.PI/16,q={x:p.x+Math.cos(a)*r,y:p.y+Math.sin(a)*r};
+   if(!navigable(q.x,q.y))continue;
+   const radius=hullRadius;hullRadius=0;
+   const connected=lineClear(p,q);hullRadius=radius;
+   if(connected)return q;
+  }
+  return null;
+ }
  function lineClear(a,b){
-  if(!water(a.x,a.y)||!water(b.x,b.y))return false;
+  if(!navigable(a.x,a.y)||!navigable(b.x,b.y))return false;
   let x=Math.floor(a.x),y=Math.floor(a.y);const ex=Math.floor(b.x),ey=Math.floor(b.y),dx=b.x-a.x,dy=b.y-a.y,sx=Math.sign(dx),sy=Math.sign(dy),stepX=dx?1/Math.abs(dx):Infinity,stepY=dy?1/Math.abs(dy):Infinity;
   let tx=dx?((x+(sx>0?1:0))-a.x)/dx:Infinity,ty=dy?((y+(sy>0?1:0))-a.y)/dy:Infinity;
-  while(x!==ex||y!==ey){if(Math.min(tx,ty)>=1-1e-12)return true;if(Math.abs(tx-ty)<1e-10){if(!water(x+sx,y)||!water(x,y+sy))return false;x+=sx;y+=sy;tx+=stepX;ty+=stepY}else if(tx<ty){x+=sx;tx+=stepX}else{y+=sy;ty+=stepY}if(!water(x,y))return false}return true;
+  while(x!==ex||y!==ey){if(Math.min(tx,ty)>=1-1e-12)return true;if(Math.abs(tx-ty)<1e-10){if(!navigable(x+sx,y)||!navigable(x,y+sy))return false;x+=sx;y+=sy;tx+=stepX;ty+=stepY}else if(tx<ty){x+=sx;tx+=stepX}else{y+=sy;ty+=stepY}if(!navigable(x,y))return false}return true;
  }
  const point=i=>({x:(i%GW)*S+S/2+.5,y:Math.floor(i/GW)*S+S/2+.5});
  function simplify(points){if(!points?.length)return null;const out=[points[0]];let i=0;while(i<points.length-1){let j=i+1;for(let k=i+2;k<points.length;k++){if(lineClear(points[i],points[k]))j=k;else if(k-j>24)break}out.push(points[j]);i=j}return out}
@@ -32,13 +66,37 @@ function createNavigation(meta,bits,edges){
    if(x%S===S/2&&y%S===S/2&&edges[Math.floor(y/S)*GW+Math.floor(x/S)]){
     const q=point(Math.floor(y/S)*GW+Math.floor(x/S));let at=cur.i,tail=[];while(at!==si){tail.push({x:at%W+.5,y:Math.floor(at/W)+.5});at=came.get(at)}tail.reverse();const path=simplify([p,{x:sx+.5,y:sy+.5},...tail,q]);if(path.every((v,i)=>!i||lineClear(path[i-1],v)))return[{i:Math.floor(y/S)*GW+Math.floor(x/S),cost:g+2,path}];
    }
-   for(const [dx,dy]of DIRS){const nx=x+dx,ny=y+dy;if(Math.abs(nx-sx)>144||Math.abs(ny-sy)>144||!water(nx,ny)||(dx&&dy&&(!water(x+dx,y)||!water(x,y+dy))))continue;const ni=ny*W+nx,ng=g+Math.hypot(dx,dy);if(ng<(cost.get(ni)??Infinity)){cost.set(ni,ng);came.set(ni,cur.i);open.push({i:ni,f:ng})}}
+   for(const [dx,dy]of DIRS){const nx=x+dx,ny=y+dy;if(Math.abs(nx-sx)>144||Math.abs(ny-sy)>144||!navigable(nx,ny)||(dx&&dy&&(!navigable(x+dx,y)||!navigable(x,y+dy))))continue;const ni=ny*W+nx,ng=g+Math.hypot(dx,dy);if(ng<(cost.get(ni)??Infinity)){cost.set(ni,ng);came.set(ni,cur.i);open.push({i:ni,f:ng})}}
   }return[];
+ }
+ function bridgeRoute(b){
+  if(bridgePaths.has(b.k))return bridgePaths.get(b.k);
+  const start=point(meta.bridges[b.k].a),end=point(meta.bridges[b.k].b);
+  const points=meta.bridges[b.k].points;
+  const minX=Math.floor(Math.min(start.x,end.x,...points.map(p=>p[0]))-48),maxX=Math.ceil(Math.max(start.x,end.x,...points.map(p=>p[0]))+48);
+  const minY=Math.floor(Math.min(start.y,end.y,...points.map(p=>p[1]))-48),maxY=Math.ceil(Math.max(start.y,end.y,...points.map(p=>p[1]))+48);
+  const sx=Math.floor(start.x),sy=Math.floor(start.y),ex=Math.floor(end.x),ey=Math.floor(end.y),si=sy*W+sx,ei=ey*W+ex;
+  const open=new Heap(),cost=new Map([[si,0]]),came=new Map();open.push({i:si,f:Math.hypot(ex-sx,ey-sy)});
+  let count=0,result=null;
+  while(open.length&&count++<150000){
+   const cur=open.pop(),x=cur.i%W,y=Math.floor(cur.i/W),g=cost.get(cur.i);
+   if(cur.f>g+Math.hypot(ex-x,ey-y)+1e-7)continue;
+   if(cur.i===ei){
+    const tail=[];for(let at=ei;at!==si;at=came.get(at))tail.push({x:at%W+.5,y:Math.floor(at/W)+.5});
+    tail.reverse();result=simplify([start,...tail,end]);break;
+   }
+   for(const [dx,dy]of DIRS){
+    const nx=x+dx,ny=y+dy;if(nx<minX||nx>maxX||ny<minY||ny>maxY||!navigable(nx,ny)||(dx&&dy&&(!navigable(x+dx,y)||!navigable(x,y+dy))))continue;
+    const ni=ny*W+nx,ng=g+Math.hypot(dx,dy);
+    if(ng<(cost.get(ni)??Infinity)){cost.set(ni,ng);came.set(ni,cur.i);open.push({i:ni,f:ng+Math.hypot(ex-nx,ey-ny)})}
+   }
+  }
+  bridgePaths.set(b.k,result);return result;
  }
  const bridgeAt=new Map();(meta.bridges||[]).forEach((b,k)=>{for(const [from,to,rev]of[[b.a,b.b,false],[b.b,b.a,true]]){if(!bridgeAt.has(from))bridgeAt.set(from,[]);bridgeAt.get(from).push({to,cost:b.cost,k,rev})}});
  let g,came,stamp,closed,via,generation=0;
- function route(start,end){
-  if(!water(start.x,start.y)||!water(end.x,end.y))return null;if(lineClear(start,end))return[start,end];
+ function solveRoute(start,end){
+  if(!navigable(start.x,start.y)||!navigable(end.x,end.y))return null;if(lineClear(start,end))return[start,end];
   const starts=connectors(start),ends=connectors(end);if(!starts.length||!ends.length)return null;
   if(!g){g=new Float64Array(N);came=new Int32Array(N);stamp=new Uint32Array(N);closed=new Uint32Array(N);via=new Int8Array(N)}
   if(++generation===0xffffffff){stamp.fill(0);closed.fill(0);generation=1}const gen=generation,open=new Heap(),goals=new Map(ends.map(v=>[v.i,v])),roots=new Map(starts.map(v=>[v.i,v]));
@@ -47,12 +105,25 @@ function createNavigation(meta,bits,edges){
   while(open.length){const cur=open.pop(),i=cur.i;if(cur.f>=best)break;if(closed[i]===gen)continue;closed[i]=gen;
    if(goals.has(i)){const v=g[i]+goals.get(i).cost;if(v<best){best=v;last=i}}
    const relax=(ni,cost,bridge=0)=>{if(ni<0||ni>=N||closed[ni]===gen)return;const ng=g[i]+cost;if(stamp[ni]!==gen||ng<g[ni]){stamp[ni]=gen;g[ni]=ng;came[ni]=i;via[ni]=bridge;const p=point(ni);open.push({i:ni,f:ng+Math.hypot(p.x-end.x,p.y-end.y)})}};
-   const flags=edges[i];for(let k=0;k<8;k++)if(flags&(1<<k)){const [dx,dy]=DIRS[k];relax(i+dy*GW+dx,S*Math.hypot(dx,dy))}
-   for(const b of bridgeAt.get(i)||[])relax(b.to,b.cost,(b.k+1)*(b.rev?-1:1));
+   const flags=edges[i];for(let k=0;k<8;k++)if(flags&(1<<k)){const [dx,dy]=DIRS[k];if(!hullRadius||lineClear(point(i),point(i+dy*GW+dx)))relax(i+dy*GW+dx,S*Math.hypot(dx,dy))}
+   for(const b of bridgeAt.get(i)||[]){
+    if(!hullRadius||bridgeRoute(b))relax(b.to,b.cost,(b.k+1)*(b.rev?-1:1));
+   }
   }
   if(last<0)return null;const nodes=[];for(let at=last;at!==-1;at=came[at])nodes.push(at);nodes.reverse();const path=[...roots.get(nodes[0]).path];
-  for(let j=1;j<nodes.length;j++){const tag=via[nodes[j]];if(tag){let pts=meta.bridges[Math.abs(tag)-1].points.map(p=>({x:p[0]+.5,y:p[1]+.5}));if(tag<0)pts.reverse();path.push(...pts)}path.push(point(nodes[j]))}
+  for(let j=1;j<nodes.length;j++){const tag=via[nodes[j]];if(tag){let pts=hullRadius?bridgePaths.get(Math.abs(tag)-1).slice():meta.bridges[Math.abs(tag)-1].points.map(p=>({x:p[0]+.5,y:p[1]+.5}));if(tag<0)pts.reverse();path.push(...pts)}path.push(point(nodes[j]))}
   path.push(...goals.get(last).path.slice().reverse());const result=simplify(path);return result.every((v,i)=>!i||lineClear(result[i-1],v))?result:null;
+ }
+ function route(start,end,clearance=0){
+  const radius=Math.ceil(Math.max(0,Number(clearance)||0)*4)/4;
+  hullWater.clear();openBlocks.clear();bridgePaths.clear();hullRadius=radius;
+  hullOffsets=[];
+  for(let dy=-Math.ceil(radius);dy<=Math.ceil(radius);dy++)for(let dx=-Math.ceil(radius);dx<=Math.ceil(radius);dx++)
+   if(Math.hypot(Math.max(0,Math.abs(dx)-1),Math.max(0,Math.abs(dy)-1))<=radius)hullOffsets.push([dx,dy]);
+  try{
+   const target=radius?safeEndpoint(end):end;
+   return target?solveRoute(start,target):null;
+  }finally{hullRadius=0}
  }
  const packedView=new Proxy({length:W*H},{get(t,k){if(k==='length')return t.length;if(typeof k==='symbol')return undefined;const i=Number(k);return Number.isInteger(i)&&i>=0&&i<t.length?((bits[i>>>3]>>>(i&7))&1):undefined}});
  return{water,lineClear,route,simplify,packedView};
@@ -64,10 +135,10 @@ async function load(progress=()=>{}){if(task)return task;task=(async()=>{
  const [chart,water,graph,terrainAssets]=await Promise.all([fetchAsset('navigation.json').then(r=>r.json()).then(v=>{downloaded(28);return v}),fetchAsset('water.bin').then(r=>r.arrayBuffer()).then(v=>{downloaded(34);return v}),fetchAsset('graph.bin').then(r=>r.arrayBuffer()).then(v=>{downloaded(14);return v}),root.ROTTA_EUROPE_TERRAIN.preload().then(v=>{downloaded(10);return v})]);
  terrain=terrainAssets;
  meta=chart;nav=createNavigation(chart,new Uint8Array(water),new Uint8Array(graph));
- try{worker=new Worker('europe-route-worker.js?v=5');await new Promise((resolve,reject)=>{worker.onmessage=e=>{if(e.data.ready)resolve();else{const p=pending.get(e.data.id);if(p){pending.delete(e.data.id);e.data.error?p.reject(Error(e.data.error)):p.resolve(e.data.path)}}};worker.onerror=e=>{reject(e);for(const p of pending.values())p.reject(Error('Europe route worker failed'));pending.clear();worker?.terminate();worker=null};worker.postMessage({init:true,meta:chart,water,graph})})}catch(e){worker?.terminate();worker=null;console.warn('[Rotta Europe worker fallback]',e)}
+ try{worker=new Worker('europe-route-worker.js?v=6');await new Promise((resolve,reject)=>{worker.onmessage=e=>{if(e.data.ready)resolve();else{const p=pending.get(e.data.id);if(p){pending.delete(e.data.id);e.data.error?p.reject(Error(e.data.error)):p.resolve(e.data.path)}}};worker.onerror=e=>{reject(e);for(const p of pending.values())p.reject(Error('Europe route worker failed'));pending.clear();worker?.terminate();worker=null};worker.postMessage({init:true,meta:chart,water,graph})})}catch(e){worker?.terminate();worker=null;console.warn('[Rotta Europe worker fallback]',e)}
  progress(94);return{meta,nav};
  })().catch(e=>{task=null;throw e});return task}
-function routeAsync(start,end){if(!worker)return Promise.resolve(nav.route(start,end));return new Promise((resolve,reject)=>{const id=++requestId;pending.set(id,{resolve,reject});worker.postMessage({id,start,end})})}
+function routeAsync(start,end,clearance=0){if(!worker)return Promise.resolve(nav.route(start,end,clearance));return new Promise((resolve,reject)=>{const id=++requestId;pending.set(id,{resolve,reject});worker.postMessage({id,start,end,clearance})})}
 function mount(svg,onReliefChange){
  const world=svg.parentElement;
  return root.ROTTA_EUROPE_TERRAIN.mount(world.parentElement,world,terrain,onReliefChange);
