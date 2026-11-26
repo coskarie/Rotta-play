@@ -1205,7 +1205,7 @@ function sailingHandling(){
  const tier=Math.max(1,Math.min(5,Number(window.ROTTA_SHIPYARD?.tier(state)??state.ship?.tier)||1));
  return {turnRate:(34-(tier-1)*3)*MANUAL_SAIL.turnRate/48,turnResponse:.65+(tier-1)*.12,
   acceleration:MANUAL_SAIL.acceleration/(1+(tier-1)*.18),
-  brake:MANUAL_SAIL.brake/(1+(tier-1)*.16),radius:3.5+tier*.8};
+  brake:2*MANUAL_SAIL.brake/(1+(tier-1)*.16),radius:3.5+tier*.8};
 }
 function headingDifference(target,heading){return ((target-heading+540)%360)-180}
 function advanceHelm(rudder,speed,dt){
@@ -1216,7 +1216,7 @@ function advanceHelm(rudder,speed,dt){
  MANUAL_SAIL.heading=(MANUAL_SAIL.heading+turn+360)%360;
  return turn;
 }
-function curvedSailingPath(path){
+function curvedSailingPath(path,connectHeading=true){
  const radius=sailingHandling().radius,out=[path[0]];
  for(let i=1;i<path.length-1;i++){
   const a=path[i-1],b=path[i],c=path[i+1],ab=Math.hypot(b.x-a.x,b.y-a.y),bc=Math.hypot(c.x-b.x,c.y-b.y);
@@ -1233,7 +1233,7 @@ function curvedSailingPath(path){
  }
  out.push(path[path.length-1]);
  const result=compactSeaPath(out),first=result[1],start=result[0];
- if(!first)return result;
+ if(!first||!connectHeading)return result;
  const forwardAngle=MANUAL_SAIL.heading*Math.PI/180,forward={x:Math.sin(forwardAngle),y:-Math.cos(forwardAngle)};
  const desired=headingFromVector(first.x-start.x,first.y-start.y);
  if(Math.abs(headingDifference(desired,MANUAL_SAIL.heading))<8)return result;
@@ -1252,7 +1252,7 @@ function curvedSailingPath(path){
  return result;
 }
 function startHelmSailing(path,portId,{initialSpeed=0,retarget=false,confirmArrival=false}={}){
- path=curvedSailingPath(path);
+ path=curvedSailingPath(path,retarget);
  const run=++SEA_ROUTE_RUN,handling=sailingHandling(),segments=[];
  let length=0;
  for(let i=1;i<path.length;i++){
@@ -1264,7 +1264,7 @@ function startHelmSailing(path,portId,{initialSpeed=0,retarget=false,confirmArri
  let nextSpeed=0;
  for(let i=segments.length-1;i>=0;i--){
   const segment=segments[i],next=segments[i+1];
-  if(next){
+  if(retarget&&next){
    const angle=Math.abs(headingDifference(next.heading,segment.heading))*Math.PI/180;
    const curvature=angle/Math.max(.01,(segment.size+next.size)/2);
    nextSpeed=Math.min(nextSpeed,Math.sqrt(.65/Math.max(.0001,curvature)),handling.turnRate*Math.PI/180/Math.max(.0001,curvature));
@@ -1272,13 +1272,14 @@ function startHelmSailing(path,portId,{initialSpeed=0,retarget=false,confirmArri
   segment.exitSpeed=nextSpeed;
   nextSpeed=Math.min(MANUAL_SAIL.maxSpeed,Math.sqrt(nextSpeed*nextSpeed+2*handling.brake*segment.size));
  }
+ if(!retarget){MANUAL_SAIL.heading=segments[0].heading;MANUAL_SAIL.yawVelocity=0;}
  clearManualKeys();
  AUTO_SAIL.velocity=Math.max(0,Math.min(MANUAL_SAIL.maxSpeed,initialSpeed));
  AUTO_SAIL.route={path,segmentIndex:0};state.traveling=true;state.atPort=false;
  $('#setCourseBtn').disabled=true;$('#destinationSelect').disabled=true;$('#returnPortBtn').disabled=true;
  $('#routeTitle').textContent=portId?(isChartedPort(portId)?`${toward(PORTS[portId].name)} 항해`:'미발견 항구로 항해'):'선장이 정한 해역으로 항해';
  const days=Math.max(1,Math.round(length/DAY_CLOCK.unitsPerDay));
- $('#routeInfo').textContent='선회 시 감속하며 항로를 따라 항해합니다.';drawRoute(path);
+ $('#routeInfo').textContent=retarget?'새 항로로 선회하며 항해합니다.':'지정한 항로를 따라 항해합니다.';drawRoute(path);
  const started=performance.now();let last=started,distance=0,index=0,arrived=false;
  if(!retarget||(!CAMERA_VIEW.autoFollow&&!CAMERA_VIEW.followShip))beginAutoCamera(started);
  function frame(now){
@@ -1290,13 +1291,14 @@ function startHelmSailing(path,portId,{initialSpeed=0,retarget=false,confirmArri
    while(index<segments.length-1&&distance>=segments[index].start+segments[index].size-1e-8)index++;
    const segment=segments[index],gap=segment.start+segment.size-distance;
    const error=headingDifference(segment.heading,MANUAL_SAIL.heading);
-   const turnSpeed=MANUAL_SAIL.maxSpeed*Math.max(.12,1-Math.abs(error)/100);
+   const turnSpeed=retarget?MANUAL_SAIL.maxSpeed*Math.max(.12,1-Math.abs(error)/100):MANUAL_SAIL.maxSpeed;
    const target=Math.min(turnSpeed,Math.sqrt(segment.exitSpeed**2+2*handling.brake*Math.max(0,gap)));
    const rate=AUTO_SAIL.velocity>target?handling.brake:handling.acceleration;
    AUTO_SAIL.velocity+=Math.max(-rate*dt,Math.min(rate*dt,target-AUTO_SAIL.velocity));
-   advanceHelm(Math.max(-1,Math.min(1,error/16)),AUTO_SAIL.velocity,dt);
+   if(retarget)advanceHelm(Math.max(-1,Math.min(1,error/16)),AUTO_SAIL.velocity,dt);
+   else MANUAL_SAIL.heading=segment.heading;
    // A turn into a confined course waits for the bow, never slides astern.
-   const alignment=Math.max(0,1-Math.abs(headingDifference(segment.heading,MANUAL_SAIL.heading))/12);
+   const alignment=retarget?Math.max(0,1-Math.abs(headingDifference(segment.heading,MANUAL_SAIL.heading))/12):1;
    const travel=Math.min(length-distance,AUTO_SAIL.velocity*dt*alignment);
    const nextDistance=distance+travel;
    let nextIndex=index;while(nextIndex<segments.length-1&&nextDistance>segments[nextIndex].start+segments[nextIndex].size)nextIndex++;
@@ -1455,7 +1457,7 @@ async function plotEuropeCourse(portId,destination,confirmArrival,{replanning=fa
   if(join<0){origin=current;continue;}
   path=compactSeaPath([current,...path.slice(join)]);
   if(!seaPathClear(path)&&path.length>1){origin=current;continue;}
-  const speed=state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity,retarget=speed>.001;
+  const speed=state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity,retarget=state.traveling||speed>.001;
 
   DOCK_SELECTION.portId=null;setSeaClickTarget(destination);sailPath(path,portId,{initialSpeed:speed,retarget,confirmArrival});return;
  }
