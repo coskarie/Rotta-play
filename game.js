@@ -758,7 +758,7 @@ function openSailing(){
   state.atPort=true;state.camX=state.camY=0;sailingPitch=0;CAMERA_VIEW.followShip=true;
   clearManualKeys();setSeaClickTarget(null);setDepartureHeading(PORTS[state.current]);
   beginPortDeparture(state.current);syncViewportMetrics();populateDestinations();updateShip(true);
-  DEPARTURE_ZOOM.active=true;NAV_RENDER.world.classList.remove('recentering');setZoom(.5,null,true);
+  DEPARTURE_ZOOM.active=true;document.documentElement.dataset.departureZoom='preparing';NAV_RENDER.world.classList.remove('recentering');setZoom(.5,null,true);
   NAV_RENDER.viewport.focus();if(!NAV.ready)$('#routeInfo').textContent='해수와 육지를 판독하고 있습니다…';
   committed=true;
  });
@@ -796,11 +796,12 @@ function startDepartureZoom(){
  if(!$('#sailingView').classList.contains('active'))return;
  const run=DEPARTURE_ZOOM.run,started=performance.now();let lastPaint=-Infinity;
  CAMERA_VIEW.autoFollow=null;CAMERA_VIEW.followShip=true;state.camX=state.camY=0;
- DEPARTURE_ZOOM.active=true;NAV_RENDER.world.classList.remove('recentering');setZoom(.5,null,true);
+ DEPARTURE_ZOOM.active=true;document.documentElement.dataset.departureZoom='preparing';NAV_RENDER.world.classList.remove('recentering');setZoom(.5,null,true);
  const finalPitch=EUROPE?(window.ROTTA_EUROPE_PITCH?.maxAngle??0):0;
  function finish(){
   DEPARTURE_ZOOM.active=false;
   sailingPitch=finalPitch;setZoom(3.5,null,true);
+  if(EUROPE)positionChartAnnotations();
   clearDepartureEffects();document.documentElement.dataset.departureZoom='complete';
  }
  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){finish();return}
@@ -994,7 +995,6 @@ function updateCamera(){
   projection=window.ROTTA_EUROPE_PITCH.project(w,h,pitch,state.zoom);
  }
  NAV_RENDER.projection=projection;
- NAV_RENDER.annotations?.style.setProperty('--near-port-lift',nearPortLift()+'px');
  const transform=projection?.transform(tx,ty)??`translate3d(${tx}px,${ty}px,0)`;
  NAV_RENDER.world.style.transform=`${transform} scale(${state.zoom})`;
  updateChartScale(ty,h);queueVisibleMapTiles();updateCoastVisibility();
@@ -1236,15 +1236,12 @@ function portActionIcon(kind){
 function closeSeaPortActions(){const id=SEA_PORT_UI.actionsId;SEA_PORT_UI.actionsId=null;const menu=$('#seaPortActions');if(menu)menu.hidden=true;if(id)$(`[data-seaport="${id}"]`)?.setAttribute('aria-expanded','false')}
 function closeSeaMarket(){SEA_PORT_UI.quoteId=null;const panel=$('#seaMarketPanel');if(panel)panel.hidden=true}
 function closeSeaPortUI(){window.ROTTA_VOYAGE_SUPPLIES?.close(false);closeSeaPortActions();closeSeaMarket()}
-// A pitched camera foreshortens the water between a docked hull and its port badge.
-function nearPortLift(){return 1.35*(NAV_RENDER.projection?.degrees??0)}
 function positionSeaPortActions(){
  const id=SEA_PORT_UI.actionsId,menu=$('#seaPortActions');if(!id||!menu)return;const p=PORTS[id],{x,y}=projectChartPosition(p.x,p.y,true);
  const visible=x>=0&&y>=0&&x<=NAV_RENDER.width&&y<=NAV_RENDER.height;
  menu.style.visibility=visible?'visible':'hidden';
  if(!visible)return;
- const lift=$(`[data-seaport="${id}"]`)?.classList.contains('near')?nearPortLift():0;
- menu.style.left=`${Math.max(82,Math.min(NAV_RENDER.width-82,x))}px`;menu.style.top=`${Math.max(91,Math.min(NAV_RENDER.height-10,y-lift-12))}px`;
+ menu.style.left=`${Math.max(82,Math.min(NAV_RENDER.width-82,x))}px`;menu.style.top=`${Math.max(91,Math.min(NAV_RENDER.height-10,y-12))}px`;
 }
 function openSeaPortActions(id){
  if(!state.nation||!PORTS[id])return;updatePortDiscoveries();if(!isChartedPort(id)){closeSeaPortUI();plotCourse(id,null,{confirmArrival:true});return;}if(SEA_PORT_UI.actionsId===id)return closeSeaPortActions();

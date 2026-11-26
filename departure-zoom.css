@@ -34,3 +34,11 @@
 }
 .departure-zoom-blur[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){.departure-zoom-blur{display:none!important}}
+
+/* Reveal anchored port markers only once the descent camera has settled. */
+.sea-port{transition:opacity .45s ease}
+html[data-departure-zoom="preparing"] .sea-port,
+html[data-departure-zoom="running"] .sea-port{
+ opacity:0;visibility:hidden;pointer-events:none;transition:none;
+}
+@media(prefers-reduced-motion:reduce){.sea-port{transition:none}}
