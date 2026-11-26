@@ -270,7 +270,9 @@
       const top = view.ty - camera.ty;
       const rect = {left, top, width: camera.w, height: camera.h};
       let rendered = false;
-      if (view.projection) {
+      // During the two-second descent the flat map follows the same perspective
+      // transform without uploading a new relief texture for every zoom step.
+      if (view.projection && view.showColors) {
         flatRevision = -1;
         rendered = Boolean(relief?.draw(canvas, view, rect, camera.displayRatio, paintCount, waterPhase));
       } else if (relief && view.showColors) {

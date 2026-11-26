@@ -1,10 +1,36 @@
 .departure-zoom-blur{
- position:absolute;inset:11px;z-index:6;pointer-events:none;
+ position:absolute;inset:0;z-index:7;overflow:hidden;pointer-events:none;
+}
+.departure-zoom-blur::before,.departure-zoom-blur::after{
+ content:"";position:absolute;inset:0;
+}
+.departure-zoom-blur::before{
  opacity:var(--departure-blur-opacity,0);
  backdrop-filter:blur(var(--departure-blur,0px));
  -webkit-backdrop-filter:blur(var(--departure-blur,0px));
  mask-image:radial-gradient(ellipse at center,transparent 0 36%,#0004 62%,#000 95%);
  -webkit-mask-image:radial-gradient(ellipse at center,transparent 0 36%,#0004 62%,#000 95%);
+}
+.departure-cloud{
+ position:absolute;width:max(72%,66vh);aspect-ratio:2;
+ background:url('assets/departure-cloud.webp') center/contain no-repeat;
+ opacity:var(--cloud-opacity,0);
+}
+.departure-cloud.far{
+ right:46%;bottom:42%;
+ transform:translate3d(calc(-45% * var(--cloud-travel)),calc(-18% * var(--cloud-travel)),0)
+  rotate(-15deg) scale(calc(.74 + 1.15 * var(--cloud-travel)));
+}
+.departure-cloud.near{
+ left:44%;top:32%;
+ transform:translate3d(calc(54% * var(--cloud-travel)),calc(52% * var(--cloud-travel)),0)
+  rotate(-22deg) scaleX(-1) scale(calc(.85 + 1.65 * var(--cloud-travel)));
+}
+.departure-zoom-blur::after{
+ opacity:var(--sun-opacity,0);
+ background:radial-gradient(ellipse at 18% 0%,#fff1cd8a,transparent 62%),
+  conic-gradient(from 90deg at 12% -16%,transparent 25deg,#fff3d12e 34deg,transparent 40deg,
+   #fff5d838 48deg,transparent 54deg,transparent 60deg,#fff4d51f 65deg,transparent 72deg);
 }
 .departure-zoom-blur[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){.departure-zoom-blur{display:none!important}}

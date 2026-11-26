@@ -309,6 +309,11 @@
 .settlement-contact{fill:#3f3b29;fill-opacity:.27}
 .chart-annotations .route-svg{width:100%;height:100%;overflow:hidden}
 .chart-annotations .sea-port{pointer-events:auto}
+.chart-annotations .sea-port.near{translate:0 calc(-1 * var(--near-port-lift,0px))}
+.chart-annotations .sea-port.near::after{
+ content:"";position:absolute;top:var(--port-anchor);left:50%;width:1px;height:var(--near-port-lift,0px);
+ background:linear-gradient(#38281580,#d6bf828f);z-index:-1;pointer-events:none;
+}
 .chart-annotations .ship[hidden]{display:none}
 .sea-viewport.dragging .chart-annotations .sea-port{pointer-events:none}
 
