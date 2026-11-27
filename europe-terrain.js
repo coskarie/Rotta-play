@@ -1,7 +1,7 @@
 (() => {
   const wrapWorld=!!window.ROTTA_EUROPE?.isWorld;
   const path = (window.ROTTA_EUROPE?.assetPath??'assets/europe/')+'terrain/';
-  const version = wrapWorld ? '?v=4' : '?v=3';
+  const version = wrapWorld ? '?v=5' : '?v=3';
   const maxDownloads = 4;
   const maxDecodedBytes = 48 * 1024 * 1024;
   const retryDelay = 15000;
