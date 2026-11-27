@@ -100,7 +100,12 @@
   function recordDay(){for(const[id,key]of localPairs)record(id,key)}
   function recordPort(id){for(const key of Object.keys(ports[id]?.market||{}))record(id,key)}
   function series(id,key){record(id,key);return(books.get(`${id}:${key}`)||[]).map(b=>({...b,reasons:[...b.reasons]}))}
-  return{quote,series,profile:key=>({...profiles.get(key)}),seasonality,recordDay,recordPort};
+  function exportState(){return JSON.parse(JSON.stringify([...books]));}
+  function restoreState(saved){
+   books.clear();
+   for(const [token,bars] of saved||[])if(typeof token==='string'&&Array.isArray(bars))books.set(token,JSON.parse(JSON.stringify(bars)).slice(-12));
+  }
+  return{exportState,restoreState,quote,series,profile:key=>({...profiles.get(key)}),seasonality,recordDay,recordPort};
  }
  window.ROTTA_MARKET_PRICES={create};
 })();

@@ -1,12 +1,14 @@
 (() => {
-  const region = {x: 4480, y: 13312, span: 768, samples: 385};
+  const worldChart=!!window.ROTTA_EUROPE?.isWorld;
+  const assetPath=window.ROTTA_EUROPE?.assetPath??'assets/europe/';
+  const region = worldChart?{x:-1000000,y:-1000000,span:1,samples:2}:{x:4480,y:13312,span:768,samples:385};
   const maxAngle = 48;
   const maxBendSquared = 4;
   const atlasSize = 4096;
   const waveNoiseSize = 128;
   const surfaceNormalSize = 64;
   const waveFlowSize = 1024;
-  const chartSize = {width: 16384, height: 17192};
+  const chartSize = {width:16384,height:worldChart?16384:17192};
   const maxHeight = 32;
   const heightExaggeration = 2;
   const lisbonMaxHeight = 1020 * .0135;
@@ -61,7 +63,7 @@
   }
 
   async function loadTerrainBytes(file, expected, compressed = false) {
-    const response = await fetch('assets/europe/terrain/' + file, {cache: 'force-cache'});
+    const response = await fetch(assetPath+'terrain/' + file, {cache: 'force-cache'});
     if (!response.ok) throw new Error(`Terrain data ${file}: ${response.status}`);
     const bytes = compressed
       ? await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
@@ -98,6 +100,7 @@
   }
 
   function sampleHeight(heights, x, y) {
+    if(worldChart)x=((x%chartSize.width)+chartSize.width)%chartSize.width;
     if (x < 0 || x > chartSize.width || y < 0 || y > chartSize.height) return 0;
     const u = (x - region.x) / region.span, v = (y - region.y) / region.span;
     const edge = fade(Math.min(u, v, 1 - u, 1 - v), .05);
@@ -113,11 +116,18 @@
     return europe * (1 - weight) + lisbon * weight;
   }
 
-  const elevationSource = `
+  const elevationSource = worldChart ? `
+    uniform sampler2D u_europe, u_lisbon;
+    vec3 readElevation(vec2 chart){
+      float inside=step(0.0,chart.y)*step(chart.y,1.0);
+      float height=texture2D(u_europe,vec2(fract(chart.x),chart.y)).r*${maxHeight}.0*inside;
+      return vec3(height,0.0,0.0);
+    }
+  ` : `
     uniform sampler2D u_europe, u_lisbon;
 
     vec3 readElevation(vec2 chart) {
-      float inChart = step(0.0, min(chart.x, chart.y)) * step(max(chart.x, chart.y), 1.0);
+      float inChart = ${worldChart?'step(0.0,chart.y)*step(chart.y,1.0)':'step(0.0,min(chart.x,chart.y))*step(max(chart.x,chart.y),1.0)'};
       float europe = texture2D(u_europe, chart).r * ${maxHeight}.0 * inChart;
       vec2 local = (chart * vec2(${chartSize.width}.0, ${chartSize.height}.0)
         - vec2(${region.x}.0, ${region.y}.0)) / ${region.span}.0;
@@ -182,7 +192,7 @@
       if (!inChart) return vec4(prevailing, coordinates);
       const float size = ${waveFlowSize}.0;
       const vec2 stepUV = vec2(1.0 / size, 0.0);
-      vec2 pixel = clamp(v_chart * size - 0.5, 0.0, size - 1.0);
+      vec2 pixel = clamp(${worldChart?'vec2(fract(v_chart.x),v_chart.y)':'v_chart'} * size - 0.5, 0.0, size - 1.0);
       vec2 uv = (floor(pixel) + 0.5) / size;
       vec2 fraction = fract(pixel);
       // Unpack before interpolating. Filtering the bytes could round across a high-byte carry.
@@ -328,13 +338,16 @@
     precision ${precision} float;
     uniform sampler2D u_color, u_waterEffect;
     uniform bool u_waterReady;
+    uniform bool u_repeatWorld;
     varying ${precision} vec2 v_uv, v_chart;
     ${elevationSource}
 
     void main() {
+      ${worldChart?'if(!u_repeatWorld&&(v_chart.x<0.0||v_chart.x>1.0)){gl_FragColor=vec4(0.0,0.0,0.0,1.0);return;}':''}
       // Map-space distance follows pan, zoom, terrain relief and camera curvature.
       // Fade after water/height coloring so foam and rock cannot brighten the boundary.
       vec2 edgeDistance = min(v_chart, 1.0 - v_chart) * vec2(${chartSize.width}.0, ${chartSize.height}.0);
+      ${worldChart?'edgeDistance.x=4096.0;':''}
       vec2 edgeBlend = smoothstep(vec2(0.0), vec2(384.0), edgeDistance);
       float mapVisibility = edgeBlend.x * edgeBlend.y;
       if (mapVisibility <= 0.0) {
@@ -393,7 +406,7 @@
     void main() {
       vec3 terrain = texture2D(u_color, v_uv).rgb;
       vec3 color = terrain;
-      bool inChart = min(v_chart.x, v_chart.y) >= 0.0 && max(v_chart.x, v_chart.y) <= 1.0;
+      bool inChart = ${worldChart?'v_chart.y>=0.0&&v_chart.y<=1.0':'min(v_chart.x,v_chart.y)>=0.0&&max(v_chart.x,v_chart.y)<=1.0'};
       float distance = inChart ? texture2D(u_shore, v_chart).r * 31.875 - 8.0 : 23.875;
       float tone = waterTone(terrain);
       float wet = smoothstep(-1.3, 1.35, distance) * tone;
@@ -523,12 +536,13 @@
     const uniform = name => gl.getUniformLocation(program, 'u_' + name);
     const sourceSize = uniform('sourceSize'), offset = uniform('offset'), center = uniform('center');
     const translation = uniform('translation'), camera = uniform('camera'), scale = uniform('zoom'), heightScale = uniform('reliefScale');
-    const edgeDropUniform = uniform('edgeDrop'), waterReadyUniform = uniform('waterReady');
+    const edgeDropUniform=uniform('edgeDrop'),waterReadyUniform=uniform('waterReady'),repeatWorldUniform=uniform('repeatWorld');
 
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     function uploadBytes(unit, size, data, format = gl.LUMINANCE) {
       const object = texture(unit);
       gl.texImage2D(gl.TEXTURE_2D, 0, format, size, size, 0, format, gl.UNSIGNED_BYTE, data);
+      if(worldChart&&size>=1024)gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
       return object;
     }
     gl.uniform1i(uniform('color'), 0);
@@ -662,6 +676,7 @@
         gl.uniform1f(heightScale, reliefScale);
         gl.uniform1f(edgeDropUniform, edgeDrop / cy);
         gl.uniform1i(waterReadyUniform, hasWater);
+        gl.uniform1i(repeatWorldUniform,worldChart&&chartSize.width*zoom>=w);
         if (reliefScale) gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
         else gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, quadOffset);
         return true;

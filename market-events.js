@@ -9,7 +9,7 @@
  function hash(value){let h=2166136261;for(const c of String(value)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
  function random(seed){let n=hash(seed);return()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296}}
  function dateAt(day){const d=new Date(EPOCH+day*DAY);return{year:d.getUTCFullYear(),month:d.getUTCMonth()+1,day:d.getUTCDate()}}
- function create({data,ports,goods,seed=1,warmup=true,ambient=true,openingProtection=true}){
+ function create({data,ports,goods,seed=1,warmup=true,ambient=true,openingProtection=true,saved=null}){
   let day=warmup?-120:0,nextId=1;
   const protectedNow=()=>openingProtection&&openingProtected(day);
   // Apply the same rule to simulated prehistory so no shock/cooldown leaks into March.
@@ -126,8 +126,19 @@
   function news(id,{portName=key=>ports[key].name}={}){return [...active].sort((a,b)=>{
    const near=new Set([id,...(neighbours.get(id)||[])]);return Number(near.has(b.portId))-Number(near.has(a.portId))||b.start-a.start;
   }).slice(0,8).map(e=>`${portName(e.portId)} · ${e.name} · ${e.keys.map(k=>goods[k].name).slice(0,2).join(', ')}`)}
-  prices?.recordDay();if(warmup)while(day<0)nextDay();
-  return{nextDay,start,effects,status,news,climate,eligible,prices,openingProtected:protectedNow,date:()=>dateAt(day),day:()=>day,
+  function exportState(){
+   return JSON.parse(JSON.stringify({day,nextId,active,history,cooldowns:[...cooldowns],weather:[...weather],prices:prices?.exportState()}));
+  }
+  if(saved){
+   day=Math.max(0,Math.floor(Number(saved.day)||0));nextId=Math.max(1,Math.floor(Number(saved.nextId)||1));
+   active.push(...JSON.parse(JSON.stringify(saved.active||[])));
+   history.push(...JSON.parse(JSON.stringify(saved.history||[])));
+   for(const [key,value]of saved.cooldowns||[])cooldowns.set(key,value);
+   for(const [key,value]of saved.weather||[])weather.set(key,value);
+   prices?.restoreState(saved.prices);
+  }else{prices?.recordDay();if(warmup)while(day<0)nextDay();}
+
+  return{exportState,nextDay,start,effects,status,news,climate,eligible,prices,openingProtected:protectedNow,date:()=>dateAt(day),day:()=>day,
    at:id=>active.filter(e=>e.portId===id).map(e=>({...e,remaining:e.end-day})),
    snapshot:()=>({day,date:dateAt(day),active:active.map(e=>({...e})),history:history.map(e=>({...e}))})};
  }

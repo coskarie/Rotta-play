@@ -66,6 +66,7 @@ window.ROTTA_APPLY_HISTORICAL_PORTS?.(PORTS);
 for(const [id,name] of Object.entries(window.ROTTA_HISTORIC_PORT_NAMES||{}))if(PORTS[id])PORTS[id].name=name;
 for(const [id,position] of Object.entries(window.ROTTA_PORT_POSITIONS||{})){if(!PORTS[id]||!Array.isArray(position)||position.length<2)continue;const [x,y]=position;if(!Number.isFinite(x)||!Number.isFinite(y))continue;Object.assign(PORTS[id],{x,y,rawX:x,rawY:y})}
 for(const id of (window.ROTTA_REMOVED_PORTS||[]))delete PORTS[id];
+const ALL_PORTS={...PORTS};
 if(EUROPE){for(const [id,p] of Object.entries(PORTS)){if(p.lon<EUROPE.bounds.west||p.lon>EUROPE.bounds.east||p.lat<EUROPE.bounds.south||p.lat>EUROPE.bounds.north)delete PORTS[id];else Object.assign(p,projected(p.lat,p.lon));}}
 window.ROTTA_APPLY_MANSION_POLICY?.(PORTS);
 const PORT_COUNT=Object.keys(PORTS).length;
@@ -86,6 +87,7 @@ let MARKET_BASKET=null;
 const MARKET_BASKET_UI={port:null,mode:'owned',quick:false};
 let MARKET_SIM=null;
 let DISTANCE_TRADE=null;
+const GLOBAL_TRADE_DISTANCES=window.ROTTA_SEA_DISTANCES;
 function tradeRequirement(key){return window.ROTTA_FLEET?.requirement(GOODS[key])||{rank:1,label:'Ⅰ',level:1}}
 function tradePolicy(port,key,side='buy'){return window.ROTTA_TRADE_POLICY?.check(port,key,GOODS[key],side)||{allowed:true,label:'',reason:''}}
 function canBuyGood(key,port=state.current){return tradePolicy(port,key).allowed&&(window.ROTTA_FLEET?.canBuy(state,GOODS[key])??true)}
@@ -109,7 +111,7 @@ function fleetSaleExperience(row,port){
  return api.saleXP({destination:port,quantity:row.quantity,revenue:row.total,lots});
 }
 function distanceTradeEngine(){
- if(!DISTANCE_TRADE&&window.ROTTA_DISTANCE_TRADE&&window.ROTTA_SEA_DISTANCES)DISTANCE_TRADE=window.ROTTA_DISTANCE_TRADE.create({ports:PORTS,goods:GOODS,table:window.ROTTA_SEA_DISTANCES,canSupply:(port,key)=>tradePolicy(port,key).allowed});
+ if(!DISTANCE_TRADE&&window.ROTTA_DISTANCE_TRADE&&window.ROTTA_SEA_DISTANCES)DISTANCE_TRADE=window.ROTTA_DISTANCE_TRADE.create({ports:ALL_PORTS,goods:GOODS,table:window.ROTTA_SEA_DISTANCES,canSupply:(port,key)=>tradePolicy(port,key).allowed});
  return DISTANCE_TRADE;
 }
 function tradeInsightData(key){
@@ -211,20 +213,87 @@ function handleArrivalPromptKey(e){
  const key={KeyY:'y',KeyN:'n'}[e.code]||e.key?.toLowerCase();if(key!=='y'&&key!=='n')return false;
  e.preventDefault();if(!e.repeat)answerArrivalPrompt(key==='y');return true;
 }
-const DAY_CLOCK={distance:0,food:0,morale:0,unitsPerDay:EUROPE?400:28};
-function initMarketSystem(){
- state.year=1543;state.month=3;state.day=1;state.elapsedDays=0;
+const DAY_CLOCK={distance:0,food:0,morale:0,unitsPerDay:EUROPE?400/(EUROPE.distanceScale??1):28};
+function initMarketSystem(saved=null){
+ if(!saved){state.year=1543;state.month=3;state.day=1;state.elapsedDays=0;}
  mountVoyageSupplies();
  DAY_CLOCK.distance=DAY_CLOCK.food=DAY_CLOCK.morale=0;
  window.ROTTA_APPLY_SPECIALTY_DATA?.(window.ROTTA_MARKET_DATA);
- MARKET_SIM=window.ROTTA_MARKET_EVENTS?.create({data:window.ROTTA_MARKET_DATA,ports:PORTS,goods:GOODS,seed:state.seed});
+ MARKET_SIM=window.ROTTA_MARKET_EVENTS?.create({data:window.ROTTA_MARKET_DATA,ports:ALL_PORTS,goods:GOODS,seed:state.seed,saved});
  if(MARKET_SIM)for(const[id,c]of Object.entries(window.ROTTA_MARKET_DATA.ports))if(PORTS[id])PORTS[id].climate=c.koppen;
  syncMarketDiagnostics();
+}
+function fitWorldChart(){
+ if(!EUROPE?.isWorld)return;
+ if(!$('#sailingView').classList.contains('active')){
+  const transition=openSailing();
+  if(transition?.then)transition.then(ok=>{if(ok)fitWorldChart();});
+  return;
+ }
+ if(!NAV_RENDER.width)return;
+ stopAutoCamera();sailingPitch=0;
+ const zoom=Math.min(NAV_RENDER.width/WORLD.w,NAV_RENDER.height/WORLD.h)*.96;
+ setZoom(zoom,null,true);
+ state.camX=(state.shipX-WORLD.w/2)*state.zoom;state.camY=(state.shipY-WORLD.h/2)*state.zoom;
+ updateCamera();
+}
+function mountChartTransfer(){
+ window.ROTTA_CHART_TRANSFER?.mount({
+  overview:fitWorldChart,state:()=>state,position:()=>({x:state.shipX,y:state.shipY,heading:MANUAL_SAIL.heading}),
+  currentView:()=>$('#sailingView').classList.contains('active')?'sailing':'port',
+  voyage:()=>state.traveling&&AUTO_SAIL.route?{portId:ARRIVAL_UI.routePortId??$('#destinationSelect').value??null,
+   point:AUTO_SAIL.route.path[AUTO_SAIL.route.path.length-1],confirmArrival:!!ARRIVAL_UI.routePortId,velocity:AUTO_SAIL.velocity}:null,
+  extras:()=>({departurePortId:ARRIVAL_APPROACH.departurePortId,handledArrivals:[...ARRIVAL_APPROACH.handled],campaignPort:state.campaignPort??state.current,market:MARKET_SIM?.exportState(),clock:{...DAY_CLOCK},sourceDistanceScale:EUROPE?.distanceScale??1}),
+  beforeTransfer:()=>{cancelAutoSail();clearManualKeys();},canTransfer:()=>!!state.nation&&STARTUP.ready&&!window.ROTTA_PORT_TRANSITIONS?.active,
+  onError:toast
+ });
+}
+function restoreChartTransfer(){
+ const transfer=window.ROTTA_CHART_TRANSFER,snapshot=transfer?.peek();if(!snapshot)return false;
+ if(!NATIONS[snapshot.state.nation])throw Error('Transfer nation is unavailable');
+ const campaignPort=snapshot.extras?.campaignPort??snapshot.state.current;
+ let current=PORTS[campaignPort]?campaignPort:snapshot.state.current;
+ if(!PORTS[current]){
+  current=Object.keys(PORTS).sort((a,b)=>Math.hypot(PORTS[a].lat-snapshot.position.lat,PORTS[a].lon-snapshot.position.lon)-Math.hypot(PORTS[b].lat-snapshot.position.lat,PORTS[b].lon-snapshot.position.lon))[0];
+ }
+ Object.assign(state,snapshot.state,{current,campaignPort,traveling:false,camX:0,camY:0});
+ initMarketSystem(snapshot.extras?.market);
+ const clock=snapshot.extras?.clock;
+ if(clock){
+  DAY_CLOCK.distance=(Number(clock.distance)||0)*(snapshot.extras.sourceDistanceScale??1)/(EUROPE.distanceScale??1);
+  DAY_CLOCK.food=Number(clock.food)||0;DAY_CLOCK.morale=Number(clock.morale)||0;
+ }
+ const position=EUROPE.project(snapshot.position.lat,snapshot.position.lon);
+ state.shipX=position.x;state.shipY=position.y;
+ ARRIVAL_APPROACH.departurePortId=snapshot.extras?.departurePortId??null;
+ ARRIVAL_APPROACH.handled=new Set(snapshot.extras?.handledArrivals??[]);
+ MANUAL_SAIL.heading=snapshot.position.heading;MANUAL_SAIL.yawVelocity=0;syncShipStats();
+ $('#nationModal').classList.add('hidden');
+ if(snapshot.view==='port'){renderPort();}
+ else{
+  switchView('sailing');syncViewportMetrics();CAMERA_VIEW.followShip=true;
+  sailingPitch=window.ROTTA_EUROPE_PITCH?.maxAngle??0;
+  $('#placeType').textContent='항해 중';$('#placeName').textContent=EUROPE.isWorld?'세계 항해':`${PORTS[state.current].name} 근해`;
+  if(!preciseWaterAt(state.shipX,state.shipY,false)){
+   const water=nearestPreciseRawWater(state.shipX,state.shipY,96);
+   if(water){const p=maskWorldAt(COAST,water.x,water.y);state.shipX=p.x;state.shipY=p.y;}
+  }
+  ensureShipSeaRoom();updateCamera();updateShip(true);populateDestinations();
+ }
+ setZoom(state.zoom);updateShip(true);updateStats();syncMarketDiagnostics();transfer.complete();transfer.refresh();
+ if(snapshot.view==='sailing'&&snapshot.voyage){
+  const target=snapshot.voyage.position;
+  const id=PORTS[snapshot.voyage.portId]?snapshot.voyage.portId:null;
+  const point=id?{x:PORTS[id].navX,y:PORTS[id].navY}:EUROPE.project(target.lat,target.lon);
+  MANUAL_SAIL.velocity=Math.max(0,Math.min(MANUAL_SAIL.maxSpeed,snapshot.voyage.velocity||0));
+  plotEuropeCourse(id,point,snapshot.voyage.confirmArrival);
+ }
+ return true;
 }
 function syncMarketDiagnostics(){const root=document.documentElement.dataset;root.marketDay=String(state.elapsedDays||0);root.marketEvents=String(MARKET_SIM?.snapshot().active.length||0);root.marketClimatePorts=String(Object.keys(window.ROTTA_MARKET_DATA?.ports||{}).length)}
 function marketEffects(pid,key){return MARKET_SIM?.effects(pid,key)||{price:1,stock:1,demand:1,tax:0,events:[]}}
 function marketStatusMarkup(){const active=MARKET_SIM?.at(state.current)||[];return active.length?`<div class="market-status">${active.slice(0,3).map(e=>`<span title="${e.keys.map(k=>GOODS[k]?.name).filter(Boolean).join(', ')}">${e.name}<small>${e.remaining}일</small></span>`).join('')}</div>`:''}
-function consumeVoyageDistance(distance){if(!Number.isFinite(distance)||distance<=0)return;reportFleetAward(window.ROTTA_FLEET?.sail(state,EUROPE?distance*.04:distance));DAY_CLOCK.distance+=distance;const days=Math.floor((DAY_CLOCK.distance+1e-9)/DAY_CLOCK.unitsPerDay);if(days){DAY_CLOCK.distance-=days*DAY_CLOCK.unitsPerDay;advance(days)}}
+function consumeVoyageDistance(distance){if(!Number.isFinite(distance)||distance<=0)return;reportFleetAward(window.ROTTA_FLEET?.sail(state,EUROPE?distance*.04*(EUROPE.distanceScale??1):distance));DAY_CLOCK.distance+=distance;const days=Math.floor((DAY_CLOCK.distance+1e-9)/DAY_CLOCK.unitsPerDay);if(days){DAY_CLOCK.distance-=days*DAY_CLOCK.unitsPerDay;advance(days)}}
 function waitOneDay(){if(!state.nation||state.traveling||MANUAL_SAIL.velocity>.001)return;closeSystem();advance(1);updateStats()}
 const MAP_DRAG_THRESHOLD=4;
 const CAMERA_DRAG={active:false,moved:false,startX:0,startY:0,lastX:0,lastY:0,pointerId:null,button:0,tilting:false,startPitch:0};
@@ -301,12 +370,28 @@ async function loadStartupAssets(){
   document.documentElement.dataset.goodsDownloaded=String(goods.stats.downloaded);
   document.documentElement.dataset.harborsCached=String(harbors.stats.cached);
   document.documentElement.dataset.harborsDownloaded=String(harbors.stats.downloaded);
-  finishMapLoading();
+  restoreChartTransfer();finishMapLoading();window.ROTTA_CHART_TRANSFER?.refresh();
  }catch(error){console.error('[Rotta startup]',error);$('#mapLoaderText').textContent='다운로드 실패';retry.classList.remove('hidden')}
  finally{STARTUP.running=false}
 }
-async function buildVectorMap(imageCoastline=ACTIVE_IMAGE_COASTLINE){if(EUROPE){NAV_RENDER.coastRenderer=EUROPE.mount($('#chartMap'),positionChartAnnotations);NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.remove('low-detail');document.documentElement.dataset.mapCoastSource='gshhg-europe';NAV_RENDER.coastRenderer.setActive($('#sailingView').classList.contains('active'));updateCoastVisibility();return;}const svg=d3.select('#chartMap');svg.selectAll('.generated-map').remove();NAV_RENDER.coastRenderer=null;svg.insert('rect',':first-child').attr('class','map-ocean generated-map').attr('width',WORLD.w).attr('height',WORLD.h);svg.append('rect').attr('class','map-patina generated-map').attr('width',WORLD.w).attr('height',WORLD.h);if(imageCoastline){const scaleX=WORLD.w/imageCoastline.worldWidth,scaleY=WORLD.h/imageCoastline.worldHeight,hasManualTrace=Boolean(imageCoastline.coastChunks?.length||imageCoastline.tracePaths?.length),land=svg.append('g').attr('class',`generated-map image-derived-land${hasManualTrace?' has-manual-trace':''}`).attr('transform',`scale(${scaleX} ${scaleY})`);land.append('path').attr('class','map-land image-derived-coast').attr('d',imageCoastline.paths.join(' ')).attr('fill-rule','evenodd').attr('vector-effect','non-scaling-stroke');if(imageCoastline.coastChunks?.length&&window.ROTTA_COAST_RENDERER){NAV_RENDER.coastRenderer=window.ROTTA_COAST_RENDERER.mount(land.node(),imageCoastline.coastChunks);updateCoastVisibility()}else if(hasManualTrace)land.append('path').attr('class','manual-trace-coast').attr('d',imageCoastline.tracePaths.length?imageCoastline.tracePaths.join(' '):(imageCoastline.coastChunks||[]).map(c=>c.d).join(' ')).attr('vector-effect','non-scaling-stroke');document.documentElement.dataset.mapCoastSource=hasManualTrace?'manual-trace':'image'}else{const world=await d3.json('assets/land-10m.json'),land=topojson.feature(world,world.objects.land),projection=d3.geoMercator().scale(WORLD.w/(2*Math.PI)).translate([WORLD.w/2,WORLD.h/2]),path=d3.geoPath(projection);svg.append('path').datum(land).attr('class','map-land generated-map').attr('d',path).attr('vector-effect','non-scaling-stroke');svg.append('g').attr('class','generated-map charted-islands').selectAll('circle').data([...CHARTED_ISLANDS].map(id=>PORTS[id]).filter(Boolean)).enter().append('circle').attr('class','map-port-island').attr('cx',p=>p.rawX??p.x).attr('cy',p=>p.rawY??p.y).attr('r',2.4);document.documentElement.dataset.mapCoastSource='natural-earth'}svg.append('rect').attr('class','map-frame generated-map').attr('x',9).attr('y',9).attr('width',WORLD.w-18).attr('height',WORLD.h-18);NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.toggle('low-detail',state.zoom<=2.5)}
-async function buildNavMask(){if(EUROPE){const {meta,nav}=await EUROPE.load(setMapLoadProgress);Object.assign(COAST,{w:WORLD.w,h:WORLD.h,cellX:1,cellY:1,water:nav.packedView,rawWater:nav.packedView,ready:true});NAV.ready=true;ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='GSHHG 2.3.7 Europe';snapAllPorts();await buildVectorMap();const response=await fetch('assets/europe/distances.json?v=2',{cache:'force-cache'});if(!response.ok)throw Error('Europe trade distances: '+response.status);window.ROTTA_SEA_DISTANCES=await response.json();setMapLoadProgress(100);return;}let vectorData=null;try{const nav=maskCandidate(NAV),coast=maskCandidate(COAST),loaded=await Promise.all([loadMaskAsset(nav,'assets/image-nav-mask.bin?v=61'),loadMaskAsset(coast,'assets/image-coast-mask.bin?v=62'),loadImageCoastlineAsset()]);commitMask(NAV,nav);commitMask(COAST,coast);vectorData=loaded[2];ACTIVE_IMAGE_COASTLINE=vectorData;ACTIVE_MAP_DATASET=vectorData.dataset}catch(imageErr){console.warn('[Rotta image-derived coast fallback]',imageErr);try{const nav=maskCandidate(NAV),coast=maskCandidate(COAST);await Promise.all([loadMaskAsset(nav,'assets/nav-mask.bin?v=38'),loadMaskAsset(coast,'assets/coast-mask.bin?v=38')]);commitMask(NAV,nav);commitMask(COAST,coast);ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='Natural Earth 1:10m'}catch(err){console.error(err);toast('저장된 항해 지도를 불러오지 못했습니다.');return}}setMapLoadProgress(96);const audit=snapAllPorts();$('#routeInfo').textContent=audit.ok?`${ACTIVE_MAP_DATASET} · ${PORT_COUNT}개 거점 전수 검증 완료 · 바다를 클릭해 이동`:`지도 판독 경고 · 미해결 거점 ${audit.unresolved.length}곳`;const schedule=window.requestIdleCallback||((fn)=>setTimeout(fn,16));schedule(()=>buildVectorMap(vectorData).catch(async err=>{console.error(err);if(vectorData){ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='Natural Earth 1:10m';try{await buildVectorMap(null)}catch(fallbackErr){console.error(fallbackErr)}}}),{timeout:1200})}
+async function buildVectorMap(imageCoastline=ACTIVE_IMAGE_COASTLINE){if(EUROPE){NAV_RENDER.coastRenderer=EUROPE.mount($('#chartMap'),positionChartAnnotations);NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.remove('low-detail');document.documentElement.dataset.mapCoastSource=EUROPE.isWorld?'natural-earth-world':'gshhg-europe';NAV_RENDER.coastRenderer.setActive($('#sailingView').classList.contains('active'));updateCoastVisibility();return;}const svg=d3.select('#chartMap');svg.selectAll('.generated-map').remove();NAV_RENDER.coastRenderer=null;svg.insert('rect',':first-child').attr('class','map-ocean generated-map').attr('width',WORLD.w).attr('height',WORLD.h);svg.append('rect').attr('class','map-patina generated-map').attr('width',WORLD.w).attr('height',WORLD.h);if(imageCoastline){const scaleX=WORLD.w/imageCoastline.worldWidth,scaleY=WORLD.h/imageCoastline.worldHeight,hasManualTrace=Boolean(imageCoastline.coastChunks?.length||imageCoastline.tracePaths?.length),land=svg.append('g').attr('class',`generated-map image-derived-land${hasManualTrace?' has-manual-trace':''}`).attr('transform',`scale(${scaleX} ${scaleY})`);land.append('path').attr('class','map-land image-derived-coast').attr('d',imageCoastline.paths.join(' ')).attr('fill-rule','evenodd').attr('vector-effect','non-scaling-stroke');if(imageCoastline.coastChunks?.length&&window.ROTTA_COAST_RENDERER){NAV_RENDER.coastRenderer=window.ROTTA_COAST_RENDERER.mount(land.node(),imageCoastline.coastChunks);updateCoastVisibility()}else if(hasManualTrace)land.append('path').attr('class','manual-trace-coast').attr('d',imageCoastline.tracePaths.length?imageCoastline.tracePaths.join(' '):(imageCoastline.coastChunks||[]).map(c=>c.d).join(' ')).attr('vector-effect','non-scaling-stroke');document.documentElement.dataset.mapCoastSource=hasManualTrace?'manual-trace':'image'}else{const world=await d3.json('assets/land-10m.json'),land=topojson.feature(world,world.objects.land),projection=d3.geoMercator().scale(WORLD.w/(2*Math.PI)).translate([WORLD.w/2,WORLD.h/2]),path=d3.geoPath(projection);svg.append('path').datum(land).attr('class','map-land generated-map').attr('d',path).attr('vector-effect','non-scaling-stroke');svg.append('g').attr('class','generated-map charted-islands').selectAll('circle').data([...CHARTED_ISLANDS].map(id=>PORTS[id]).filter(Boolean)).enter().append('circle').attr('class','map-port-island').attr('cx',p=>p.rawX??p.x).attr('cy',p=>p.rawY??p.y).attr('r',2.4);document.documentElement.dataset.mapCoastSource='natural-earth'}svg.append('rect').attr('class','map-frame generated-map').attr('x',9).attr('y',9).attr('width',WORLD.w-18).attr('height',WORLD.h-18);NAV_RENDER.vectorReady=true;NAV_RENDER.world.classList.toggle('low-detail',state.zoom<=2.5)}
+async function buildNavMask(){if(EUROPE){const {meta,nav}=await EUROPE.load(setMapLoadProgress);Object.assign(COAST,{w:WORLD.w,h:WORLD.h,cellX:1,cellY:1,water:nav.packedView,rawWater:nav.packedView,ready:true});NAV.ready=true;ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET=EUROPE.isWorld?'Natural Earth world sailing':'GSHHG 2.3.7 Europe';snapAllPorts();await buildVectorMap();const response=await fetch('assets/europe/distances.json?v=2',{cache:'force-cache'});
+ if(!response.ok)throw Error('Regional trade distances: '+response.status);
+ const regionalDistances=await response.json();
+ installChartTradeDistances(regionalDistances);
+ setMapLoadProgress(100);return;}let vectorData=null;try{const nav=maskCandidate(NAV),coast=maskCandidate(COAST),loaded=await Promise.all([loadMaskAsset(nav,'assets/image-nav-mask.bin?v=61'),loadMaskAsset(coast,'assets/image-coast-mask.bin?v=62'),loadImageCoastlineAsset()]);commitMask(NAV,nav);commitMask(COAST,coast);vectorData=loaded[2];ACTIVE_IMAGE_COASTLINE=vectorData;ACTIVE_MAP_DATASET=vectorData.dataset}catch(imageErr){console.warn('[Rotta image-derived coast fallback]',imageErr);try{const nav=maskCandidate(NAV),coast=maskCandidate(COAST);await Promise.all([loadMaskAsset(nav,'assets/nav-mask.bin?v=38'),loadMaskAsset(coast,'assets/coast-mask.bin?v=38')]);commitMask(NAV,nav);commitMask(COAST,coast);ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='Natural Earth 1:10m'}catch(err){console.error(err);toast('저장된 항해 지도를 불러오지 못했습니다.');return}}setMapLoadProgress(96);const audit=snapAllPorts();$('#routeInfo').textContent=audit.ok?`${ACTIVE_MAP_DATASET} · ${PORT_COUNT}개 거점 전수 검증 완료 · 바다를 클릭해 이동`:`지도 판독 경고 · 미해결 거점 ${audit.unresolved.length}곳`;const schedule=window.requestIdleCallback||((fn)=>setTimeout(fn,16));schedule(()=>buildVectorMap(vectorData).catch(async err=>{console.error(err);if(vectorData){ACTIVE_IMAGE_COASTLINE=null;ACTIVE_MAP_DATASET='Natural Earth 1:10m';try{await buildVectorMap(null)}catch(fallbackErr){console.error(fallbackErr)}}}),{timeout:1200})}
+function installChartTradeDistances(regional){
+ const table=GLOBAL_TRADE_DISTANCES;if(!table)return;
+ const globalIndex=new Map(table.ids.map((id,i)=>[id,i])),regionalIndex=new Map((regional?.ids??[]).map((id,i)=>[id,i]));
+ const ids=table.ids.filter(id=>ALL_PORTS[id]);
+ window.ROTTA_SEA_DISTANCES={...table,ids,coordinateChart:EUROPE.mode,
+  docks:ids.map(id=>[ALL_PORTS[id].navX??ALL_PORTS[id].x,ALL_PORTS[id].navY??ALL_PORTS[id].y]),
+  rows:ids.map(a=>ids.map(b=>{
+   const i=regionalIndex.get(a),j=regionalIndex.get(b);
+   return i!==undefined&&j!==undefined?regional.rows[i][j]:table.rows[globalIndex.get(a)][globalIndex.get(b)];
+  }))};
+ DISTANCE_TRADE=null;
+}
 function maskGridAt(mask,wx,wy){return{x:Math.max(0,Math.min(mask.w-1,Math.floor(wx/mask.cellX))),y:Math.max(0,Math.min(mask.h-1,Math.floor(wy/mask.cellY)))}}
 function maskWorldAt(mask,gx,gy){return{x:(gx+.5)*mask.cellX,y:(gy+.5)*mask.cellY}}
 function gridAt(wx,wy){return maskGridAt(NAV,wx,wy)}
@@ -416,16 +501,16 @@ function mountChartAnnotations(){
  route.replaceChildren(path);
  overlay.append(route,$('#seaClickTarget'),$('#seaPorts'),NAV_RENDER.ship);
  NAV_RENDER.annotations=overlay;
- NAV_RENDER.scenery=window.ROTTA_LISBON_SCENERY?.mount(overlay,(x,y)=>projectChartPosition(x,y,true,true));
- NAV_RENDER.traffic=window.ROTTA_HARBOR_TRAFFIC?.mount(overlay,projectChartPosition,undefined,chartWorldPosition);
+ NAV_RENDER.scenery=EUROPE.isWorld?null:window.ROTTA_LISBON_SCENERY?.mount(overlay,(x,y)=>projectChartPosition(x,y,true,true));
+ NAV_RENDER.traffic=EUROPE.isWorld?null:window.ROTTA_HARBOR_TRAFFIC?.mount(overlay,projectChartPosition,undefined,chartWorldPosition);
 }
 function positionCoastalScenery(){
  NAV_RENDER.scenery?.update(state.shipX,state.shipY,state.zoom,NAV_RENDER.width,NAV_RENDER.height);
  NAV_RENDER.traffic?.update(state.zoom,NAV_RENDER.width,NAV_RENDER.height,NAV_RENDER.projection?.degrees||0,EUROPE.nav,PORTS,NAV_RENDER.lastCamera+':'+chartCurvatureActive());
 }
-function init(){NAV_RENDER.viewport=$('#seaViewport');NAV_RENDER.world=$('#oceanWorld');NAV_RENDER.ship=$('#ship');NAV_RENDER.ship.addEventListener('shiprendererchange',positionSailingShip);if(EUROPE){document.documentElement.classList.add('europe-chart');document.documentElement.style.setProperty('--chart-width',WORLD.w+'px');document.documentElement.style.setProperty('--chart-height',WORLD.h+'px');mountChartAnnotations();}document.querySelectorAll('[data-map-mode]').forEach(a=>{a.setAttribute('aria-current',a.dataset.mapMode===(EUROPE?'europe':'world')?'true':'false');});renderNations();window.ROTTA_PLAYER_MENU?.mount({ready:()=>!!state.nation&&STARTUP.ready,canOpen:playerMenuAvailable,items:warehouseItems,use:useSupply,ship:()=>window.ROTTA_SHIPYARD?.open()});window.ROTTA_SHIPYARD?.mount({state:()=>state,canOpen:playerMenuAvailable,beforeOpen:()=>{window.ROTTA_PLAYER_MENU?.close(false);MANUAL_SAIL.keys.clear()}});renderSeaPorts();loadStartupAssets();$('#closeFacility').onclick=closeFacility;$('#departBtn').onclick=openSailing;$('#setCourseBtn').onclick=startCourse;$('#returnPortBtn').onclick=enterPort;$('#eventClose').onclick=()=>$('#eventModal').classList.add('hidden');$('#tradeCancel').onclick=closeTradeDialog;$('#tradeConfirm').onclick=confirmTrade;$('#tradeQuantity').oninput=updateTradePreview;$$('[data-trade-quick]').forEach(b=>b.onclick=()=>setTradeQuick(b.dataset.tradeQuick));$('#zoomRange').oninput=e=>setZoom(Number(e.target.value));$('#resumeGameBtn').onclick=closeSystem;$('#waitDayBtn').onclick=waitOneDay;$('#closeSeaMarket').onclick=closeSeaMarket;$('#restartGameBtn').onclick=()=>location.reload();$('#systemModal').onclick=e=>{if(e.target.id==='systemModal')closeSystem()};document.addEventListener('keydown',handleGlobalKey);document.addEventListener('keyup',releaseManualKey);window.addEventListener('blur',clearManualKeys);const viewport=NAV_RENDER.viewport;viewport.onkeydown=panCamera;viewport.oncontextmenu=e=>{if(canTiltChart())e.preventDefault()};viewport.addEventListener('wheel',zoomWheel,{passive:false});viewport.addEventListener('pointerdown',startMapDrag);viewport.addEventListener('pointermove',dragMap);viewport.addEventListener('pointerup',stopMapDrag);viewport.addEventListener('pointercancel',stopMapDrag);viewport.addEventListener('lostpointercapture',stopMapDrag);window.onresize=()=>{syncViewportMetrics();updateCamera()};setZoom(state.zoom)}
+function init(){NAV_RENDER.viewport=$('#seaViewport');NAV_RENDER.world=$('#oceanWorld');NAV_RENDER.ship=$('#ship');NAV_RENDER.ship.addEventListener('shiprendererchange',positionSailingShip);if(EUROPE){document.documentElement.classList.add('europe-chart');document.documentElement.classList.toggle('world-chart',!!EUROPE.isWorld);if(EUROPE.isWorld){$('#zoomRange').min=.02;$('#zoomRange').step=.02;}document.documentElement.style.setProperty('--chart-width',WORLD.w+'px');document.documentElement.style.setProperty('--chart-height',WORLD.h+'px');mountChartAnnotations();}document.querySelectorAll('[data-map-mode]').forEach(a=>{a.setAttribute('aria-current',a.dataset.mapMode===(EUROPE?.mode??'world')?'true':'false');});renderNations();window.ROTTA_PLAYER_MENU?.mount({ready:()=>!!state.nation&&STARTUP.ready,canOpen:playerMenuAvailable,items:warehouseItems,use:useSupply,ship:()=>window.ROTTA_SHIPYARD?.open()});window.ROTTA_SHIPYARD?.mount({state:()=>state,canOpen:playerMenuAvailable,beforeOpen:()=>{window.ROTTA_PLAYER_MENU?.close(false);MANUAL_SAIL.keys.clear()}});renderSeaPorts();mountChartTransfer();loadStartupAssets();$('#closeFacility').onclick=closeFacility;$('#departBtn').onclick=openSailing;$('#setCourseBtn').onclick=startCourse;$('#returnPortBtn').onclick=enterPort;$('#eventClose').onclick=()=>$('#eventModal').classList.add('hidden');$('#tradeCancel').onclick=closeTradeDialog;$('#tradeConfirm').onclick=confirmTrade;$('#tradeQuantity').oninput=updateTradePreview;$$('[data-trade-quick]').forEach(b=>b.onclick=()=>setTradeQuick(b.dataset.tradeQuick));$('#zoomRange').oninput=e=>setZoom(Number(e.target.value));$('#resumeGameBtn').onclick=closeSystem;$('#waitDayBtn').onclick=waitOneDay;$('#closeSeaMarket').onclick=closeSeaMarket;$('#restartGameBtn').onclick=()=>location.reload();$('#systemModal').onclick=e=>{if(e.target.id==='systemModal')closeSystem()};document.addEventListener('keydown',handleGlobalKey);document.addEventListener('keyup',releaseManualKey);window.addEventListener('blur',clearManualKeys);const viewport=NAV_RENDER.viewport;viewport.onkeydown=panCamera;viewport.oncontextmenu=e=>{if(canTiltChart())e.preventDefault()};viewport.addEventListener('wheel',zoomWheel,{passive:false});viewport.addEventListener('pointerdown',startMapDrag);viewport.addEventListener('pointermove',dragMap);viewport.addEventListener('pointerup',stopMapDrag);viewport.addEventListener('pointercancel',stopMapDrag);viewport.addEventListener('lostpointercapture',stopMapDrag);window.onresize=()=>{syncViewportMetrics();updateCamera()};setZoom(state.zoom)}
 function renderNations(){$('#nationGrid').innerHTML=Object.entries(NATIONS).map(([id,n])=>`<button class="nation-card" data-nation="${id}"><span class="emblem">${n.flag}</span><h3>${n.name}</h3><ul>${n.bonuses.map(x=>`<li>${x}</li>`).join('')}</ul></button>`).join('');$$('[data-nation]').forEach(b=>b.onclick=()=>startGame(b.dataset.nation))}
-function startGame(id){if(!STARTUP.ready)return;const n=NATIONS[id],p=PORTS[n.port];state.nation=id;initMarketSystem();state.gold=n.gold;state.bargain=n.bargain;state.current=n.port;window.ROTTA_FLEET?.discover(state,n.port,{starting:true});if(CHART_DISCOVERY){CHART_DISCOVERY.mark(state,n.port);renderSeaPorts();}syncShipStats();state.shipX=p.navX??p.x;state.shipY=p.navY??p.y;prefetchMapTileAt(state.shipX,state.shipY);$('#nationModal').classList.add('hidden');toast(`${n.name}의 특허장을 받았습니다.`);renderPort();updateStats();if(id==='france')window.ROTTA_FRANCE_STORY?.start()}
+function startGame(id){if(!STARTUP.ready)return;const n=NATIONS[id],p=PORTS[n.port];state.nation=id;initMarketSystem();state.gold=n.gold;state.bargain=n.bargain;state.current=n.port;window.ROTTA_FLEET?.discover(state,n.port,{starting:true});if(CHART_DISCOVERY){CHART_DISCOVERY.mark(state,n.port);renderSeaPorts();}syncShipStats();state.shipX=p.navX??p.x;state.shipY=p.navY??p.y;prefetchMapTileAt(state.shipX,state.shipY);$('#nationModal').classList.add('hidden');toast(`${n.name}의 특허장을 받았습니다.`);renderPort();updateStats();window.ROTTA_CHART_TRANSFER?.refresh();if(id==='france')window.ROTTA_FRANCE_STORY?.start()}
 function renderPort(){const p=PORTS[state.current],home=NATIONS[state.nation].port===state.current,southClass=(state.current==='bahia'||p.region==='브라질'||p.region==='남미 동해안')?'south-atlantic':p.region==='남미 서해안/태평양'?'south-pacific':'';switchView('port');$('#portScene').className=`port-scene ${home?state.nation:'other'} ${southClass}`;window.ROTTA_HARBORS?.show($('#portScene'),state.current);$('#portName').textContent=p.name;$('#portRegion').textContent=`${p.region} · ${p.climate}`;$('#portFlavor').textContent=p.flavor;$('#placeType').textContent='';$('#placeName').textContent=p.name;window.ROTTA_MANSION_TRANSITION?.cancel();closeFacilityNow();const ids=['trade','shop','shipyard'];if(p.bank)ids.push('bank');if(p.mansion)ids.push('mansion');if(p.royal)ids.push('royal');$('#facilityLayer').innerHTML=`<div class="facility-ledger-head" aria-hidden="true"></div>`+ids.map(id=>{const f=FACILITIES[id];return `<button class="facility material-${FACILITY_MATERIAL[id]}" data-facility="${id}" aria-label="${f.name}" aria-pressed="false">${facilitySymbolMarkup(id)}<span class="facility-copy"><b>${f.name}</b></span><em>›</em></button>`}).join('');$$('[data-facility]').forEach(b=>b.onclick=()=>toggleFacility(b))}
 function closeFacility(){
  return leaveMansion(closeFacilityNow);
@@ -789,7 +874,8 @@ function stopDepartureZoom(normalize=true){
  if(DEPARTURE_ZOOM.frame)cancelAnimationFrame(DEPARTURE_ZOOM.frame);
  DEPARTURE_ZOOM.frame=0;clearDepartureEffects();
  if(wasActive)document.documentElement.dataset.departureZoom='cancelled';
- if(normalize&&state.zoom<1)setZoom(1,null,true);
+ const minimum=EUROPE?.isWorld ? .02 : 1;
+ if(normalize&&state.zoom<minimum)setZoom(minimum,null,true);
 }
 function startDepartureZoom(){
  stopDepartureZoom(false);
@@ -928,11 +1014,12 @@ function positionSailingShip(){
  const transform=`translate3d(${x}px,${y}px,0) translate(-50%,-50%) scale(var(--ship-scale,1)) rotate(${heading.toFixed(2)}deg)`;
  if(transform!==NAV_RENDER.lastShip){ship.style.transform=transform;NAV_RENDER.lastShip=transform}
 }
-function updateShip(forceNearby=false){updatePortDiscoveries();if(COAST.ready&&$('#sailingView').classList.contains('active'))updateDockingState(forceNearby);positionSailingShip();const moving=state.traveling||MANUAL_SAIL.velocity>.001;if(moving!==NAV_RENDER.moving){document.body.classList.toggle('sailing-moving',moving);NAV_RENDER.moving=moving}if(forceNearby||performance.now()-NAV_RENDER.uiAt>=120){NAV_RENDER.uiAt=performance.now();document.documentElement.dataset.shipHeading=MANUAL_SAIL.heading.toFixed(1);document.documentElement.dataset.shipVelocity=(state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity).toFixed(3)}const now=performance.now();if(forceNearby||now-NAV_RENDER.nearAt>250){for(const {el,p} of NAV_RENDER.portNodes){const dx=(p.navX??p.x)-state.shipX,dy=(p.navY??p.y)-state.shipY;const near=dx*dx+dy*dy<(EUROPE?625:6724);if(el.classList.contains('near')!==near)el.classList.toggle('near',near)}NAV_RENDER.nearAt=now}const region=state.atPort?`${PORTS[state.current].name} 근해`:'대양 항해 중';if(region!==NAV_RENDER.lastRegion){$('#seaRegion').textContent=region;NAV_RENDER.lastRegion=region}}
+function updateShip(forceNearby=false){window.ROTTA_CHART_TRANSFER?.refresh();updatePortDiscoveries();if(COAST.ready&&$('#sailingView').classList.contains('active'))updateDockingState(forceNearby);positionSailingShip();const moving=state.traveling||MANUAL_SAIL.velocity>.001;if(moving!==NAV_RENDER.moving){document.body.classList.toggle('sailing-moving',moving);NAV_RENDER.moving=moving}if(forceNearby||performance.now()-NAV_RENDER.uiAt>=120){NAV_RENDER.uiAt=performance.now();document.documentElement.dataset.shipHeading=MANUAL_SAIL.heading.toFixed(1);document.documentElement.dataset.shipVelocity=(state.traveling?AUTO_SAIL.velocity:MANUAL_SAIL.velocity).toFixed(3)}const now=performance.now();if(forceNearby||now-NAV_RENDER.nearAt>250){for(const {el,p} of NAV_RENDER.portNodes){const dx=(p.navX??p.x)-state.shipX,dy=(p.navY??p.y)-state.shipY;const near=dx*dx+dy*dy<(EUROPE?625:6724);if(el.classList.contains('near')!==near)el.classList.toggle('near',near)}NAV_RENDER.nearAt=now}const region=state.atPort?`${PORTS[state.current].name} 근해`:'대양 항해 중';if(region!==NAV_RENDER.lastRegion){$('#seaRegion').textContent=region;NAV_RENDER.lastRegion=region}}
 function setZoom(value,anchor=null,departureFrame=false){
  if(!departureFrame)stopDepartureZoom(false);
  if(CAMERA_VIEW.autoFollow||CAMERA_VIEW.recenterFrame)stopAutoCamera();
- const next=Math.max(departureFrame?.5:1,Math.min(10,Number(value)||6.5));
+ const minimum=EUROPE?.isWorld ? .02 : departureFrame ? .5 : 1;
+ const next=Math.max(minimum,Math.min(10,Number(value)||6.5));
  const {width:w,height:h,projection,lastTx,lastTy}=NAV_RENDER,old=state.zoom;
  const active=$('#sailingView').classList.contains('active');
  let worldX=state.shipX,worldY=state.shipY,ax=w/2,ay=h/2;
@@ -951,10 +1038,10 @@ function setZoom(value,anchor=null,departureFrame=false){
  }
  state.zoom=next;window.ROTTA_CLOUDS?.sync(NAV_RENDER.viewport,state.zoom);
  if(active&&w){state.camX=ax-w/2-(worldX-state.shipX)*next;state.camY=ay-h/2-(worldY-state.shipY)*next}
- $('#zoomRange').value=Math.max(1,state.zoom);$('#zoomText').textContent=`${state.zoom.toFixed(1)}×`;const world=NAV_RENDER.world,zoomProgress=Math.max(0,(state.zoom-1)/9),worldOverview=state.zoom<=1.05,portLogoScale=.4+zoomProgress*.44,shipScreenScale=window.ROTTA_SHIP_3D?.screenScaleAt?.(state.zoom)??(.62+zoomProgress*.73),lowDetail=!EUROPE&&(state.zoom<=2.5||!NAV_RENDER.vectorReady),wasLow=world.classList.contains('low-detail');world.style.setProperty('--inverse-zoom',1/state.zoom);world.style.setProperty('--ship-scale',shipScreenScale/state.zoom);world.style.setProperty('--port-logo-scale',portLogoScale);world.style.setProperty('--land-edge-width',`${Math.max(.42,1.35/state.zoom).toFixed(2)}px`);world.style.setProperty('--route-width',`${Math.max(.4,1.9/state.zoom).toFixed(2)}px`);document.documentElement.dataset.shipScreenScale=shipScreenScale.toFixed(3);world.classList.toggle('low-detail',lowDetail);world.classList.toggle('world-overview',worldOverview);if(NAV_RENDER.annotations){const overlay=NAV_RENDER.annotations;overlay.style.setProperty('--ship-scale',shipScreenScale);overlay.style.setProperty('--port-logo-scale',portLogoScale);overlay.classList.toggle('world-overview',worldOverview);}if(wasLow&&!lowDetail){world.classList.add('vector-refresh');requestAnimationFrame(()=>requestAnimationFrame(()=>world.classList.remove('vector-refresh')))}updateCamera()}
+ $('#zoomRange').value=Math.max(EUROPE?.isWorld ? .02 : 1,state.zoom);$('#zoomText').textContent=`${state.zoom.toFixed(state.zoom<.1?2:1)}×`;const world=NAV_RENDER.world,zoomProgress=Math.max(0,(state.zoom-1)/9),worldOverview=state.zoom<=1.05,portLogoScale=.4+zoomProgress*.44,shipScreenScale=window.ROTTA_SHIP_3D?.screenScaleAt?.(state.zoom)??(.62+zoomProgress*.73),lowDetail=!EUROPE&&(state.zoom<=2.5||!NAV_RENDER.vectorReady),wasLow=world.classList.contains('low-detail');world.style.setProperty('--inverse-zoom',1/state.zoom);world.style.setProperty('--ship-scale',shipScreenScale/state.zoom);world.style.setProperty('--port-logo-scale',portLogoScale);world.style.setProperty('--land-edge-width',`${Math.max(.42,1.35/state.zoom).toFixed(2)}px`);world.style.setProperty('--route-width',`${Math.max(.4,1.9/state.zoom).toFixed(2)}px`);document.documentElement.dataset.shipScreenScale=shipScreenScale.toFixed(3);world.classList.toggle('low-detail',lowDetail);world.classList.toggle('world-overview',worldOverview);if(NAV_RENDER.annotations){const overlay=NAV_RENDER.annotations;overlay.style.setProperty('--ship-scale',shipScreenScale);overlay.style.setProperty('--port-logo-scale',portLogoScale);overlay.classList.toggle('world-overview',worldOverview);overlay.classList.toggle('chart-global-overview',!!EUROPE?.isWorld&&state.zoom<.5);}if(wasLow&&!lowDetail){world.classList.add('vector-refresh');requestAnimationFrame(()=>requestAnimationFrame(()=>world.classList.remove('vector-refresh')))}updateCamera()}
 function zoomWheel(e){if(!$('#sailingView').classList.contains('active'))return;e.preventDefault();const rect=NAV_RENDER.viewport.getBoundingClientRect();setZoom(state.zoom+(e.deltaY<0?.5:-.5),{x:e.clientX-rect.left,y:e.clientY-rect.top})}
 function syncViewportMetrics(){NAV_RENDER.width=NAV_RENDER.viewport.clientWidth;NAV_RENDER.height=NAV_RENDER.viewport.clientHeight}
-function clampCamera(){const w=NAV_RENDER.width,h=NAV_RENDER.height;if(!w||DEPARTURE_ZOOM.active)return;const minX=w/2+(state.shipX-WORLD.w)*state.zoom,maxX=state.shipX*state.zoom-w/2,minY=h/2+(state.shipY-WORLD.h)*state.zoom,maxY=state.shipY*state.zoom-h/2;state.camX=Math.max(minX,Math.min(maxX,state.camX));state.camY=Math.max(minY,Math.min(maxY,state.camY))}
+function clampCamera(){const w=NAV_RENDER.width,h=NAV_RENDER.height;if(!w||DEPARTURE_ZOOM.active)return;const minX=w/2+(state.shipX-WORLD.w)*state.zoom,maxX=state.shipX*state.zoom-w/2,minY=h/2+(state.shipY-WORLD.h)*state.zoom,maxY=state.shipY*state.zoom-h/2;if(!EUROPE?.isWorld)state.camX=Math.max(minX,Math.min(maxX,state.camX));state.camY=EUROPE?.isWorld&&WORLD.h*state.zoom<h?(state.shipY-WORLD.h/2)*state.zoom:Math.max(minY,Math.min(maxY,state.camY))}
 function canTiltChart(){
  return Boolean(EUROPE&&window.ROTTA_EUROPE_PITCH&&!DEPARTURE_ZOOM.active);
 }
@@ -969,6 +1056,10 @@ function chartWorldPosition(x,y){
  return {x:(flat.x-NAV_RENDER.lastTx)/state.zoom,y:(flat.y-NAV_RENDER.lastTy)/state.zoom};
 }
 function projectChartPosition(worldX,worldY,onLand=false,withDepth=false){
+ if(EUROPE?.isWorld){
+  const centerX=(NAV_RENDER.width/2-NAV_RENDER.lastTx)/state.zoom;
+  worldX=centerX+(((worldX-centerX+WORLD.w/2)%WORLD.w+WORLD.w)%WORLD.w)-WORLD.w/2;
+ }
  const x=NAV_RENDER.lastTx+worldX*state.zoom,y=NAV_RENDER.lastTy+worldY*state.zoom;
  const projection=NAV_RENDER.projection;
  if(!projection)return withDepth?{x,y,depth:worldY}:{x,y};
@@ -1351,11 +1442,12 @@ function moveManualShip(dx,dy){
 }
 const DOCKING_RADIUS=20;
 const DOCK_SELECTION={portId:null};
-function canDockAt(id){const p=PORTS[id];if(!p)return false;const ship={x:state.shipX,y:state.shipY},dock={x:p.navX??p.x,y:p.navY??p.y};return (dock.x-ship.x)**2+(dock.y-ship.y)**2<DOCKING_RADIUS**2&&waterLineClear(ship,dock);}
+function nearestChartX(x){return EUROPE?.isWorld?state.shipX+(((x-state.shipX+WORLD.w/2)%WORLD.w+WORLD.w)%WORLD.w)-WORLD.w/2:x}
+function canDockAt(id){const p=PORTS[id];if(!p)return false;const ship={x:state.shipX,y:state.shipY},dock={x:nearestChartX(p.navX??p.x),y:p.navY??p.y};return (dock.x-ship.x)**2+(dock.y-ship.y)**2<DOCKING_RADIUS**2&&waterLineClear(ship,dock);}
 function nearestDockId(){
  if(DOCK_SELECTION.portId){if(canDockAt(DOCK_SELECTION.portId))return DOCK_SELECTION.portId;DOCK_SELECTION.portId=null;}
  let nearest=null,best=DOCKING_RADIUS**2;const ship={x:state.shipX,y:state.shipY};
- for(const [id,p] of Object.entries(PORTS)){const dock={x:p.navX??p.x,y:p.navY??p.y},d=(dock.x-ship.x)**2+(dock.y-ship.y)**2;if(d<best&&waterLineClear(ship,dock)){best=d;nearest=id;}}
+ for(const [id,p] of Object.entries(PORTS)){const dock={x:nearestChartX(p.navX??p.x),y:p.navY??p.y},d=(dock.x-ship.x)**2+(dock.y-ship.y)**2;if(d<best&&waterLineClear(ship,dock)){best=d;nearest=id;}}
  return nearest;
 }
 function selectSeaPort(id,{confirmArrival=false}={}){
@@ -1478,10 +1570,11 @@ function seaClick(e){
  if(e.clientX<rect.left||e.clientY<rect.top||e.clientX>=rect.right||e.clientY>=rect.bottom||!COAST.ready)return;
  const flat=flatChartPosition(e.clientX-rect.left,e.clientY-rect.top);
  const wx=(flat.x-NAV_RENDER.lastTx)/state.zoom,wy=(flat.y-NAV_RENDER.lastTy)/state.zoom;
- if(wx<0||wy<0||wx>WORLD.w||wy>WORLD.h)return;
- const clickedWater=preciseWaterAt(wx,wy,false),safe=nearestPreciseWater(wx,wy);
+ if((!EUROPE?.isWorld&&(wx<0||wx>WORLD.w))||wy<0||wy>WORLD.h)return;
+ const searchX=EUROPE?.isWorld?((wx%WORLD.w)+WORLD.w)%WORLD.w:wx;
+ const clickedWater=preciseWaterAt(wx,wy,false),safe=nearestPreciseWater(searchX,wy);
  if(!safe)return toast('이 지점에서 닿을 수 있는 안전 수역을 찾지 못했습니다.');
- const target=maskWorldAt(COAST,safe.x,safe.y);
+ const target=maskWorldAt(COAST,safe.x,safe.y);target.x=nearestChartX(target.x);
  $('#destinationSelect').value='';
  if(!clickedWater)$('#routeInfo').textContent='선택한 육지에서 가장 가까운 해안 수역으로 항로를 보정했습니다.';
  plotCourse(null,target);
@@ -1569,8 +1662,8 @@ function positionSailingRoute(){
  }
 }
 function openingEventsProtected(){return MARKET_SIM?.openingProtected?.()??(state.elapsedDays||0)<(window.ROTTA_MARKET_EVENTS?.OPENING_GRACE_DAYS??30)}
-function finishCourse(id,days){const arrivalId=ARRIVAL_UI.routePortId;ARRIVAL_UI.routePortId=null;if(id&&canDockAt(id))DOCK_SELECTION.portId=id;id=id||nearestDockId();state.traveling=false;AUTO_SAIL.velocity=0;state.atPort=!!id;if(id)state.current=id;$('#speedText').textContent='0.0 kn';$('#routeTitle').textContent=id?`${PORTS[id].name} 도착`:'지정 해역 도착';$('#routeInfo').textContent=id?`${days}일의 항해를 마쳤습니다. 입항하여 항구 시설을 이용하십시오.`:'바다를 다시 클릭하거나 목적항을 선택해 계속 항해하십시오.';$('#returnPortBtn').disabled=!id;$('#destinationSelect').disabled=false;$('#setCourseBtn').disabled=false;drawRoute([]);setSeaClickTarget(null);updateShip(true);updateStats();const prompted=arrivalId===id?(ARRIVAL_UI.portId===id||(!ARRIVAL_APPROACH.handled.has(id)&&showArrivalPrompt(id))):!!ARRIVAL_UI.portId;if(!prompted&&days>0&&!openingEventsProtected()&&Math.random()<.55){const run=SEA_ROUTE_RUN;setTimeout(()=>{if(run===SEA_ROUTE_RUN&&!state.traveling&&!ARRIVAL_UI.portId&&$('#sailingView').classList.contains('active'))showEvent(EVENTS[Math.floor(Math.random()*EVENTS.length)])},300)}}
-function enterPort(){EUROPE_ROUTE_REQUEST++;if(window.ROTTA_PORT_TRANSITIONS?.active)return;dismissArrivalPrompt();closeSeaPortUI();stopAutoCamera();const id=nearestDockId();if(!id){updateDockingState(true);return;}if(state.traveling)cancelAutoSail();clearManualKeys();dismissArrivalPrompt();return playPortTransition('arrive',()=>{state.current=id;state.atPort=true;reportFleetAward(window.ROTTA_FLEET?.discover(state,id));const p=PORTS[id];setSailingPosition(p.navX??p.x,p.navY??p.y);$('#destinationSelect').disabled=false;renderPort();updateStats()})}
+function finishCourse(id,days){const arrivalId=ARRIVAL_UI.routePortId;ARRIVAL_UI.routePortId=null;if(id&&canDockAt(id))DOCK_SELECTION.portId=id;id=id||nearestDockId();state.traveling=false;AUTO_SAIL.velocity=0;state.atPort=!!id;if(id){state.current=id;state.campaignPort=id;}$('#speedText').textContent='0.0 kn';$('#routeTitle').textContent=id?`${PORTS[id].name} 도착`:'지정 해역 도착';$('#routeInfo').textContent=id?`${days}일의 항해를 마쳤습니다. 입항하여 항구 시설을 이용하십시오.`:'바다를 다시 클릭하거나 목적항을 선택해 계속 항해하십시오.';$('#returnPortBtn').disabled=!id;$('#destinationSelect').disabled=false;$('#setCourseBtn').disabled=false;drawRoute([]);setSeaClickTarget(null);updateShip(true);updateStats();const prompted=arrivalId===id?(ARRIVAL_UI.portId===id||(!ARRIVAL_APPROACH.handled.has(id)&&showArrivalPrompt(id))):!!ARRIVAL_UI.portId;if(!prompted&&days>0&&!openingEventsProtected()&&Math.random()<.55){const run=SEA_ROUTE_RUN;setTimeout(()=>{if(run===SEA_ROUTE_RUN&&!state.traveling&&!ARRIVAL_UI.portId&&$('#sailingView').classList.contains('active'))showEvent(EVENTS[Math.floor(Math.random()*EVENTS.length)])},300)}}
+function enterPort(){EUROPE_ROUTE_REQUEST++;if(window.ROTTA_PORT_TRANSITIONS?.active)return;dismissArrivalPrompt();closeSeaPortUI();stopAutoCamera();const id=nearestDockId();if(!id){updateDockingState(true);return;}if(state.traveling)cancelAutoSail();clearManualKeys();dismissArrivalPrompt();return playPortTransition('arrive',()=>{state.current=id;state.campaignPort=id;state.atPort=true;reportFleetAward(window.ROTTA_FLEET?.discover(state,id));const p=PORTS[id];setSailingPosition(p.navX??p.x,p.navY??p.y);$('#destinationSelect').disabled=false;renderPort();updateStats()})}
 function advance(days){
  const count=Math.max(0,Math.floor(Number(days)||0));if(!Number.isFinite(count)||!count)return;
  let latest=null,provisions=0;

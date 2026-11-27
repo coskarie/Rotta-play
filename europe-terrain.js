@@ -1,5 +1,6 @@
 (() => {
-  const path = 'assets/europe/terrain/';
+  const wrapWorld=!!window.ROTTA_EUROPE?.isWorld;
+  const path = (window.ROTTA_EUROPE?.assetPath??'assets/europe/')+'terrain/';
   const version = '?v=3';
   const maxDownloads = 4;
   const maxDecodedBytes = 48 * 1024 * 1024;
@@ -69,9 +70,10 @@
     let paintCount = 0;
 
     function visibleTiles({tx, ty, zoom, w, h, ratio}) {
-      const left = Math.max(0, -tx / zoom);
+      const repeat=wrapWorld&&width*zoom>=view.w;
+      const left = repeat?-tx/zoom:Math.max(0,-tx/zoom);
       const top = Math.max(0, -ty / zoom);
-      const right = Math.min(width, (w - tx) / zoom);
+      const right = repeat?(w-tx)/zoom:Math.min(width,(w-tx)/zoom);
       const bottom = Math.min(height, (h - ty) / zoom);
       const centerX = (left + right) / 2;
       const centerY = (top + bottom) / 2;
@@ -83,7 +85,8 @@
         const levelTiles = [];
         for (let row = Math.floor(top / span); row < Math.ceil(bottom / span); row++) {
           for (let col = Math.floor(left / span); col < Math.ceil(right / span); col++) {
-            const id = col + '-' + row;
+            const wrappedCol=wrapWorld?((col%Math.ceil(width/span))+Math.ceil(width/span))%Math.ceil(width/span):col;
+            const id = wrappedCol + '-' + row;
             if (tiles && !tiles.has(id)) continue;
             const x = col * span;
             const y = row * span;
@@ -125,8 +128,9 @@
       paintCount++;
       const originX = xAt(0), originY = yAt(0);
       const endX = xAt(width), endY = yAt(height);
-      const leftEdge = Math.max(0, originX), topEdge = Math.max(0, originY);
-      const viewWidth = Math.min(deviceWidth, endX) - leftEdge;
+      const repeat=wrapWorld&&width*zoom>=view.w;
+      const leftEdge = repeat?0:Math.max(0,originX), topEdge = Math.max(0, originY);
+      const viewWidth = repeat?deviceWidth:Math.min(deviceWidth,endX)-leftEdge;
       const viewHeight = Math.min(deviceHeight, endY) - topEdge;
       if (viewWidth <= 0 || viewHeight <= 0) {
         present();
@@ -143,10 +147,14 @@
         if (cache.has(tile.key)) cachedCoarseCount++;
       }
       if (cachedCoarseCount < visibleCoarseCount) {
-        const scaleX = overview.width / (endX - originX);
-        const scaleY = overview.height / (endY - originY);
-        context.drawImage(overview, (leftEdge - originX) * scaleX, (topEdge - originY) * scaleY,
-          viewWidth * scaleX, viewHeight * scaleY, leftEdge, topEdge, viewWidth, viewHeight);
+        if(repeat){
+          const cycleWidth=endX-originX;
+          const first=Math.floor((leftEdge-originX)/cycleWidth),last=Math.ceil((leftEdge+viewWidth-originX)/cycleWidth);
+          for(let cycle=first;cycle<last;cycle++)context.drawImage(overview,originX+cycle*cycleWidth,originY,cycleWidth,endY-originY);
+        }else{
+          const scaleX=overview.width/(endX-originX),scaleY=overview.height/(endY-originY);
+          context.drawImage(overview,(leftEdge-originX)*scaleX,(topEdge-originY)*scaleY,viewWidth*scaleX,viewHeight*scaleY,leftEdge,topEdge,viewWidth,viewHeight);
+        }
       }
       for (const tile of wanted.values()) {
         const entry = cache.get(tile.key);
@@ -157,7 +165,7 @@
           left, top, xAt(x + worldSize) - left, yAt(y + worldSize) - top);
       }
       // The non-WebGL fallback uses the same map-anchored smooth fade.
-      if (!relief || !view.showColors) {
+      if ((!relief || !view.showColors)&&!wrapWorld) {
         const band = 384 * zoom * ratio;
         for (const [x0, y0, x1, y1, x, y, w, h] of [
           [originX, 0, originX + band, 0, originX, originY, band, endY - originY],

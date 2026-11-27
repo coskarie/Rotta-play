@@ -21,7 +21,8 @@
     const ship={x:state.shipX,y:state.shipY},found=[];
     for(const [id,port] of Object.entries(ports)){
      if(known(state,id))continue;
-     const dock={x:port.navX??port.x,y:port.navY??port.y},range=radius(port,world);
+     const rawX=port.navX??port.x;
+     const dock={x:world.isWorld?state.shipX+(((rawX-state.shipX+world.width/2)%world.width+world.width)%world.width)-world.width/2:rawX,y:port.navY??port.y},range=radius(port,world);
      if((dock.x-ship.x)**2+(dock.y-ship.y)**2>range*range||!lineClear(ship,dock))continue;
      if(mark(state,id))found.push(id);
     }

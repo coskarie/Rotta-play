@@ -338,3 +338,11 @@
 }
 .map-frame{display:none}
 .europe-chart .ocean-world:before{display:none}
+
+/* A fixed-size locator keeps the player readable on the full-world overview. */
+.chart-global-overview .ship::after{
+ content:"";position:absolute;left:50%;top:50%;
+ width:calc(8px / var(--ship-scale));height:calc(8px / var(--ship-scale));
+ transform:translate(-50%,-50%);border-radius:50%;
+ background:#edd794;box-shadow:0 0 0 calc(2px / var(--ship-scale)) #2b251cc9;
+}
