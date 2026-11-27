@@ -3,7 +3,7 @@
  const STORAGE_KEY='rotta-chart-transfer-v1';
  const EUROPE_BOUNDS={west:-32,east:44,south:25,north:72};
  const MODES=['world','europe'];
- let options,group,overviewButton,buttons=[];
+ let options,group,buttons=[];
  const finite=value=>typeof value==='number'&&Number.isFinite(value);
  const mode=()=>root.ROTTA_EUROPE?.mode||(root.ROTTA_EUROPE?.isWorld?'world':'europe');
  const geographic=point=>point&&finite(point.lat)&&finite(point.lon)&&point.lat>=-90&&point.lat<=90&&point.lon>=-180&&point.lon<=180;
@@ -86,11 +86,6 @@
    const title=europe&&overseas?'유럽 밖 목적지로 항해 중입니다. 항해를 마치거나 취소한 뒤 전환하세요.':unavailable?'유럽 해역에 진입하면 상세 항해 지도로 전환할 수 있습니다.':selected?'현재 항해 지도':'선박과 항해 상태를 이어서 지도 전환';
    if(button.title!==title)button.title=title;
   }
-  if(overviewButton){
-   const hidden=!root.ROTTA_EUROPE?.isWorld;
-   if(overviewButton.hidden!==hidden)overviewButton.hidden=hidden;
-   overviewButton.disabled=blocked||typeof options.overview!=='function';
-  }
  }
  function mount(configuration){
   options=configuration;
@@ -102,10 +97,7 @@
     button.textContent=chartMode==='world'?'세계 항해':'유럽 항해';button.setAttribute('aria-pressed','false');button.onclick=()=>transfer(chartMode);
     group.appendChild(button);buttons.push(button);
    }
-   overviewButton=root.document.createElement('button');overviewButton.type='button';overviewButton.className='chart-overview';
-   overviewButton.textContent='세계 전도';overviewButton.title='전체 세계지도를 한눈에 봅니다.';
-   overviewButton.onclick=()=>{if(!overviewButton.disabled)options.overview?.();};
-   group.appendChild(overviewButton);container.prepend(group);
+   container.prepend(group);
   }
   refresh();
  }
