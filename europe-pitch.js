@@ -356,6 +356,12 @@
       }
       vec4 terrain = texture2D(u_color, v_uv);
       float seaCoverage=smoothstep(0.008,0.085,min(terrain.g,terrain.b)-terrain.r);
+      ${worldChart ? `
+      // Natural Earth II already includes regional vegetation, rock and snow.
+      vec3 painted = terrain.rgb;
+      if(u_waterReady && seaCoverage>0.0)
+        painted += (texture2D(u_waterEffect,v_uv).rgb-128.0/255.0)*seaCoverage;
+      gl_FragColor = vec4(painted * mapVisibility, terrain.a);` : `
       if(u_waterReady&&seaCoverage>=0.9999){
         // Open-water fragments need neither elevation lookups nor vegetation/rock shading.
         gl_FragColor=vec4((terrain.rgb+texture2D(u_waterEffect,v_uv).rgb-128.0/255.0)*mapVisibility,terrain.a);
@@ -382,7 +388,8 @@
         // Clip the upsampled effect with the original full-resolution coastline.
         painted+=(texture2D(u_waterEffect,v_uv).rgb-128.0/255.0)*seaCoverage;
       }
-      gl_FragColor = vec4(painted * mapVisibility, terrain.a);
+      gl_FragColor = vec4(painted * mapVisibility, terrain.a);`}
+
     }`;
 
   const waterVertexSource = precision => `
